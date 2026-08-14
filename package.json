@@ -1,12 +1,13 @@
 {
-    "name": "game-blocks-api",
-    "version": "1.0.0",
-    "description": "Game Blocks API",
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js"
-    },
-    "dependencies": {
-        "express": "^4.21.2"
-    }
+  "name": "game-blocks-api",
+  "version": "1.0.0",
+  "description": "Game Blocks accounts API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
 }
