@@ -20,7 +20,36 @@ app.use(cors({
 }));
 
 app.use(express.json());
+// ============================================================
+// ADMIN / OWNER
+// ============================================================
 
+const OWNER_NAMES = [
+    "game_blocks_oficial",
+    "game blocks oficial"
+];
+
+function normalizeUsername(username) {
+    return String(username || "")
+        .toLowerCase()
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function isOwner(user) {
+    if (!user) return false;
+
+    return OWNER_NAMES.some(
+        name =>
+            normalizeUsername(name) ===
+            normalizeUsername(user.username)
+    );
+}
+
+function isAdmin(user) {
+    return isOwner(user) || user.admin === true;
+}
 
 // ============================================================
 // INSIGNIAS DISPONIBLES
