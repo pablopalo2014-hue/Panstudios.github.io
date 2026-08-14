@@ -1035,7 +1035,65 @@ app.post(
         });
     }
 );
+// ============================================================
+// COMPROBAR CUENTA DESDE GODOT
+// ============================================================
 
+app.get("/api/game/account", (req, res) => {
+
+    const token = String(req.query.token || "");
+
+    // No se ha enviado token
+    if (!token) {
+
+        return res.json({
+            logged: false
+        });
+
+    }
+
+    const database = loadDatabase();
+
+    // Buscar la sesión
+    const session =
+        database.sessions.find(
+            session => session.token === token
+        );
+
+    // No existe la sesión
+    if (!session) {
+
+        return res.json({
+            logged: false
+        });
+
+    }
+
+    // Buscar el usuario de esa sesión
+    const user =
+        database.users.find(
+            user => user.id === session.userId
+        );
+
+    // El usuario ya no existe
+    if (!user) {
+
+        return res.json({
+            logged: false
+        });
+
+    }
+
+    // Cuenta válida
+    res.json({
+
+        logged: true,
+
+        username: user.username
+
+    });
+
+});
 
 // ============================================================
 // ERRORES
