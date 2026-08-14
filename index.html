@@ -216,11 +216,23 @@
         }
 
 
+        .download-button:hover {
+
+            background: #ddd;
+        }
+
+
         .discord-button {
 
             background: #5865F2;
 
             color: #fff;
+        }
+
+
+        .discord-button:hover {
+
+            background: #4752c4;
         }
 
 
@@ -231,6 +243,12 @@
             color: #fff;
 
             border: 1px solid #444;
+        }
+
+
+        .avatar-button:hover {
+
+            background: #222;
         }
 
 
@@ -358,6 +376,12 @@
         }
 
 
+        .form-button:hover {
+
+            background: #ddd;
+        }
+
+
         .secondary-button {
 
             width: 100%;
@@ -375,6 +399,12 @@
             border-radius: 5px;
 
             cursor: pointer;
+        }
+
+
+        .secondary-button:hover {
+
+            background: #222;
         }
 
 
@@ -407,6 +437,12 @@
             border-radius: 5px;
 
             cursor: pointer;
+        }
+
+
+        .friend-button:hover {
+
+            background: #333;
         }
 
 
@@ -455,6 +491,50 @@
             display: none;
         }
 
+
+        /* =========================
+           CONEXIÓN CON GODOT
+        ========================= */
+
+        .game-connect {
+
+            margin-top: 25px;
+
+            padding: 15px;
+
+            background: #080808;
+
+            border: 1px solid #333;
+
+            border-radius: 7px;
+
+            text-align: center;
+        }
+
+
+        .game-code {
+
+            font-size: 32px;
+
+            font-weight: bold;
+
+            letter-spacing: 8px;
+
+            margin: 15px 0;
+
+            color: white;
+        }
+
+
+        .code-info {
+
+            color: #888;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
     </style>
 
 </head>
@@ -463,7 +543,9 @@
 <body>
 
 
-    <!-- TOPBAR -->
+    <!-- =========================
+         TOPBAR
+    ========================= -->
 
     <div class="topbar">
 
@@ -494,7 +576,9 @@
     </div>
 
 
-    <!-- HERO -->
+    <!-- =========================
+         HERO
+    ========================= -->
 
     <section class="hero">
 
@@ -512,7 +596,9 @@
     </section>
 
 
-    <!-- FEATURES -->
+    <!-- =========================
+         FEATURES
+    ========================= -->
 
     <section class="features">
 
@@ -557,7 +643,9 @@
     </section>
 
 
-    <!-- CUENTA -->
+    <!-- =========================
+         CUENTA
+    ========================= -->
 
     <div
         id="accountModal"
@@ -575,7 +663,9 @@
             </button>
 
 
-            <!-- LOGIN -->
+            <!-- =========================
+                 LOGIN
+            ========================= -->
 
             <div id="loginView">
 
@@ -620,7 +710,9 @@
             </div>
 
 
-            <!-- REGISTER -->
+            <!-- =========================
+                 REGISTER
+            ========================= -->
 
             <div
                 id="registerView"
@@ -675,7 +767,9 @@
             </div>
 
 
-            <!-- CUENTA LOGUEADA -->
+            <!-- =========================
+                 CUENTA LOGUEADA
+            ========================= -->
 
             <div
                 id="accountView"
@@ -687,7 +781,62 @@
                 </h2>
 
 
-                <!-- BUSCAR -->
+                <!-- =========================
+                     CONECTAR GAME BLOCKS
+                ========================= -->
+
+                <div class="game-connect">
+
+                    <h3>
+                        🎮 Conectar con Game Blocks
+                    </h3>
+
+
+                    <p class="code-info">
+                        Genera un código para conectar
+                        esta cuenta con el juego.
+                    </p>
+
+
+                    <button
+                        class="form-button"
+                        onclick="createGameCode()"
+                    >
+                        🔗 Generar código
+                    </button>
+
+
+                    <div
+                        id="gameCodeContainer"
+                        class="hidden"
+                    >
+
+                        <div
+                            id="gameCode"
+                            class="game-code"
+                        >
+                            ------
+                        </div>
+
+
+                        <p class="code-info">
+                            Introduce este código en
+                            Game Blocks.
+                            <br>
+                            No compartas este código.
+                        </p>
+
+                    </div>
+
+
+                    <p id="gameCodeMessage"></p>
+
+                </div>
+
+
+                <!-- =========================
+                     BUSCAR
+                ========================= -->
 
                 <div class="section">
 
@@ -716,7 +865,9 @@
                 </div>
 
 
-                <!-- SOLICITUDES -->
+                <!-- =========================
+                     SOLICITUDES
+                ========================= -->
 
                 <div class="section">
 
@@ -732,7 +883,9 @@
                 </div>
 
 
-                <!-- AMIGOS -->
+                <!-- =========================
+                     AMIGOS
+                ========================= -->
 
                 <div class="section">
 
@@ -773,7 +926,7 @@
 
 
         // =====================================================
-        // PETICIONES AL SERVIDOR
+        // PETICIONES
         // =====================================================
 
         async function request(
@@ -896,7 +1049,7 @@
 
 
         // =====================================================
-        // CAMBIAR VISTAS
+        // VISTAS
         // =====================================================
 
         function showLogin() {
@@ -1083,6 +1236,18 @@
             message.className = "";
 
 
+            if (!username || !password) {
+
+                message.className =
+                    "error";
+
+                message.textContent =
+                    "Introduce usuario y contraseña.";
+
+                return;
+            }
+
+
             try {
 
                 message.textContent =
@@ -1210,8 +1375,7 @@
 
             } catch {
 
-                // Aunque el servidor falle,
-                // cerramos la sesión local.
+                // Cerramos igualmente la sesión local.
             }
 
 
@@ -1232,7 +1396,90 @@
 
 
         // =====================================================
-        // BUSCAR
+        // GENERAR CÓDIGO PARA GODOT
+        // =====================================================
+
+        async function createGameCode() {
+
+            const container =
+                document.getElementById(
+                    "gameCodeContainer"
+                );
+
+            const codeElement =
+                document.getElementById(
+                    "gameCode"
+                );
+
+            const message =
+                document.getElementById(
+                    "gameCodeMessage"
+                );
+
+
+            container.classList.add(
+                "hidden"
+            );
+
+
+            message.className = "";
+
+            message.textContent =
+                "Generando código...";
+
+
+            try {
+
+                /*
+                 * El servidor debe tener:
+                 *
+                 * POST /api/game/create-code
+                 *
+                 * y devolver:
+                 *
+                 * {
+                 *     "success": true,
+                 *     "code": "123456"
+                 * }
+                 */
+
+                const data =
+                    await request(
+                        "/api/game/create-code",
+                        "POST"
+                    );
+
+
+                codeElement.textContent =
+                    data.code;
+
+
+                container.classList.remove(
+                    "hidden"
+                );
+
+
+                message.className =
+                    "success";
+
+                message.textContent =
+                    "Código generado correctamente.";
+
+            } catch (error) {
+
+                message.className =
+                    "error";
+
+                message.textContent =
+                    error.message;
+
+            }
+
+        }
+
+
+        // =====================================================
+        // BUSCAR USUARIOS
         // =====================================================
 
         async function searchUsers() {
@@ -1304,7 +1551,8 @@
 
 
                     name.textContent =
-                        "👤 " + user.username;
+                        "👤 " +
+                        user.username;
 
 
                     const button =
@@ -1348,7 +1596,7 @@
 
 
         // =====================================================
-        // SOLICITUD DE AMISTAD
+        // ENVIAR SOLICITUD
         // =====================================================
 
         async function sendFriendRequest(
@@ -1463,19 +1711,29 @@
                         accept.onclick =
                             async () => {
 
-                                await request(
-                                    "/api/friends/accept",
-                                    "POST",
-                                    {
-                                        requestId:
-                                            requestData.id
-                                    }
-                                );
+                                try {
+
+                                    await request(
+                                        "/api/friends/accept",
+                                        "POST",
+                                        {
+                                            requestId:
+                                                requestData.id
+                                        }
+                                    );
 
 
-                                loadRequests();
+                                    loadRequests();
 
-                                loadFriends();
+                                    loadFriends();
+
+                                } catch (error) {
+
+                                    alert(
+                                        error.message
+                                    );
+
+                                }
 
                             };
 
@@ -1497,17 +1755,27 @@
                         reject.onclick =
                             async () => {
 
-                                await request(
-                                    "/api/friends/reject",
-                                    "POST",
-                                    {
-                                        requestId:
-                                            requestData.id
-                                    }
-                                );
+                                try {
+
+                                    await request(
+                                        "/api/friends/reject",
+                                        "POST",
+                                        {
+                                            requestId:
+                                                requestData.id
+                                        }
+                                    );
 
 
-                                loadRequests();
+                                    loadRequests();
+
+                                } catch (error) {
+
+                                    alert(
+                                        error.message
+                                    );
+
+                                }
 
                             };
 
@@ -1698,6 +1966,28 @@
             }
 
         }
+
+
+        // =====================================================
+        // ENTER PARA BUSCAR
+        // =====================================================
+
+        document.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key === "Enter" &&
+                    document.activeElement.id ===
+                    "searchInput"
+                ) {
+
+                    searchUsers();
+
+                }
+
+            }
+        );
 
 
         // =====================================================
