@@ -23,22 +23,65 @@ app.use(express.json());
 
 
 // ============================================================
-// BASE DE DATOS SIMPLE
+// INSIGNIAS DISPONIBLES
 // ============================================================
+
+const BADGES = {
+    server_booster: {
+        name: "Server Booster",
+        description: "Ha mejorado el servidor de Discord."
+    },
+
+    blocker: {
+        name: "Blocker",
+        description: "Tiene la membresía Blocker."
+    },
+
+    admin: {
+        name: "Admin",
+        description: "Forma parte del equipo de administración."
+    },
+
+    content_creator: {
+        name: "Content Creator",
+        description: "Creador de contenido de Game Blocks."
+    },
+
+    game_blocks: {
+        name: "Game Blocks",
+        description: "Cuenta oficial de Game Blocks."
+    }
+};
+
+
+// ============================================================
+// BASE DE DATOS
+// ============================================================
+
+function createEmptyDatabase() {
+
+    return {
+        users: [],
+        friendships: [],
+        sessions: []
+    };
+}
+
 
 function createDatabase() {
 
     if (!fs.existsSync(DB_FILE)) {
 
-        const database = {
-            users: [],
-            friendships: [],
-            sessions: []
-        };
+        console.log("Creando nueva base de datos...");
 
         fs.writeFileSync(
             DB_FILE,
-            JSON.stringify(database, null, 2)
+            JSON.stringify(
+                createEmptyDatabase(),
+                null,
+                2
+            ),
+            "utf8"
         );
     }
 }
@@ -50,33 +93,159 @@ function loadDatabase() {
 
     try {
 
-        return JSON.parse(
-            fs.readFileSync(DB_FILE, "utf8")
-        );
+        const content =
+            fs.readFileSync(
+                DB_FILE,
+                "utf8"
+            );
+
+        const database =
+            JSON.parse(content);
+
+
+        // Compatibilidad con bases antiguas
+
+        if (!Array.isArray(database.users)) {
+            database.users = [];
+        }
+
+        if (!Array.isArray(database.friendships)) {
+            database.friendships = [];
+        }
+
+        if (!Array.isArray(database.sessions)) {
+            database.sessions = [];
+        }
+
+
+        // Añadir badges a cuentas antiguas
+
+        database.users.forEach(user => {
+
+            if (!Array.isArray(user.badges)) {
+                user.badges = [];
+            }
+
+        });
+
+
+        return database;
 
     } catch (error) {
 
-        console.error("Error leyendo db.json:", error);
+        console.error(
+            "ERROR leyendo db.json:",
+            error
+        );
 
-        return {
-            users: [],
-            friendships: [],
-            sessions: []
-        };
+        // IMPORTANTE:
+        // No sobrescribimos inmediatamente el archivo.
+        // Si hubo un error de lectura, mantenemos una DB vacía
+        // en memoria pero mostramos el error.
+
+        return createEmptyDatabase();
     }
 }
 
 
 function saveDatabase(database) {
 
-    fs.writeFileSync(
-        DB_FILE,
-        JSON.stringify(database, null, 2)
-    );
+    try {
+
+        const temporaryFile =
+            DB_FILE + ".tmp";
+
+
+        fs.writeFileSync(
+            temporaryFile,
+            JSON.stringify(
+                database,
+                null,
+                2
+            ),
+            "utf8"
+        );
+
+
+        // Reemplazo atómico del archivo
+
+        fs.renameSync(
+            temporaryFile,
+            DB_FILE
+        );
+
+
+        console.log(
+            `[DB] Guardada correctamente: ${new Date().toISOString()}`
+        );
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "[DB] ERROR guardando:",
+            error
+        );
+
+        return false;
+    }
 }
 
 
-createDatabase();
+// Cargar la base al iniciar
+
+let database = loadDatabase();
+
+
+// ============================================================
+// GUARDADO AUTOMÁTICO
+// ============================================================
+
+// Guardar cada minuto
+
+setInterval(() => {
+
+    saveDatabase(database);
+
+}, 60 * 1000);
+
+
+// ============================================================
+// GUARDAR ANTES DE APAGAR
+// ============================================================
+
+function shutdown(signal) {
+
+    console.log(
+        `\n[SERVER] Recibida señal ${signal}.`
+    );
+
+    console.log(
+        "[SERVER] Guardando base de datos..."
+    );
+
+    saveDatabase(database);
+
+    console.log(
+        "[SERVER] Base de datos guardada."
+    );
+
+    process.exit(0);
+}
+
+
+process.on(
+    "SIGTERM",
+    () => shutdown("SIGTERM")
+);
+
+
+process.on(
+    "SIGINT",
+    () => shutdown("SIGINT")
+);
 
 
 // ============================================================
@@ -87,7 +256,9 @@ function hashPassword(password) {
 
     return new Promise((resolve, reject) => {
 
-        const salt = crypto.randomBytes(16).toString("hex");
+        const salt =
+            crypto.randomBytes(16).toString("hex");
+
 
         crypto.scrypt(
             password,
@@ -96,12 +267,16 @@ function hashPassword(password) {
             (error, derivedKey) => {
 
                 if (error) {
+
                     reject(error);
+
                     return;
                 }
 
+
                 resolve(
-                    salt + ":" +
+                    salt +
+                    ":" +
                     derivedKey.toString("hex")
                 );
             }
@@ -110,20 +285,29 @@ function hashPassword(password) {
 }
 
 
-function checkPassword(password, storedPassword) {
+function checkPassword(
+    password,
+    storedPassword
+) {
 
     return new Promise((resolve, reject) => {
 
-        const parts = storedPassword.split(":");
+        const parts =
+            storedPassword.split(":");
+
 
         if (parts.length !== 2) {
 
             resolve(false);
+
             return;
         }
 
+
         const salt = parts[0];
+
         const storedHash = parts[1];
+
 
         crypto.scrypt(
             password,
@@ -132,20 +316,31 @@ function checkPassword(password, storedPassword) {
             (error, derivedKey) => {
 
                 if (error) {
+
                     reject(error);
+
                     return;
                 }
 
+
                 const derivedHash =
                     derivedKey.toString("hex");
+
 
                 try {
 
                     const valid =
                         crypto.timingSafeEqual(
-                            Buffer.from(storedHash, "hex"),
-                            Buffer.from(derivedHash, "hex")
+                            Buffer.from(
+                                storedHash,
+                                "hex"
+                            ),
+                            Buffer.from(
+                                derivedHash,
+                                "hex"
+                            )
                         );
+
 
                     resolve(valid);
 
@@ -176,18 +371,23 @@ function generateId() {
 
 function createSession(userId) {
 
-    const database = loadDatabase();
-
     const token =
         crypto.randomBytes(48).toString("hex");
 
+
     database.sessions.push({
+
         token: token,
+
         userId: userId,
+
         createdAt: Date.now()
+
     });
 
+
     saveDatabase(database);
+
 
     return token;
 }
@@ -198,54 +398,128 @@ function getUserFromRequest(req) {
     const authorization =
         req.headers.authorization;
 
+
     if (!authorization) {
+
         return null;
     }
 
-    if (!authorization.startsWith("Bearer ")) {
+
+    if (
+        !authorization.startsWith(
+            "Bearer "
+        )
+    ) {
+
         return null;
     }
+
 
     const token =
         authorization.substring(7);
 
-    const database = loadDatabase();
 
     const session =
         database.sessions.find(
-            s => s.token === token
+            session =>
+                session.token === token
         );
 
+
     if (!session) {
+
         return null;
     }
+
 
     const user =
         database.users.find(
-            u => u.id === session.userId
+            user =>
+                user.id === session.userId
         );
 
+
     if (!user) {
+
         return null;
     }
+
 
     return user;
 }
 
 
-function requireLogin(req, res, next) {
+function requireLogin(
+    req,
+    res,
+    next
+) {
 
     const user =
         getUserFromRequest(req);
 
+
     if (!user) {
 
         res.status(401).json({
-            error: "No has iniciado sesión."
+
+            error:
+                "No has iniciado sesión."
+
         });
 
         return;
     }
+
+
+    req.user = user;
+
+    next();
+}
+
+
+// ============================================================
+// ADMIN
+// ============================================================
+
+function requireAdmin(
+    req,
+    res,
+    next
+) {
+
+    const user =
+        getUserFromRequest(req);
+
+
+    if (!user) {
+
+        res.status(401).json({
+
+            error:
+                "No has iniciado sesión."
+
+        });
+
+        return;
+    }
+
+
+    if (
+        !Array.isArray(user.badges) ||
+        !user.badges.includes("admin")
+    ) {
+
+        res.status(403).json({
+
+            error:
+                "No tienes permisos de administrador."
+
+        });
+
+        return;
+    }
+
 
     req.user = user;
 
@@ -272,8 +546,12 @@ function validUsername(username) {
 app.get("/", (req, res) => {
 
     res.json({
+
         status: "online",
-        message: "Game Blocks API funcionando"
+
+        message:
+            "Game Blocks API funcionando"
+
     });
 });
 
@@ -282,217 +560,272 @@ app.get("/", (req, res) => {
 // TEST
 // ============================================================
 
-app.get("/api/test", (req, res) => {
+app.get(
+    "/api/test",
+    (req, res) => {
 
-    res.json({
-        success: true,
-        message: "La API funciona correctamente"
-    });
-});
+        res.json({
+
+            success: true,
+
+            message:
+                "La API funciona correctamente"
+
+        });
+
+    }
+);
 
 
 // ============================================================
 // REGISTRO
 // ============================================================
 
-app.post("/api/register", async (req, res) => {
+app.post(
+    "/api/register",
+    async (req, res) => {
 
-    try {
+        try {
 
-        const username =
-            String(req.body.username || "").trim();
-
-        const password =
-            String(req.body.password || "");
-
-
-        if (!validUsername(username)) {
-
-            res.status(400).json({
-                error:
-                    "El usuario debe tener entre 3 y 20 caracteres y solo puede usar letras, números y _."
-            });
-
-            return;
-        }
+            const username =
+                String(
+                    req.body.username || ""
+                ).trim();
 
 
-        if (password.length < 6) {
-
-            res.status(400).json({
-                error:
-                    "La contraseña debe tener al menos 6 caracteres."
-            });
-
-            return;
-        }
+            const password =
+                String(
+                    req.body.password || ""
+                );
 
 
-        const database =
-            loadDatabase();
+            if (!validUsername(username)) {
 
+                res.status(400).json({
 
-        const existingUser =
-            database.users.find(
-                user =>
-                    user.username.toLowerCase() ===
-                    username.toLowerCase()
-            );
+                    error:
+                        "El usuario debe tener entre 3 y 20 caracteres y solo puede usar letras, números y _."
 
+                });
 
-        if (existingUser) {
-
-            res.status(409).json({
-                error:
-                    "Ese nombre de usuario ya existe."
-            });
-
-            return;
-        }
-
-
-        const passwordHash =
-            await hashPassword(password);
-
-
-        const user = {
-
-            id: generateId(),
-
-            username: username,
-
-            passwordHash: passwordHash,
-
-            createdAt: Date.now()
-
-        };
-
-
-        database.users.push(user);
-
-        saveDatabase(database);
-
-
-        const token =
-            createSession(user.id);
-
-
-        res.status(201).json({
-
-            success: true,
-
-            token: token,
-
-            user: {
-
-                id: user.id,
-
-                username: user.username
-
+                return;
             }
 
-        });
 
-    } catch (error) {
+            if (password.length < 6) {
 
-        console.error(error);
+                res.status(400).json({
 
-        res.status(500).json({
-            error: "Error interno del servidor."
-        });
+                    error:
+                        "La contraseña debe tener al menos 6 caracteres."
+
+                });
+
+                return;
+            }
+
+
+            const existingUser =
+                database.users.find(
+                    user =>
+                        user.username
+                            .toLowerCase() ===
+                        username.toLowerCase()
+                );
+
+
+            if (existingUser) {
+
+                res.status(409).json({
+
+                    error:
+                        "Ese nombre de usuario ya existe."
+
+                });
+
+                return;
+            }
+
+
+            const passwordHash =
+                await hashPassword(
+                    password
+                );
+
+
+            const user = {
+
+                id: generateId(),
+
+                username: username,
+
+                passwordHash:
+                    passwordHash,
+
+                badges: [],
+
+                createdAt:
+                    Date.now()
+
+            };
+
+
+            database.users.push(user);
+
+
+            saveDatabase(database);
+
+
+            const token =
+                createSession(
+                    user.id
+                );
+
+
+            res.status(201).json({
+
+                success: true,
+
+                token: token,
+
+                user: {
+
+                    id: user.id,
+
+                    username:
+                        user.username,
+
+                    badges:
+                        user.badges
+
+                }
+
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+
+            res.status(500).json({
+
+                error:
+                    "Error interno del servidor."
+
+            });
+        }
     }
-});
+);
 
 
 // ============================================================
 // LOGIN
 // ============================================================
 
-app.post("/api/login", async (req, res) => {
+app.post(
+    "/api/login",
+    async (req, res) => {
 
-    try {
+        try {
 
-        const username =
-            String(req.body.username || "").trim();
-
-        const password =
-            String(req.body.password || "");
-
-
-        const database =
-            loadDatabase();
+            const username =
+                String(
+                    req.body.username || ""
+                ).trim();
 
 
-        const user =
-            database.users.find(
-                user =>
-                    user.username.toLowerCase() ===
-                    username.toLowerCase()
-            );
+            const password =
+                String(
+                    req.body.password || ""
+                );
 
 
-        if (!user) {
-
-            res.status(401).json({
-                error:
-                    "Usuario o contraseña incorrectos."
-            });
-
-            return;
-        }
+            const user =
+                database.users.find(
+                    user =>
+                        user.username
+                            .toLowerCase() ===
+                        username.toLowerCase()
+                );
 
 
-        const valid =
-            await checkPassword(
-                password,
-                user.passwordHash
-            );
+            if (!user) {
 
+                res.status(401).json({
 
-        if (!valid) {
+                    error:
+                        "Usuario o contraseña incorrectos."
 
-            res.status(401).json({
-                error:
-                    "Usuario o contraseña incorrectos."
-            });
+                });
 
-            return;
-        }
-
-
-        const token =
-            createSession(user.id);
-
-
-        res.json({
-
-            success: true,
-
-            token: token,
-
-            user: {
-
-                id: user.id,
-
-                username: user.username
-
+                return;
             }
 
-        });
 
-    } catch (error) {
+            const valid =
+                await checkPassword(
+                    password,
+                    user.passwordHash
+                );
 
-        console.error(error);
 
-        res.status(500).json({
-            error: "Error interno del servidor."
-        });
+            if (!valid) {
+
+                res.status(401).json({
+
+                    error:
+                        "Usuario o contraseña incorrectos."
+
+                });
+
+                return;
+            }
+
+
+            const token =
+                createSession(
+                    user.id
+                );
+
+
+            res.json({
+
+                success: true,
+
+                token: token,
+
+                user: {
+
+                    id: user.id,
+
+                    username:
+                        user.username,
+
+                    badges:
+                        user.badges || []
+
+                }
+
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+
+            res.status(500).json({
+
+                error:
+                    "Error interno del servidor."
+
+            });
+        }
     }
-});
+);
 
 
 // ============================================================
-// CERRAR SESIÓN
+// LOGOUT
 // ============================================================
 
 app.post(
@@ -503,11 +836,9 @@ app.post(
         const authorization =
             req.headers.authorization;
 
+
         const token =
             authorization.substring(7);
-
-        const database =
-            loadDatabase();
 
 
         database.sessions =
@@ -521,14 +852,16 @@ app.post(
 
 
         res.json({
+
             success: true
+
         });
     }
 );
 
 
 // ============================================================
-// INFORMACIÓN DEL USUARIO ACTUAL
+// INFORMACIÓN DE LA CUENTA
 // ============================================================
 
 app.get(
@@ -538,11 +871,17 @@ app.get(
 
         res.json({
 
-            id: req.user.id,
+            id:
+                req.user.id,
 
-            username: req.user.username,
+            username:
+                req.user.username,
 
-            createdAt: req.user.createdAt
+            badges:
+                req.user.badges || [],
+
+            createdAt:
+                req.user.createdAt
 
         });
     }
@@ -559,32 +898,37 @@ app.get(
     (req, res) => {
 
         const query =
-            String(req.query.q || "")
-                .trim()
-                .toLowerCase();
+            String(
+                req.query.q || ""
+            )
+            .trim()
+            .toLowerCase();
 
 
         if (!query) {
 
             res.json({
+
                 users: []
+
             });
 
             return;
         }
 
 
-        const database =
-            loadDatabase();
-
-
         const users =
             database.users
                 .filter(user => {
 
-                    if (user.id === req.user.id) {
+                    if (
+                        user.id ===
+                        req.user.id
+                    ) {
+
                         return false;
                     }
+
 
                     return user.username
                         .toLowerCase()
@@ -594,22 +938,30 @@ app.get(
                 .slice(0, 20)
                 .map(user => ({
 
-                    id: user.id,
+                    id:
+                        user.id,
 
-                    username: user.username
+                    username:
+                        user.username,
+
+                    badges:
+                        user.badges || []
 
                 }));
 
 
         res.json({
-            users: users
+
+            users:
+                users
+
         });
     }
 );
 
 
 // ============================================================
-// COMPROBAR RELACIÓN DE AMISTAD
+// AMISTADES
 // ============================================================
 
 function getFriendship(
@@ -646,45 +998,54 @@ app.post(
     (req, res) => {
 
         const targetId =
-            String(req.body.userId || "");
+            String(
+                req.body.userId || ""
+            );
 
 
         if (!targetId) {
 
             res.status(400).json({
-                error: "Usuario inválido."
+
+                error:
+                    "Usuario inválido."
+
             });
 
             return;
         }
 
 
-        if (targetId === req.user.id) {
+        if (
+            targetId ===
+            req.user.id
+        ) {
 
             res.status(400).json({
+
                 error:
                     "No puedes enviarte una solicitud a ti mismo."
+
             });
 
             return;
         }
-
-
-        const database =
-            loadDatabase();
 
 
         const targetUser =
             database.users.find(
-                user => user.id === targetId
+                user =>
+                    user.id === targetId
             );
 
 
         if (!targetUser) {
 
             res.status(404).json({
+
                 error:
                     "Ese usuario no existe."
+
             });
 
             return;
@@ -701,21 +1062,17 @@ app.post(
 
         if (existing) {
 
-            if (existing.status === "accepted") {
+            res.status(400).json({
 
-                res.status(400).json({
-                    error:
-                        "Ya sois amigos."
-                });
+                error:
+                    existing.status ===
+                    "accepted"
 
-            } else {
+                        ? "Ya sois amigos."
 
-                res.status(400).json({
-                    error:
-                        "Ya existe una solicitud."
-                });
+                        : "Ya existe una solicitud."
 
-            }
+            });
 
             return;
         }
@@ -723,15 +1080,20 @@ app.post(
 
         database.friendships.push({
 
-            id: generateId(),
+            id:
+                generateId(),
 
-            from: req.user.id,
+            from:
+                req.user.id,
 
-            to: targetId,
+            to:
+                targetId,
 
-            status: "pending",
+            status:
+                "pending",
 
-            createdAt: Date.now()
+            createdAt:
+                Date.now()
 
         });
 
@@ -740,7 +1102,10 @@ app.post(
 
 
         res.json({
-            success: true
+
+            success:
+                true
+
         });
     }
 );
@@ -755,18 +1120,19 @@ app.get(
     requireLogin,
     (req, res) => {
 
-        const database =
-            loadDatabase();
-
-
         const requests =
             database.friendships
+
                 .filter(friendship =>
 
-                    friendship.to === req.user.id &&
-                    friendship.status === "pending"
+                    friendship.to ===
+                    req.user.id &&
+
+                    friendship.status ===
+                    "pending"
 
                 )
+
                 .map(friendship => {
 
                     const user =
@@ -779,11 +1145,17 @@ app.get(
 
                     return {
 
-                        id: friendship.id,
+                        id:
+                            friendship.id,
 
-                        userId: user?.id,
+                        userId:
+                            user?.id,
 
-                        username: user?.username
+                        username:
+                            user?.username,
+
+                        badges:
+                            user?.badges || []
 
                     };
 
@@ -791,7 +1163,10 @@ app.get(
 
 
         res.json({
-            requests: requests
+
+            requests:
+                requests
+
         });
     }
 );
@@ -807,22 +1182,23 @@ app.post(
     (req, res) => {
 
         const requestId =
-            String(req.body.requestId || "");
-
-
-        const database =
-            loadDatabase();
+            String(
+                req.body.requestId || ""
+            );
 
 
         const friendship =
             database.friendships.find(
                 f =>
 
-                    f.id === requestId &&
+                    f.id ===
+                    requestId &&
 
-                    f.to === req.user.id &&
+                    f.to ===
+                    req.user.id &&
 
-                    f.status === "pending"
+                    f.status ===
+                    "pending"
 
             );
 
@@ -830,8 +1206,10 @@ app.post(
         if (!friendship) {
 
             res.status(404).json({
+
                 error:
                     "Solicitud no encontrada."
+
             });
 
             return;
@@ -846,7 +1224,10 @@ app.post(
 
 
         res.json({
-            success: true
+
+            success:
+                true
+
         });
     }
 );
@@ -862,22 +1243,23 @@ app.post(
     (req, res) => {
 
         const requestId =
-            String(req.body.requestId || "");
-
-
-        const database =
-            loadDatabase();
+            String(
+                req.body.requestId || ""
+            );
 
 
         const index =
             database.friendships.findIndex(
                 f =>
 
-                    f.id === requestId &&
+                    f.id ===
+                    requestId &&
 
-                    f.to === req.user.id &&
+                    f.to ===
+                    req.user.id &&
 
-                    f.status === "pending"
+                    f.status ===
+                    "pending"
 
             );
 
@@ -885,8 +1267,10 @@ app.post(
         if (index === -1) {
 
             res.status(404).json({
+
                 error:
                     "Solicitud no encontrada."
+
             });
 
             return;
@@ -903,7 +1287,10 @@ app.post(
 
 
         res.json({
-            success: true
+
+            success:
+                true
+
         });
     }
 );
@@ -918,54 +1305,73 @@ app.get(
     requireLogin,
     (req, res) => {
 
-        const database =
-            loadDatabase();
-
-
         const friendships =
             database.friendships.filter(
                 friendship =>
 
-                    friendship.status === "accepted" &&
+                    friendship.status ===
+                    "accepted" &&
 
                     (
-                        friendship.from === req.user.id ||
-                        friendship.to === req.user.id
+                        friendship.from ===
+                        req.user.id ||
+
+                        friendship.to ===
+                        req.user.id
                     )
             );
 
 
         const friends =
-            friendships.map(
-                friendship => {
+            friendships
+
+                .map(friendship => {
 
                     const friendId =
-                        friendship.from === req.user.id
+                        friendship.from ===
+                        req.user.id
+
                             ? friendship.to
+
                             : friendship.from;
 
 
                     const user =
                         database.users.find(
                             u =>
-                                u.id === friendId
+                                u.id ===
+                                friendId
                         );
+
+
+                    if (!user) {
+                        return null;
+                    }
 
 
                     return {
 
-                        id: user.id,
+                        id:
+                            user.id,
 
-                        username: user.username
+                        username:
+                            user.username,
+
+                        badges:
+                            user.badges || []
 
                     };
 
-                }
-            );
+                })
+
+                .filter(Boolean);
 
 
         res.json({
-            friends: friends
+
+            friends:
+                friends
+
         });
     }
 );
@@ -981,31 +1387,38 @@ app.post(
     (req, res) => {
 
         const targetId =
-            String(req.body.userId || "");
-
-
-        const database =
-            loadDatabase();
+            String(
+                req.body.userId || ""
+            );
 
 
         const index =
             database.friendships.findIndex(
                 friendship =>
 
-                    friendship.status === "accepted" &&
+                    friendship.status ===
+                    "accepted" &&
 
                     (
+
                         (
-                            friendship.from === req.user.id &&
-                            friendship.to === targetId
+                            friendship.from ===
+                            req.user.id &&
+
+                            friendship.to ===
+                            targetId
                         )
 
                         ||
 
                         (
-                            friendship.from === targetId &&
-                            friendship.to === req.user.id
+                            friendship.from ===
+                            targetId &&
+
+                            friendship.to ===
+                            req.user.id
                         )
+
                     )
             );
 
@@ -1013,8 +1426,10 @@ app.post(
         if (index === -1) {
 
             res.status(404).json({
+
                 error:
                     "No sois amigos."
+
             });
 
             return;
@@ -1031,81 +1446,516 @@ app.post(
 
 
         res.json({
-            success: true
+
+            success:
+                true
+
         });
     }
 );
+
+
 // ============================================================
-// COMPROBAR CUENTA DESDE GODOT
+// INSIGNIAS - LISTA
 // ============================================================
 
-app.get("/api/game/account", (req, res) => {
+app.get(
+    "/api/badges",
+    (req, res) => {
 
-    const token = String(req.query.token || "");
+        res.json({
 
-    // No se ha enviado token
-    if (!token) {
+            badges:
+                BADGES
 
-        return res.json({
-            logged: false
         });
-
     }
+);
 
-    const database = loadDatabase();
 
-    // Buscar la sesión
-    const session =
-        database.sessions.find(
-            session => session.token === token
+// ============================================================
+// INSIGNIAS - VER LAS DE UNA CUENTA
+// ============================================================
+
+app.get(
+    "/api/users/:id/badges",
+    (req, res) => {
+
+        const user =
+            database.users.find(
+                user =>
+                    user.id ===
+                    req.params.id
+            );
+
+
+        if (!user) {
+
+            res.status(404).json({
+
+                error:
+                    "Usuario no encontrado."
+
+            });
+
+            return;
+        }
+
+
+        res.json({
+
+            username:
+                user.username,
+
+            badges:
+                user.badges || []
+
+        });
+    }
+);
+
+
+// ============================================================
+// ADMIN - AÑADIR INSIGNIA
+// ============================================================
+
+app.post(
+    "/api/admin/badges/add",
+    requireAdmin,
+    (req, res) => {
+
+        const userId =
+            String(
+                req.body.userId || ""
+            );
+
+
+        const badgeId =
+            String(
+                req.body.badge || ""
+            );
+
+
+        if (!BADGES[badgeId]) {
+
+            res.status(400).json({
+
+                error:
+                    "Esa insignia no existe."
+
+            });
+
+            return;
+        }
+
+
+        const user =
+            database.users.find(
+                user =>
+                    user.id ===
+                    userId
+            );
+
+
+        if (!user) {
+
+            res.status(404).json({
+
+                error:
+                    "Usuario no encontrado."
+
+            });
+
+            return;
+        }
+
+
+        if (!Array.isArray(user.badges)) {
+
+            user.badges = [];
+
+        }
+
+
+        if (
+            user.badges.includes(
+                badgeId
+            )
+        ) {
+
+            res.status(400).json({
+
+                error:
+                    "El usuario ya tiene esa insignia."
+
+            });
+
+            return;
+        }
+
+
+        user.badges.push(
+            badgeId
         );
 
-    // No existe la sesión
-    if (!session) {
 
-        return res.json({
-            logged: false
+        saveDatabase(database);
+
+
+        res.json({
+
+            success:
+                true,
+
+            username:
+                user.username,
+
+            badges:
+                user.badges
+
+        });
+    }
+);
+
+
+// ============================================================
+// ADMIN - QUITAR INSIGNIA
+// ============================================================
+
+app.post(
+    "/api/admin/badges/remove",
+    requireAdmin,
+    (req, res) => {
+
+        const userId =
+            String(
+                req.body.userId || ""
+            );
+
+
+        const badgeId =
+            String(
+                req.body.badge || ""
+            );
+
+
+        const user =
+            database.users.find(
+                user =>
+                    user.id ===
+                    userId
+            );
+
+
+        if (!user) {
+
+            res.status(404).json({
+
+                error:
+                    "Usuario no encontrado."
+
+            });
+
+            return;
+        }
+
+
+        if (!Array.isArray(user.badges)) {
+
+            user.badges = [];
+
+        }
+
+
+        user.badges =
+            user.badges.filter(
+                badge =>
+                    badge !==
+                    badgeId
+            );
+
+
+        saveDatabase(database);
+
+
+        res.json({
+
+            success:
+                true,
+
+            username:
+                user.username,
+
+            badges:
+                user.badges
+
+        });
+    }
+);
+
+
+// ============================================================
+// GODOT - COMPROBAR CUENTA
+// ============================================================
+
+app.get(
+    "/api/game/account",
+    (req, res) => {
+
+        const token =
+            String(
+                req.query.token || ""
+            );
+
+
+        if (!token) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        const session =
+            database.sessions.find(
+                session =>
+                    session.token ===
+                    token
+            );
+
+
+        if (!session) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        const user =
+            database.users.find(
+                user =>
+                    user.id ===
+                    session.userId
+            );
+
+
+        if (!user) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        res.json({
+
+            logged:
+                true,
+
+            username:
+                user.username,
+
+            badges:
+                user.badges || []
+
+        });
+    }
+);
+
+
+// ============================================================
+// GODOT - COMPROBAR SOLO SI ESTÁ LOGUEADO
+// ============================================================
+
+app.get(
+    "/api/game/account/check",
+    (req, res) => {
+
+        const token =
+            String(
+                req.query.token || ""
+            );
+
+
+        if (!token) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        const session =
+            database.sessions.find(
+                session =>
+                    session.token ===
+                    token
+            );
+
+
+        if (!session) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        const user =
+            database.users.find(
+                user =>
+                    user.id ===
+                    session.userId
+            );
+
+
+        if (!user) {
+
+            return res.json({
+
+                logged:
+                    false
+
+            });
+
+        }
+
+
+        res.json({
+
+            logged:
+                true
+
+        });
+    }
+);
+
+
+// ============================================================
+// ELIMINAR CUENTA
+// ============================================================
+
+app.delete(
+    "/api/account",
+    requireLogin,
+    (req, res) => {
+
+        const userId =
+            req.user.id;
+
+
+        // Eliminar usuario
+
+        database.users =
+            database.users.filter(
+                user =>
+                    user.id !==
+                    userId
+            );
+
+
+        // Eliminar sesiones
+
+        database.sessions =
+            database.sessions.filter(
+                session =>
+                    session.userId !==
+                    userId
+            );
+
+
+        // Eliminar amistades
+
+        database.friendships =
+            database.friendships.filter(
+                friendship =>
+                    friendship.from !==
+                    userId &&
+
+                    friendship.to !==
+                    userId
+            );
+
+
+        saveDatabase(database);
+
+
+        res.json({
+
+            success:
+                true
+
+        });
+    }
+);
+
+
+// ============================================================
+// ERROR 404
+// ============================================================
+
+app.use(
+    (req, res) => {
+
+        res.status(404).json({
+
+            error:
+                "Ruta no encontrada."
+
         });
 
     }
+);
 
-    // Buscar el usuario de esa sesión
-    const user =
-        database.users.find(
-            user => user.id === session.userId
+
+// ============================================================
+// ERRORES INTERNOS
+// ============================================================
+
+app.use(
+    (error, req, res, next) => {
+
+        console.error(
+            "ERROR:",
+            error
         );
 
-    // El usuario ya no existe
-    if (!user) {
 
-        return res.json({
-            logged: false
+        res.status(500).json({
+
+            error:
+                "Error interno del servidor."
+
         });
 
     }
+);
 
-    // Cuenta válida
-    res.json({
-
-        logged: true,
-
-        username: user.username
-
-    });
-
-});
 
 // ============================================================
-// ERRORES
+// INICIAR SERVIDOR
 // ============================================================
-
-app.use((req, res) => {
-
-    res.status(404).json({
-        error: "Ruta no encontrada."
-    });
-});
-
 
 app.listen(
     PORT,
@@ -1113,7 +1963,39 @@ app.listen(
     () => {
 
         console.log(
-            `Game Blocks API funcionando en puerto ${PORT}`
+            "======================================"
+        );
+
+        console.log(
+            "     GAME BLOCKS API"
+        );
+
+        console.log(
+            "======================================"
+        );
+
+        console.log(
+            `Servidor iniciado en puerto ${PORT}`
+        );
+
+        console.log(
+            `Base de datos: ${DB_FILE}`
+        );
+
+        console.log(
+            `Usuarios cargados: ${database.users.length}`
+        );
+
+        console.log(
+            `Amistades cargadas: ${database.friendships.length}`
+        );
+
+        console.log(
+            "Guardado automático: cada 60 segundos"
+        );
+
+        console.log(
+            "======================================"
         );
 
     }
