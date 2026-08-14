@@ -1,124 +1,186 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>Game Blocks</title>
 
     <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
+
             margin: 0;
-            background-color: black;
-            color: white;
+
+            background: #000;
+
+            color: #fff;
+
             font-family: Arial, sans-serif;
         }
 
+
+        /* =========================
+           TOPBAR
+        ========================= */
+
         .topbar {
+
             position: fixed;
+
             top: 0;
             left: 0;
+
             width: 100%;
+
             height: 65px;
 
-            background-color: #111;
+            background: #111;
+
             border-bottom: 2px solid #292929;
 
             display: flex;
+
             align-items: center;
+
             justify-content: space-between;
 
             padding: 0 20px;
-            box-sizing: border-box;
 
             z-index: 1000;
         }
 
+
         .topbar-left,
         .topbar-right {
+
             display: flex;
+
             align-items: center;
+
             gap: 10px;
         }
 
-        .download-top,
-        .account-button {
-            background-color: #fff;
+
+        .top-button {
+
+            background: #fff;
+
             color: #000;
 
-            padding: 11px 22px;
+            padding: 11px 20px;
 
-            text-decoration: none;
-            font-size: 17px;
-            font-weight: bold;
+            border: 0;
 
             border-radius: 5px;
 
-            border: none;
+            font-size: 16px;
+
+            font-weight: bold;
+
             cursor: pointer;
+
+            text-decoration: none;
         }
 
-        .download-top:hover,
-        .account-button:hover {
-            background-color: #ddd;
+
+        .top-button:hover {
+
+            background: #ddd;
         }
+
+
+        /* =========================
+           HERO
+        ========================= */
 
         .hero {
-            height: 100vh;
+
+            min-height: 100vh;
 
             display: flex;
+
             flex-direction: column;
 
             justify-content: center;
+
             align-items: center;
 
             text-align: center;
 
-            box-sizing: border-box;
             padding: 80px 20px 20px;
         }
 
+
         .logo {
+
             width: 300px;
+
             max-width: 80%;
+
             margin-bottom: 45px;
         }
 
+
         .slogan {
+
             font-size: 52px;
-            font-weight: bold;
 
             margin: 0;
+
+            font-weight: bold;
         }
 
+
+        /* =========================
+           FEATURES
+        ========================= */
+
         .features {
+
             min-height: 100vh;
 
             display: flex;
+
             flex-direction: column;
 
             justify-content: center;
+
             align-items: center;
 
             text-align: center;
 
             padding: 80px 20px;
 
-            background-color: #080808;
+            background: #080808;
 
             border-top: 2px solid #222;
         }
 
+
         .features h2 {
+
             font-size: 36px;
+
             margin-bottom: 45px;
         }
 
+
         .buttons {
+
             display: flex;
 
             justify-content: center;
-            align-items: center;
 
             gap: 15px;
 
@@ -127,8 +189,8 @@
             max-width: 900px;
         }
 
+
         .button {
-            display: inline-block;
 
             padding: 16px 25px;
 
@@ -137,48 +199,43 @@
             text-decoration: none;
 
             font-size: 17px;
+
             font-weight: bold;
 
-            transition: transform 0.15s, background-color 0.15s;
+            border: none;
 
             cursor: pointer;
-            border: none;
         }
 
-        .button:hover {
-            transform: translateY(-3px);
-        }
 
         .download-button {
-            background-color: white;
-            color: black;
+
+            background: #fff;
+
+            color: #000;
         }
 
-        .download-button:hover {
-            background-color: #ddd;
-        }
 
         .discord-button {
-            background-color: #5865F2;
-            color: white;
+
+            background: #5865F2;
+
+            color: #fff;
         }
 
-        .discord-button:hover {
-            background-color: #4752c4;
-        }
 
         .avatar-button {
-            background-color: #151515;
-            color: white;
+
+            background: #151515;
+
+            color: #fff;
 
             border: 1px solid #444;
         }
 
-        .avatar-button:hover {
-            background-color: #222;
-        }
 
         .small-text {
+
             margin-top: 55px;
 
             color: #777;
@@ -186,28 +243,38 @@
             font-size: 14px;
         }
 
-        /* MODALES */
+
+        /* =========================
+           MODAL
+        ========================= */
 
         .modal {
+
             display: none;
 
             position: fixed;
 
             inset: 0;
 
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0,0,0,.85);
 
             justify-content: center;
+
             align-items: center;
 
             z-index: 2000;
+
+            padding: 20px;
         }
 
-        .modal-box {
-            width: 90%;
-            max-width: 500px;
 
-            max-height: 85vh;
+        .modal-box {
+
+            width: 100%;
+
+            max-width: 520px;
+
+            max-height: 90vh;
 
             overflow-y: auto;
 
@@ -219,16 +286,12 @@
 
             padding: 25px;
 
-            box-sizing: border-box;
-
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 30px #000;
         }
 
-        .modal-box h2 {
-            margin-top: 0;
-        }
 
         .close {
+
             float: right;
 
             background: transparent;
@@ -237,19 +300,21 @@
 
             border: none;
 
-            font-size: 25px;
+            font-size: 28px;
 
             cursor: pointer;
         }
 
+
         .close:hover {
-            color: white;
+
+            color: #fff;
         }
 
-        input {
-            width: 100%;
 
-            box-sizing: border-box;
+        input {
+
+            width: 100%;
 
             padding: 13px;
 
@@ -257,7 +322,7 @@
 
             background: #050505;
 
-            color: white;
+            color: #fff;
 
             border: 1px solid #444;
 
@@ -266,20 +331,22 @@
             outline: none;
         }
 
+
         input:focus {
-            border-color: white;
+
+            border-color: #fff;
         }
 
+
         .form-button {
+
             width: 100%;
 
             padding: 13px;
 
-            margin-top: 5px;
+            background: #fff;
 
-            background: white;
-
-            color: black;
+            color: #000;
 
             border: none;
 
@@ -290,11 +357,9 @@
             cursor: pointer;
         }
 
-        .form-button:hover {
-            background: #ddd;
-        }
 
         .secondary-button {
+
             width: 100%;
 
             padding: 12px;
@@ -303,7 +368,7 @@
 
             background: #191919;
 
-            color: white;
+            color: #fff;
 
             border: 1px solid #444;
 
@@ -312,12 +377,11 @@
             cursor: pointer;
         }
 
-        .secondary-button:hover {
-            background: #252525;
-        }
 
         .danger-button {
-            background: #5c1717;
+
+            background: #641b1b;
+
             color: white;
 
             border: none;
@@ -329,11 +393,9 @@
             cursor: pointer;
         }
 
-        .danger-button:hover {
-            background: #7a1d1d;
-        }
 
         .friend-button {
+
             background: #222;
 
             color: white;
@@ -347,22 +409,9 @@
             cursor: pointer;
         }
 
-        .friend-button:hover {
-            background: #333;
-        }
 
-        .account-section {
-            margin-bottom: 25px;
-        }
+        .result {
 
-        .account-section h3 {
-            border-bottom: 1px solid #333;
-            padding-bottom: 8px;
-        }
-
-        .user-result,
-        .friend-result,
-        .request-result {
             background: #181818;
 
             border: 1px solid #333;
@@ -371,7 +420,7 @@
 
             padding: 12px;
 
-            margin: 8px 0;
+            margin-top: 8px;
 
             display: flex;
 
@@ -382,41 +431,46 @@
             gap: 10px;
         }
 
-        .username {
-            font-weight: bold;
+
+        .section {
+
+            margin-top: 25px;
         }
 
-        .status {
-            color: #777;
-            font-size: 13px;
-        }
 
         .error {
+
             color: #ff5555;
-            margin-top: 10px;
         }
+
 
         .success {
+
             color: #55dd77;
-            margin-top: 10px;
         }
 
+
         .hidden {
+
             display: none;
         }
+
     </style>
+
 </head>
+
 
 <body>
 
-    <!-- BARRA SUPERIOR -->
+
+    <!-- TOPBAR -->
 
     <div class="topbar">
 
         <div class="topbar-left">
 
             <a
-                class="download-top"
+                class="top-button"
                 href="https://pablopalo2014.itch.io/game-blocks"
             >
                 Descargar
@@ -424,11 +478,12 @@
 
         </div>
 
+
         <div class="topbar-right">
 
             <button
                 id="accountButton"
-                class="account-button"
+                class="top-button"
                 onclick="openAccount()"
             >
                 👤 Cuenta
@@ -439,7 +494,7 @@
     </div>
 
 
-    <!-- PRIMERA SECCIÓN -->
+    <!-- HERO -->
 
     <section class="hero">
 
@@ -449,6 +504,7 @@
             alt="Game Blocks Logo"
         >
 
+
         <h1 class="slogan">
             Potenciando la construccion
         </h1>
@@ -456,13 +512,14 @@
     </section>
 
 
-    <!-- SEGUNDA SECCIÓN -->
+    <!-- FEATURES -->
 
     <section class="features">
 
         <h2>
             Game Blocks
         </h2>
+
 
         <div class="buttons">
 
@@ -473,6 +530,7 @@
                 ⬇️ Descargar Game Blocks
             </a>
 
+
             <a
                 class="button discord-button"
                 href="https://discord.gg/Up24N45SK3"
@@ -480,6 +538,7 @@
             >
                 💬 Unirse al Discord
             </a>
+
 
             <button
                 class="button avatar-button"
@@ -490,6 +549,7 @@
 
         </div>
 
+
         <p class="small-text">
             Más cosas están por llegar...
         </p>
@@ -497,41 +557,47 @@
     </section>
 
 
-    <!-- MODAL CUENTA -->
+    <!-- CUENTA -->
 
     <div
         id="accountModal"
         class="modal"
-        onclick="closeOutside(event, 'accountModal')"
+        onclick="outsideClose(event)"
     >
 
         <div class="modal-box">
 
             <button
                 class="close"
-                onclick="closeModal('accountModal')"
+                onclick="closeAccount()"
             >
                 ×
             </button>
 
+
             <!-- LOGIN -->
 
-            <div id="loginSection">
+            <div id="loginView">
 
-                <h2>Iniciar sesión</h2>
+                <h2>
+                    Iniciar sesión
+                </h2>
+
 
                 <input
                     id="loginUsername"
                     type="text"
                     placeholder="Nombre de usuario"
-                    maxlength="30"
+                    maxlength="20"
                 >
+
 
                 <input
                     id="loginPassword"
                     type="password"
                     placeholder="Contraseña"
                 >
+
 
                 <button
                     class="form-button"
@@ -540,33 +606,39 @@
                     Iniciar sesión
                 </button>
 
+
                 <button
                     class="secondary-button"
                     onclick="showRegister()"
                 >
-                    Crear una cuenta
+                    Crear cuenta
                 </button>
+
 
                 <p id="loginMessage"></p>
 
             </div>
 
 
-            <!-- REGISTRO -->
+            <!-- REGISTER -->
 
             <div
-                id="registerSection"
+                id="registerView"
                 class="hidden"
             >
 
-                <h2>Crear cuenta</h2>
+                <h2>
+                    Crear cuenta
+                </h2>
+
 
                 <input
                     id="registerUsername"
                     type="text"
                     placeholder="Nombre de usuario"
-                    maxlength="30"
+                    maxlength="20"
                 >
+
 
                 <input
                     id="registerPassword"
@@ -574,11 +646,13 @@
                     placeholder="Contraseña"
                 >
 
+
                 <input
                     id="registerPassword2"
                     type="password"
                     placeholder="Repetir contraseña"
                 >
+
 
                 <button
                     class="form-button"
@@ -587,12 +661,14 @@
                     Crear cuenta
                 </button>
 
+
                 <button
                     class="secondary-button"
                     onclick="showLogin()"
                 >
                     Ya tengo una cuenta
                 </button>
+
 
                 <p id="registerMessage"></p>
 
@@ -602,27 +678,30 @@
             <!-- CUENTA LOGUEADA -->
 
             <div
-                id="loggedSection"
+                id="accountView"
                 class="hidden"
             >
 
-                <h2 id="welcomeText">
+                <h2 id="welcome">
                     Mi cuenta
                 </h2>
 
 
                 <!-- BUSCAR -->
 
-                <div class="account-section">
+                <div class="section">
 
-                    <h3>🔎 Buscar cuentas</h3>
+                    <h3>
+                        🔎 Buscar cuentas
+                    </h3>
+
 
                     <input
                         id="searchInput"
                         type="text"
                         placeholder="Buscar usuario..."
-                        maxlength="30"
                     >
+
 
                     <button
                         class="form-button"
@@ -631,6 +710,7 @@
                         Buscar
                     </button>
 
+
                     <div id="searchResults"></div>
 
                 </div>
@@ -638,11 +718,14 @@
 
                 <!-- SOLICITUDES -->
 
-                <div class="account-section">
+                <div class="section">
 
-                    <h3>👥 Solicitudes de amistad</h3>
+                    <h3>
+                        👥 Solicitudes
+                    </h3>
 
-                    <div id="friendRequests">
+
+                    <div id="requests">
                         Cargando...
                     </div>
 
@@ -651,11 +734,14 @@
 
                 <!-- AMIGOS -->
 
-                <div class="account-section">
+                <div class="section">
 
-                    <h3>⭐ Mis amigos</h3>
+                    <h3>
+                        ⭐ Amigos
+                    </h3>
 
-                    <div id="friendsList">
+
+                    <div id="friends">
                         Cargando...
                     </div>
 
@@ -678,92 +764,80 @@
 
     <script>
 
-        /*
-         * =========================================================
-         * CONFIGURACIÓN
-         * =========================================================
-         *
-         * CAMBIA ESTA URL POR LA URL DE TU SERVIDOR DE RENDER.
-         *
-         * Ejemplo:
-         *
-         * https://game-blocks-api.onrender.com
-         *
-         */
+        // =====================================================
+        // RENDER
+        // =====================================================
 
-        const RENDER_API = "https://panstudios-github-io-1.onrender.com";
+        const RENDER_API =
+            "https://panstudios-github-io-1.onrender.com";
 
 
-        /*
-         * =========================================================
-         * UTILIDADES
-         * =========================================================
-         */
+        // =====================================================
+        // PETICIONES AL SERVIDOR
+        // =====================================================
 
-        function getToken() {
-
-            return localStorage.getItem("gameblocks_token");
-
-        }
-
-
-        function setToken(token) {
-
-            localStorage.setItem(
-                "gameblocks_token",
-                token
-            );
-
-        }
-
-
-        function removeToken() {
-
-            localStorage.removeItem(
-                "gameblocks_token"
-            );
-
-        }
-
-
-        async function api(endpoint, options = {}) {
+        async function request(
+            endpoint,
+            method = "GET",
+            body = null
+        ) {
 
             const headers = {
-                "Content-Type": "application/json",
-                ...(options.headers || {})
+                "Content-Type": "application/json"
             };
 
 
-            const token = getToken();
+            const token =
+                localStorage.getItem(
+                    "gameblocks_token"
+                );
 
 
             if (token) {
 
-                headers["Authorization"] =
+                headers.Authorization =
                     "Bearer " + token;
 
             }
 
 
-            const response = await fetch(
-                RENDER_API + endpoint,
-                {
-                    ...options,
-                    headers: headers
-                }
-            );
+            const options = {
+
+                method: method,
+
+                headers: headers
+
+            };
 
 
-            let data = {};
+            if (body !== null) {
+
+                options.body =
+                    JSON.stringify(body);
+
+            }
+
+
+            const response =
+                await fetch(
+                    RENDER_API + endpoint,
+                    options
+                );
+
+
+            let data;
 
 
             try {
 
-                data = await response.json();
+                data =
+                    await response.json();
 
             } catch {
 
-                data = {};
+                throw new Error(
+                    "El servidor devolvió una respuesta inválida."
+                );
 
             }
 
@@ -772,22 +846,19 @@
 
                 throw new Error(
                     data.error ||
-                    "Ha ocurrido un error."
+                    "Error del servidor."
                 );
 
             }
 
 
             return data;
-
         }
 
 
-        /*
-         * =========================================================
-         * MODALES
-         * =========================================================
-         */
+        // =====================================================
+        // MODAL
+        // =====================================================
 
         function openAccount() {
 
@@ -796,26 +867,53 @@
             ).style.display = "flex";
 
 
-            updateAccountUI();
+            updateAccount();
 
         }
 
 
-        function closeModal(id) {
+        function closeAccount() {
 
-            document.getElementById(id)
-                .style.display = "none";
+            document.getElementById(
+                "accountModal"
+            ).style.display = "none";
 
         }
 
 
-        function closeOutside(event, id) {
+        function outsideClose(event) {
 
-            if (event.target.id === id) {
+            if (
+                event.target.id ===
+                "accountModal"
+            ) {
 
-                closeModal(id);
+                closeAccount();
 
             }
+
+        }
+
+
+        // =====================================================
+        // CAMBIAR VISTAS
+        // =====================================================
+
+        function showLogin() {
+
+            document.getElementById(
+                "loginView"
+            ).classList.remove("hidden");
+
+
+            document.getElementById(
+                "registerView"
+            ).classList.add("hidden");
+
+
+            document.getElementById(
+                "accountView"
+            ).classList.add("hidden");
 
         }
 
@@ -823,46 +921,44 @@
         function showRegister() {
 
             document.getElementById(
-                "loginSection"
+                "loginView"
             ).classList.add("hidden");
 
 
             document.getElementById(
-                "registerSection"
+                "registerView"
             ).classList.remove("hidden");
 
 
             document.getElementById(
-                "registerMessage"
-            ).textContent = "";
+                "accountView"
+            ).classList.add("hidden");
 
         }
 
 
-        function showLogin() {
+        function showAccount() {
 
             document.getElementById(
-                "registerSection"
+                "loginView"
             ).classList.add("hidden");
 
 
             document.getElementById(
-                "loginSection"
-            ).classList.remove("hidden");
+                "registerView"
+            ).classList.add("hidden");
 
 
             document.getElementById(
-                "loginMessage"
-            ).textContent = "";
+                "accountView"
+            ).classList.remove("hidden");
 
         }
 
 
-        /*
-         * =========================================================
-         * REGISTRO
-         * =========================================================
-         */
+        // =====================================================
+        // REGISTRO
+        // =====================================================
 
         async function register() {
 
@@ -893,76 +989,64 @@
             message.className = "";
 
 
-            if (!username || !password) {
+            if (
+                !username ||
+                !password ||
+                !password2
+            ) {
 
-                message.className = "error";
+                message.className =
+                    "error";
 
                 message.textContent =
                     "Completa todos los campos.";
 
                 return;
-
             }
 
 
             if (password !== password2) {
 
-                message.className = "error";
+                message.className =
+                    "error";
 
                 message.textContent =
                     "Las contraseñas no coinciden.";
 
                 return;
-
-            }
-
-
-            if (password.length < 6) {
-
-                message.className = "error";
-
-                message.textContent =
-                    "La contraseña debe tener al menos 6 caracteres.";
-
-                return;
-
             }
 
 
             try {
 
-                const data = await api(
-                    "/api/register",
-                    {
-                        method: "POST",
+                message.textContent =
+                    "Creando cuenta...";
 
-                        body: JSON.stringify({
+
+                const data =
+                    await request(
+                        "/api/register",
+                        "POST",
+                        {
                             username,
                             password
-                        })
-                    }
+                        }
+                    );
+
+
+                localStorage.setItem(
+                    "gameblocks_token",
+                    data.token
                 );
 
 
-                setToken(data.token);
-
-
-                message.className = "success";
-
-                message.textContent =
-                    "Cuenta creada correctamente.";
-
-
-                setTimeout(() => {
-
-                    updateAccountUI();
-
-                }, 500);
+                await updateAccount();
 
 
             } catch (error) {
 
-                message.className = "error";
+                message.className =
+                    "error";
 
                 message.textContent =
                     error.message;
@@ -972,11 +1056,9 @@
         }
 
 
-        /*
-         * =========================================================
-         * LOGIN
-         * =========================================================
-         */
+        // =====================================================
+        // LOGIN
+        // =====================================================
 
         async function login() {
 
@@ -1003,38 +1085,34 @@
 
             try {
 
-                const data = await api(
-                    "/api/login",
-                    {
-                        method: "POST",
+                message.textContent =
+                    "Iniciando sesión...";
 
-                        body: JSON.stringify({
+
+                const data =
+                    await request(
+                        "/api/login",
+                        "POST",
+                        {
                             username,
                             password
-                        })
-                    }
+                        }
+                    );
+
+
+                localStorage.setItem(
+                    "gameblocks_token",
+                    data.token
                 );
 
 
-                setToken(data.token);
-
-
-                message.className = "success";
-
-                message.textContent =
-                    "Sesión iniciada.";
-
-
-                setTimeout(() => {
-
-                    updateAccountUI();
-
-                }, 500);
+                await updateAccount();
 
 
             } catch (error) {
 
-                message.className = "error";
+                message.className =
+                    "error";
 
                 message.textContent =
                     error.message;
@@ -1044,115 +1122,118 @@
         }
 
 
-        /*
-         * =========================================================
-         * INTERFAZ DE CUENTA
-         * =========================================================
-         */
+        // =====================================================
+        // CUENTA ACTUAL
+        // =====================================================
 
-        async function updateAccountUI() {
+        async function updateAccount() {
 
-            const token = getToken();
+            const token =
+                localStorage.getItem(
+                    "gameblocks_token"
+                );
 
 
             if (!token) {
 
-                document.getElementById(
-                    "loginSection"
-                ).classList.remove("hidden");
-
+                showLogin();
 
                 document.getElementById(
-                    "registerSection"
-                ).classList.add("hidden");
-
-
-                document.getElementById(
-                    "loggedSection"
-                ).classList.add("hidden");
-
+                    "accountButton"
+                ).textContent =
+                    "👤 Cuenta";
 
                 return;
-
             }
 
 
             try {
 
-                const data =
-                    await api("/api/me");
+                const user =
+                    await request(
+                        "/api/me"
+                    );
+
+
+                showAccount();
 
 
                 document.getElementById(
-                    "loginSection"
-                ).classList.add("hidden");
-
-
-                document.getElementById(
-                    "registerSection"
-                ).classList.add("hidden");
-
-
-                document.getElementById(
-                    "loggedSection"
-                ).classList.remove("hidden");
-
-
-                document.getElementById(
-                    "welcomeText"
+                    "welcome"
                 ).textContent =
-                    "👤 " + data.username;
+                    "👤 " + user.username;
 
 
                 document.getElementById(
                     "accountButton"
                 ).textContent =
-                    "👤 " + data.username;
+                    "👤 " + user.username;
 
 
                 loadFriends();
 
-                loadFriendRequests();
+                loadRequests();
 
 
             } catch {
 
-                removeToken();
+                localStorage.removeItem(
+                    "gameblocks_token"
+                );
 
-                updateAccountUI();
+
+                showLogin();
+
+
+                document.getElementById(
+                    "accountButton"
+                ).textContent =
+                    "👤 Cuenta";
 
             }
 
         }
 
 
-        /*
-         * =========================================================
-         * CERRAR SESIÓN
-         * =========================================================
-         */
+        // =====================================================
+        // LOGOUT
+        // =====================================================
 
-        function logout() {
+        async function logout() {
 
-            removeToken();
+            try {
+
+                await request(
+                    "/api/logout",
+                    "POST"
+                );
+
+            } catch {
+
+                // Aunque el servidor falle,
+                // cerramos la sesión local.
+            }
+
+
+            localStorage.removeItem(
+                "gameblocks_token"
+            );
+
 
             document.getElementById(
                 "accountButton"
-            ).textContent = "👤 Cuenta";
+            ).textContent =
+                "👤 Cuenta";
 
 
             showLogin();
 
-            updateAccountUI();
-
         }
 
 
-        /*
-         * =========================================================
-         * BUSCAR USUARIOS
-         * =========================================================
-         */
+        // =====================================================
+        // BUSCAR
+        // =====================================================
 
         async function searchUsers() {
 
@@ -1168,24 +1249,23 @@
                 );
 
 
-            results.innerHTML =
-                "Buscando...";
-
-
             if (!query) {
 
-                results.innerHTML =
-                    "Escribe un nombre.";
+                results.textContent =
+                    "Escribe algo para buscar.";
 
                 return;
-
             }
+
+
+            results.textContent =
+                "Buscando...";
 
 
             try {
 
                 const data =
-                    await api(
+                    await request(
                         "/api/users/search?q=" +
                         encodeURIComponent(query)
                     );
@@ -1194,14 +1274,14 @@
                 results.innerHTML = "";
 
 
-                if (!data.users ||
-                    data.users.length === 0) {
+                if (
+                    data.users.length === 0
+                ) {
 
-                    results.innerHTML =
+                    results.textContent =
                         "No se encontraron usuarios.";
 
                     return;
-
                 }
 
 
@@ -1214,30 +1294,43 @@
 
 
                     div.className =
-                        "user-result";
+                        "result";
 
 
-                    div.innerHTML = `
+                    const name =
+                        document.createElement(
+                            "span"
+                        );
 
-                        <div>
-                            <div class="username">
-                                ${escapeHTML(user.username)}
-                            </div>
 
-                            <div class="status">
-                                Usuario de Game Blocks
-                            </div>
-                        </div>
+                    name.textContent =
+                        "👤 " + user.username;
 
-                        <button
-                            class="friend-button"
-                            onclick="sendFriendRequest(${user.id})"
-                        >
-                            Añadir
-                        </button>
 
-                    `;
+                    const button =
+                        document.createElement(
+                            "button"
+                        );
 
+
+                    button.className =
+                        "friend-button";
+
+
+                    button.textContent =
+                        "Añadir";
+
+
+                    button.onclick =
+                        () =>
+                            sendFriendRequest(
+                                user.id
+                            );
+
+
+                    div.appendChild(name);
+
+                    div.appendChild(button);
 
                     results.appendChild(div);
 
@@ -1246,70 +1339,65 @@
 
             } catch (error) {
 
-                results.innerHTML =
-                    `<span class="error">
-                        ${escapeHTML(error.message)}
-                    </span>`;
+                results.textContent =
+                    error.message;
 
             }
 
         }
 
 
-        /*
-         * =========================================================
-         * SOLICITUD DE AMISTAD
-         * =========================================================
-         */
+        // =====================================================
+        // SOLICITUD DE AMISTAD
+        // =====================================================
 
-        async function sendFriendRequest(userId) {
+        async function sendFriendRequest(
+            userId
+        ) {
 
             try {
 
-                await api(
+                await request(
                     "/api/friends/request",
+                    "POST",
                     {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            userId: userId
-                        })
+                        userId
                     }
                 );
 
 
                 alert(
-                    "Solicitud de amistad enviada."
+                    "Solicitud enviada."
                 );
 
 
             } catch (error) {
 
-                alert(error.message);
+                alert(
+                    error.message
+                );
 
             }
 
         }
 
 
-        /*
-         * =========================================================
-         * SOLICITUDES RECIBIDAS
-         * =========================================================
-         */
+        // =====================================================
+        // SOLICITUDES
+        // =====================================================
 
-        async function loadFriendRequests() {
+        async function loadRequests() {
 
             const container =
                 document.getElementById(
-                    "friendRequests"
+                    "requests"
                 );
 
 
             try {
 
                 const data =
-                    await api(
+                    await request(
                         "/api/friends/requests"
                     );
 
@@ -1318,150 +1406,166 @@
 
 
                 if (
-                    !data.requests ||
                     data.requests.length === 0
                 ) {
 
-                    container.innerHTML =
+                    container.textContent =
                         "No tienes solicitudes.";
 
                     return;
-
                 }
 
 
-                data.requests.forEach(request => {
+                data.requests.forEach(
+                    requestData => {
 
-                    const div =
-                        document.createElement(
-                            "div"
+                        const div =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        div.className =
+                            "result";
+
+
+                        const name =
+                            document.createElement(
+                                "span"
+                            );
+
+
+                        name.textContent =
+                            "👤 " +
+                            requestData.username;
+
+
+                        const buttons =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        const accept =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        accept.className =
+                            "friend-button";
+
+
+                        accept.textContent =
+                            "Aceptar";
+
+
+                        accept.onclick =
+                            async () => {
+
+                                await request(
+                                    "/api/friends/accept",
+                                    "POST",
+                                    {
+                                        requestId:
+                                            requestData.id
+                                    }
+                                );
+
+
+                                loadRequests();
+
+                                loadFriends();
+
+                            };
+
+
+                        const reject =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        reject.className =
+                            "danger-button";
+
+
+                        reject.textContent =
+                            "Rechazar";
+
+
+                        reject.onclick =
+                            async () => {
+
+                                await request(
+                                    "/api/friends/reject",
+                                    "POST",
+                                    {
+                                        requestId:
+                                            requestData.id
+                                    }
+                                );
+
+
+                                loadRequests();
+
+                            };
+
+
+                        buttons.appendChild(
+                            accept
                         );
 
 
-                    div.className =
-                        "request-result";
+                        buttons.appendChild(
+                            reject
+                        );
 
 
-                    div.innerHTML = `
-
-                        <span class="username">
-                            ${escapeHTML(request.username)}
-                        </span>
-
-                        <div>
-
-                            <button
-                                class="friend-button"
-                                onclick="acceptFriend(${request.id})"
-                            >
-                                Aceptar
-                            </button>
-
-                            <button
-                                class="danger-button"
-                                onclick="rejectFriend(${request.id})"
-                            >
-                                Rechazar
-                            </button>
-
-                        </div>
-
-                    `;
+                        div.appendChild(
+                            name
+                        );
 
 
-                    container.appendChild(div);
-
-                });
-
-
-            } catch (error) {
-
-                container.innerHTML =
-                    `<span class="error">
-                        ${escapeHTML(error.message)}
-                    </span>`;
-
-            }
-
-        }
+                        div.appendChild(
+                            buttons
+                        );
 
 
-        async function acceptFriend(requestId) {
+                        container.appendChild(
+                            div
+                        );
 
-            try {
-
-                await api(
-                    "/api/friends/accept",
-                    {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            requestId
-                        })
                     }
                 );
 
 
-                loadFriendRequests();
-
-                loadFriends();
-
-
             } catch (error) {
 
-                alert(error.message);
+                container.textContent =
+                    error.message;
 
             }
 
         }
 
 
-        async function rejectFriend(requestId) {
-
-            try {
-
-                await api(
-                    "/api/friends/reject",
-                    {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            requestId
-                        })
-                    }
-                );
-
-
-                loadFriendRequests();
-
-
-            } catch (error) {
-
-                alert(error.message);
-
-            }
-
-        }
-
-
-        /*
-         * =========================================================
-         * LISTA DE AMIGOS
-         * =========================================================
-         */
+        // =====================================================
+        // AMIGOS
+        // =====================================================
 
         async function loadFriends() {
 
             const container =
                 document.getElementById(
-                    "friendsList"
+                    "friends"
                 );
 
 
             try {
 
                 const data =
-                    await api(
+                    await request(
                         "/api/friends"
                     );
 
@@ -1470,94 +1574,114 @@
 
 
                 if (
-                    !data.friends ||
                     data.friends.length === 0
                 ) {
 
-                    container.innerHTML =
+                    container.textContent =
                         "Todavía no tienes amigos.";
 
                     return;
-
                 }
 
 
-                data.friends.forEach(friend => {
+                data.friends.forEach(
+                    friend => {
 
-                    const div =
-                        document.createElement(
-                            "div"
+                        const div =
+                            document.createElement(
+                                "div"
+                            );
+
+
+                        div.className =
+                            "result";
+
+
+                        const name =
+                            document.createElement(
+                                "span"
+                            );
+
+
+                        name.textContent =
+                            "⭐ " +
+                            friend.username;
+
+
+                        const remove =
+                            document.createElement(
+                                "button"
+                            );
+
+
+                        remove.className =
+                            "danger-button";
+
+
+                        remove.textContent =
+                            "Eliminar";
+
+
+                        remove.onclick =
+                            () =>
+                                removeFriend(
+                                    friend.id
+                                );
+
+
+                        div.appendChild(
+                            name
                         );
 
 
-                    div.className =
-                        "friend-result";
+                        div.appendChild(
+                            remove
+                        );
 
 
-                    div.innerHTML = `
+                        container.appendChild(
+                            div
+                        );
 
-                        <div>
-
-                            <div class="username">
-                                ${escapeHTML(friend.username)}
-                            </div>
-
-                            <div class="status">
-                                Amigo
-                            </div>
-
-                        </div>
-
-                        <button
-                            class="danger-button"
-                            onclick="removeFriend(${friend.id})"
-                        >
-                            Eliminar
-                        </button>
-
-                    `;
-
-
-                    container.appendChild(div);
-
-                });
+                    }
+                );
 
 
             } catch (error) {
 
-                container.innerHTML =
-                    `<span class="error">
-                        ${escapeHTML(error.message)}
-                    </span>`;
+                container.textContent =
+                    error.message;
 
             }
 
         }
 
 
-        async function removeFriend(userId) {
+        // =====================================================
+        // ELIMINAR AMIGO
+        // =====================================================
+
+        async function removeFriend(
+            userId
+        ) {
 
             if (
                 !confirm(
-                    "¿Seguro que quieres eliminar a este amigo?"
+                    "¿Eliminar este amigo?"
                 )
             ) {
 
                 return;
-
             }
 
 
             try {
 
-                await api(
+                await request(
                     "/api/friends/remove",
+                    "POST",
                     {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            userId
-                        })
+                        userId
                     }
                 );
 
@@ -1567,51 +1691,24 @@
 
             } catch (error) {
 
-                alert(error.message);
+                alert(
+                    error.message
+                );
 
             }
 
         }
 
 
-        /*
-         * =========================================================
-         * SEGURIDAD DEL HTML
-         * =========================================================
-         */
-
-        function escapeHTML(value) {
-
-            const div =
-                document.createElement(
-                    "div"
-                );
-
-
-            div.textContent =
-                String(value);
-
-
-            return div.innerHTML;
-
-        }
-
-
-        /*
-         * =========================================================
-         * INICIO
-         * =========================================================
-         */
+        // =====================================================
+        // INICIO
+        // =====================================================
 
         window.addEventListener(
             "load",
             () => {
 
-                if (getToken()) {
-
-                    updateAccountUI();
-
-                }
+                updateAccount();
 
             }
         );
@@ -1619,4 +1716,5 @@
     </script>
 
 </body>
+
 </html>
