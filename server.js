@@ -1,116 +1,113 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "secreto_game_blocks_123";
 
 app.use(cors());
 app.use(express.json());
 
+// Base de datos en memoria (Reemplazar con MongoDB/PostgreSQL en producción)
 const users = [];
-const tokens = {};
-const gameCodes = {};
 const friendRequests = [];
-const friendships = [];
+const gameCodes = [];
 
+// Middlewares
 function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
 
-    if (!token || !tokens[token]) {
-        return res.status(401).json({ error: 'Sesión no válida o expirada.' });
+    if (!token) return res.status(401).json({ error: "Token no proporcionado." });
+
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) return res.status(403).json({ error: "Token inválido o expirado." });
+        const user = users.find(u => u.id === decoded.id);
+        if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+        req.user = user;
+        next();
+    });
+}
+
+function requireAdmin(req, res, next) {
+    if (!req.user.admin) {
+        return res.status(403).json({ error: "Acceso denegado: Se requieren permisos de administrador." });
     }
-
-    req.user = tokens[token];
     next();
 }
 
-app.post('/api/register', (req, res) => {
-    const { username, password } = req.body;
+// ---------------- AUTENTICACIÓN ----------------
 
+app.post("/api/register", (req, res) => {
+    const { username, password } = req.body;
     if (!username || !password) {
-        return res.status(400).json({ error: 'Completa todos los campos.' });
+        return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
     const existingUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (existingUser) {
-        return res.status(400).json({ error: 'El nombre de usuario ya existe.' });
+        return res.status(400).json({ error: "El nombre de usuario ya está registrado." });
     }
 
     const newUser = {
-        id: Date.now().toString(),
+        id: "usr_" + Date.now() + Math.random().toString(36).substr(2, 4),
         username,
-        password,
-        admin: users.length === 0,
-        avatar: 'https://via.placeholder.com/110',
-        bio: '',
-        badges: ['game_blocks']
+        password, // En producción usa bcrypt para hashear
+        avatar: "https://via.placeholder.com/110",
+        bio: "",
+        badges: [],
+        friends: [],
+        admin: users.length === 0 // El primer usuario registrado es Admin automáticamente
     };
 
     users.push(newUser);
-
-    const token = 'token_' + Math.random().toString(36).substr(2);
-    tokens[token] = newUser;
-
-    res.json({ token, user: newUser });
+    const token = jwt.sign({ id: newUser.id }, JWT_SECRET);
+    res.json({ token, user: { id: newUser.id, username: newUser.username } });
 });
 
-app.post('/api/login', (req, res) => {
+app.post("/api/login", (req, res) => {
     const { username, password } = req.body;
-
     const user = users.find(u => u.username.toLowerCase() === username?.toLowerCase() && u.password === password);
+
     if (!user) {
-        return res.status(400).json({ error: 'Usuario o contraseña incorrectos.' });
+        return res.status(400).json({ error: "Credenciales incorrectas." });
     }
 
-    const token = 'token_' + Math.random().toString(36).substr(2);
-    tokens[token] = user;
-
-    res.json({ token, user });
+    const token = jwt.sign({ id: user.id }, JWT_SECRET);
+    res.json({ token, user: { id: user.id, username: user.username } });
 });
 
-app.get('/api/me', authenticateToken, (req, res) => {
-    res.json(req.user);
+app.post("/api/logout", authenticateToken, (req, res) => {
+    res.json({ message: "Sesión cerrada correctamente." });
 });
 
-app.post('/api/logout', authenticateToken, (req, res) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    delete tokens[token];
-    res.json({ success: true });
+app.get("/api/me", authenticateToken, (req, res) => {
+    const { password, ...userData } = req.user;
+    res.json(userData);
 });
 
-app.post('/api/profile/avatar', authenticateToken, (req, res) => {
-    const { avatar } = req.body;
-    if (!avatar) {
-        return res.status(400).json({ error: 'Proporciona una URL válida.' });
-    }
+// ---------------- PERFIL Y BÚSQUEDA ----------------
 
-    req.user.avatar = avatar;
-    res.json({ success: true, avatar: req.user.avatar });
+app.get("/api/users/profile/:id", (req, res) => {
+    const user = users.find(u => u.id === req.params.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    res.json({
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        bio: user.bio,
+        badges: user.badges
+    });
 });
 
-app.post('/api/profile/bio', authenticateToken, (req, res) => {
-    const { bio } = req.body;
-    req.user.bio = bio || '';
-    res.json({ success: true, bio: req.user.bio });
-});
+app.get("/api/users/search", (req, res) => {
+    const query = (req.query.q || "").toLowerCase();
+    if (!query) return res.json({ users: [] });
 
-app.get('/api/badges/me', authenticateToken, (req, res) => {
-    res.json({ badges: req.user.badges || [] });
-});
-
-app.post('/api/game/create-code', authenticateToken, (req, res) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    gameCodes[code] = req.user.id;
-    res.json({ code });
-});
-
-// Búsqueda de usuarios con datos completos (nombre, bio, avatar, insignias)
-app.get('/api/users/search', authenticateToken, (req, res) => {
-    const query = req.query.q || '';
     const results = users
-        .filter(u => u.id !== req.user.id && u.username.toLowerCase().includes(query.toLowerCase()))
+        .filter(u => u.username.toLowerCase().includes(query))
         .map(u => ({
             id: u.id,
             username: u.username,
@@ -122,177 +119,188 @@ app.get('/api/users/search', authenticateToken, (req, res) => {
     res.json({ users: results });
 });
 
-// Obtener perfil público de un usuario por su ID
-app.get('/api/users/profile/:id', authenticateToken, (req, res) => {
-    const targetUser = users.find(u => u.id === req.params.id);
-    if (!targetUser) {
-        return res.status(404).json({ error: 'Usuario no encontrado.' });
+app.post("/api/profile/avatar", authenticateToken, (req, res) => {
+    const { avatar } = req.body;
+    if (!avatar) return res.status(400).json({ error: "URL de avatar requerida." });
+
+    req.user.avatar = avatar;
+    res.json({ message: "Avatar actualizado correctamente." });
+});
+
+app.post("/api/profile/bio", authenticateToken, (req, res) => {
+    const { bio } = req.body;
+    req.user.bio = bio || "";
+    res.json({ message: "Biografía actualizada correctamente." });
+});
+
+// ---------------- INSIGNIAS ----------------
+
+app.get("/api/badges/me", authenticateToken, (req, res) => {
+    res.json({ badges: req.user.badges });
+});
+
+// ---------------- SISTEMA DE AMIGOS ----------------
+
+app.get("/api/friends", authenticateToken, (req, res) => {
+    const friendList = users
+        .filter(u => req.user.friends.includes(u.id))
+        .map(u => ({
+            id: u.id,
+            username: u.username,
+            avatar: u.avatar
+        }));
+
+    res.json({ friends: friendList });
+});
+
+app.post("/api/friends/request", authenticateToken, (req, res) => {
+    const { userId } = req.body;
+    if (userId === req.user.id) {
+        return res.status(400).json({ error: "No puedes enviarte una solicitud a ti mismo." });
     }
 
-    res.json({
-        id: targetUser.id,
-        username: targetUser.username,
-        avatar: targetUser.avatar,
-        bio: targetUser.bio,
-        badges: targetUser.badges
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    if (req.user.friends.includes(userId)) {
+        return res.status(400).json({ error: "Ya es tu amigo." });
+    }
+
+    const existingReq = friendRequests.find(r => r.from === req.user.id && r.to === userId);
+    if (existingReq) {
+        return res.status(400).json({ error: "Ya existe una solicitud pendiente." });
+    }
+
+    const newRequest = {
+        id: "req_" + Date.now(),
+        from: req.user.id,
+        to: userId
+    };
+
+    friendRequests.push(newRequest);
+    res.json({ message: "Solicitud enviada." });
+});
+
+app.get("/api/friends/requests", authenticateToken, (req, res) => {
+    const pending = friendRequests.filter(r => r.to === req.user.id);
+    const result = pending.map(r => {
+        const sender = users.find(u => u.id === r.from);
+        return {
+            id: r.id,
+            username: sender ? sender.username : "Usuario desconocido"
+        };
     });
+
+    res.json({ requests: result });
 });
 
-app.post('/api/friends/request', authenticateToken, (req, res) => {
-    const { userId } = req.body;
-    if (!userId || userId === req.user.id) {
-        return res.status(400).json({ error: 'ID de usuario inválido.' });
-    }
-
-    const requestExists = friendRequests.some(r => r.from === req.user.id && r.to === userId);
-    if (requestExists) {
-        return res.status(400).json({ error: 'La solicitud ya fue enviada.' });
-    }
-
-    friendRequests.push({ id: Date.now().toString(), from: req.user.id, to: userId });
-    res.json({ success: true });
-});
-
-app.get('/api/friends/requests', authenticateToken, (req, res) => {
-    const myRequests = friendRequests
-        .filter(r => r.to === req.user.id)
-        .map(r => {
-            const sender = users.find(u => u.id === r.from);
-            return { id: r.id, username: sender ? sender.username : 'Usuario desconocido' };
-        });
-
-    res.json({ requests: myRequests });
-});
-
-app.post('/api/friends/accept', authenticateToken, (req, res) => {
+app.post("/api/friends/accept", authenticateToken, (req, res) => {
     const { requestId } = req.body;
-    const index = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
+    const reqIndex = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
 
-    if (index === -1) {
-        return res.status(400).json({ error: 'Solicitud no encontrada.' });
+    if (reqIndex === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
+
+    const requestData = friendRequests[reqIndex];
+    const sender = users.find(u => u.id === requestData.from);
+
+    if (sender) {
+        if (!req.user.friends.includes(sender.id)) req.user.friends.push(sender.id);
+        if (!sender.friends.includes(req.user.id)) sender.friends.push(req.user.id);
     }
 
-    const reqData = friendRequests[index];
-    friendships.push({ user1: reqData.from, user2: reqData.to });
-    friendRequests.splice(index, 1);
-
-    res.json({ success: true });
+    friendRequests.splice(reqIndex, 1);
+    res.json({ message: "Solicitud aceptada." });
 });
 
-app.post('/api/friends/reject', authenticateToken, (req, res) => {
+app.post("/api/friends/reject", authenticateToken, (req, res) => {
     const { requestId } = req.body;
-    const index = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
+    const reqIndex = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
 
-    if (index !== -1) {
-        friendRequests.splice(index, 1);
-    }
+    if (reqIndex === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
 
-    res.json({ success: true });
+    friendRequests.splice(reqIndex, 1);
+    res.json({ message: "Solicitud rechazada." });
 });
 
-// Lista de amigos con información ampliada
-app.get('/api/friends', authenticateToken, (req, res) => {
-    const myFriends = friendships
-        .filter(f => f.user1 === req.user.id || f.user2 === req.user.id)
-        .map(f => {
-            const friendId = f.user1 === req.user.id ? f.user2 : f.user1;
-            const friendUser = users.find(u => u.id === friendId);
-            return {
-                id: friendId,
-                username: friendUser ? friendUser.username : 'Desconocido',
-                avatar: friendUser ? friendUser.avatar : 'https://via.placeholder.com/110',
-                bio: friendUser ? friendUser.bio : '',
-                badges: friendUser ? friendUser.badges : []
-            };
-        });
-
-    res.json({ friends: myFriends });
-});
-
-app.post('/api/friends/remove', authenticateToken, (req, res) => {
+app.post("/api/friends/remove", authenticateToken, (req, res) => {
     const { userId } = req.body;
-    const index = friendships.findIndex(
-        f => (f.user1 === req.user.id && f.user2 === userId) || (f.user1 === userId && f.user2 === req.user.id)
-    );
 
-    if (index !== -1) {
-        friendships.splice(index, 1);
+    req.user.friends = req.user.friends.filter(id => id !== userId);
+    const otherUser = users.find(u => u.id === userId);
+    if (otherUser) {
+        otherUser.friends = otherUser.friends.filter(id => id !== req.user.id);
     }
 
-    res.json({ success: true });
+    res.json({ message: "Amigo eliminado." });
 });
 
-app.post('/api/admin/change-username', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+// ---------------- CONEXIÓN CON EL JUEGO ----------------
+
+app.post("/api/game/create-code", authenticateToken, (req, res) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    gameCodes.push({ code, userId: req.user.id, createdAt: Date.now() });
+    res.json({ code });
+});
+
+// ---------------- PANEL DE ADMINISTRACIÓN ----------------
+
+app.post("/api/admin/change-username", authenticateToken, requireAdmin, (req, res) => {
     const { username } = req.body;
-    if (!username) return res.status(400).json({ error: 'Nombre no válido.' });
+    if (!username) return res.status(400).json({ error: "Nombre no válido." });
 
     req.user.username = username;
-    res.json({ success: true });
+    res.json({ message: "Nombre cambiado con éxito." });
 });
 
-app.get('/api/admin/users', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
-    const query = req.query.q || '';
-    const filtered = users.filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
-    res.json({ users: filtered });
+app.get("/api/admin/users", authenticateToken, requireAdmin, (req, res) => {
+    const query = (req.query.q || "").toLowerCase();
+    const result = users.filter(u => u.username.toLowerCase().includes(query));
+    res.json({ users: result });
 });
 
-app.post('/api/admin/users/change-username', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+app.post("/api/admin/users/change-username", authenticateToken, requireAdmin, (req, res) => {
     const { userId, username } = req.body;
     const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
     targetUser.username = username;
-    res.json({ success: true });
+    res.json({ message: "Nombre de usuario actualizado." });
 });
 
-app.post('/api/admin/users/delete', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+app.post("/api/admin/users/delete", authenticateToken, requireAdmin, (req, res) => {
     const { userId } = req.body;
     const index = users.findIndex(u => u.id === userId);
 
-    if (index !== -1) {
-        users.splice(index, 1);
-    }
+    if (index === -1) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    res.json({ success: true });
+    users.splice(index, 1);
+    res.json({ message: "Cuenta eliminada correctamente." });
 });
 
-app.post('/api/admin/badges/add', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+app.post("/api/admin/badges/add", authenticateToken, requireAdmin, (req, res) => {
     const { username, badge } = req.body;
     const targetUser = users.find(u => u.username.toLowerCase() === username?.toLowerCase());
 
-    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado." });
+
     if (!targetUser.badges.includes(badge)) {
         targetUser.badges.push(badge);
     }
 
-    res.json({ success: true });
+    res.json({ message: "Insignia añadida correctamente." });
 });
 
-app.post('/api/admin/badges/remove', authenticateToken, (req, res) => {
-    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+app.post("/api/admin/badges/remove", authenticateToken, requireAdmin, (req, res) => {
     const { username, badge } = req.body;
     const targetUser = users.find(u => u.username.toLowerCase() === username?.toLowerCase());
 
-    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado." });
+
     targetUser.badges = targetUser.badges.filter(b => b !== badge);
-
-    res.json({ success: true });
+    res.json({ message: "Insignia eliminada correctamente." });
 });
 
-app.use((req, res) => {
-    res.status(404).json({ error: 'Ruta de API no encontrada.' });
-});
-
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Error interno del servidor.' });
-});
-
+// Arrancar Servidor
 app.listen(PORT, () => {
-    console.log(`Servidor de Game Blocks corriendo en el puerto ${PORT}`);
+    console.log(`Servidor de Game Blocks ejecutándose en el puerto ${PORT}`);
 });
