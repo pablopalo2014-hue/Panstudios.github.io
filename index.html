@@ -2,111 +2,297 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Blocks</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; background: #121212; color: #fff; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: #1f1f1f; }
-        .search-bar { width: 300px; padding: 8px; border-radius: 4px; border: 1px solid #333; background: #2a2a2a; color: #fff; }
-        .container { padding: 20px; max-width: 800px; margin: 0 auto; }
-        .profile-card { background: #1f1f1f; padding: 20px; border-radius: 8px; text-align: center; }
-        .avatar { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 2px solid #444; }
-        .username { font-size: 2em; margin: 10px 0 5px 0; font-weight: bold; }
-        .badge { font-size: 1.2em; margin-left: 5px; }
-        .bio { margin: 15px 0; color: #ccc; }
-        .friends-section { margin-top: 30px; text-align: left; }
-        .friend-item { display: flex; align-items: center; gap: 10px; padding: 8px; background: #2a2a2a; margin-bottom: 5px; border-radius: 4px; }
-        .friend-avatar { width: 40px; height: 40px; border-radius: 50%; }
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --surface-hover: #2a2a2a;
+            --primary: #e53935;
+            --text: #ffffff;
+            --text-secondary: #aaaaaa;
+            --border: #333333;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+        .logo { font-size: 1.5rem; font-weight: bold; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+
+        .search-container { flex: 1; max-width: 400px; position: relative; }
+        .search-input { width: 100%; padding: 8px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; color: #fff; outline: none; }
+        .search-results { position: absolute; top: 110%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; max-height: 300px; overflow-y: auto; z-index: 100; display: none; }
+        .search-item { padding: 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .search-item:hover { background: var(--surface-hover); }
+
+        nav { display: flex; gap: 15px; }
+        nav button { background: none; border: none; color: var(--text-secondary); font-size: 1rem; cursor: pointer; padding: 8px 12px; border-radius: 4px; }
+        nav button.active, nav button:hover { color: #fff; background: var(--surface-hover); }
+
+        main { flex: 1; max-width: 900px; width: 100%; margin: 20px auto; padding: 0 15px; }
+
+        .auth-container { max-width: 400px; margin: 50px auto; background: var(--surface); padding: 30px; border-radius: 8px; border: 1px solid var(--border); }
+        .auth-container h2 { margin-bottom: 20px; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: var(--text-secondary); }
+        .form-group input { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: #fff; }
+        .btn { width: 100%; padding: 10px; background: var(--primary); border: none; color: #fff; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .btn:hover { opacity: 0.9; }
+
+        .profile-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 30px; text-align: center; position: relative; }
+        .avatar-wrapper { position: relative; width: 130px; height: 130px; margin: 0 auto 15px; }
+        .profile-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary); cursor: pointer; }
+        .profile-name { font-size: 2.2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .badge-icon { font-size: 1.5rem; }
+        .bio-text { margin: 15px 0; color: var(--text-secondary); font-style: italic; white-space: pre-wrap; }
+        .edit-bio-btn { background: none; border: 1px solid var(--border); color: var(--text-secondary); padding: 4px 12px; border-radius: 12px; cursor: pointer; font-size: 0.8rem; }
+
+        .friends-section { margin-top: 30px; text-align: left; border-top: 1px solid var(--border); padding-top: 20px; }
+        .friends-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 15px; }
+        .friend-card { background: var(--bg); padding: 10px; border-radius: 6px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); }
+        .friend-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+
+        .hidden { display: none !important; }
+        .panel { background: var(--surface); padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <header>
-    <h2>Game Blocks</h2>
-    <input type="text" id="globalSearch" class="search-bar" placeholder="Buscar usuarios..." oninput="searchUsers()">
+    <a href="#" class="logo">🟥 Game Blocks</a>
+
+    <div class="search-container hidden" id="searchBarWrapper">
+        <input type="text" id="globalSearch" class="search-input" placeholder="Buscar usuarios..." oninput="onSearchInput()">
+        <div id="searchResults" class="search-results"></div>
+    </div>
+
+    <nav id="mainNav" class="hidden">
+        <button id="navProfile" class="active" onclick="showTab('profile')">Perfil</button>
+        <button id="navFriends" onclick="showTab('friends')">Solicitudes</button>
+        <button id="navGame" onclick="showTab('game')">Juego</button>
+        <button id="navAdmin" class="hidden" onclick="showTab('admin')">Admin</button>
+        <button onclick="logout()">Salir</button>
+    </nav>
 </header>
 
-<div class="container">
-    <div id="searchResults" style="display:none; margin-bottom: 20px;"></div>
-
-    <div class="profile-card" id="profileView">
-        <input type="file" id="avatarInput" style="display:none" accept="image/*" onchange="uploadAvatar(event)">
-        <img id="profileAvatar" src="https://via.placeholder.com/120" class="avatar" onclick="triggerAvatarUpload()">
-        
-        <div>
-            <span id="profileUsername" class="username"></span>
-            <span id="profileBadges"></span>
+<main>
+    <!-- LOGIN / REGISTRO -->
+    <div id="authView" class="auth-container">
+        <h2 id="authTitle">Iniciar Sesión</h2>
+        <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" id="authUsername">
         </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="authPassword">
+        </div>
+        <button class="btn" id="authSubmitBtn" onclick="submitAuth()">Entrar</button>
+        <p style="margin-top:15px; text-align:center; font-size:0.9rem; color:var(--text-secondary);">
+            <span id="authToggleText">¿No tienes cuenta?</span> 
+            <a href="#" onclick="toggleAuthMode()" style="color:var(--primary)">Haz clic aquí</a>
+        </p>
+    </div>
 
-        <p id="profileBio" class="bio"></p>
-        <button id="editBioBtn" onclick="editBio()">Editar Bio</button>
+    <!-- MI PERFIL / VER PERFIL -->
+    <div id="profileView" class="hidden">
+        <div class="profile-card">
+            <input type="file" id="avatarFileInput" class="hidden" accept="image/*" onchange="handleAvatarChange(event)">
+            <div class="avatar-wrapper">
+                <img id="viewAvatar" src="https://via.placeholder.com/130" class="profile-avatar" onclick="triggerAvatarSelect()">
+            </div>
+            
+            <div class="profile-name">
+                <span id="viewUsername">Cargando...</span>
+                <span id="viewBadges"></span>
+            </div>
 
-        <div class="friends-section">
-            <h3>Amigos</h3>
-            <div id="friendsList"></div>
+            <p id="viewBio" class="bio-text">Sin biografía.</p>
+            <button id="editBioBtn" class="edit-bio-btn hidden" onclick="editBio()">Editar biografía</button>
+
+            <div class="friends-section">
+                <h3>Amigos</h3>
+                <div id="profileFriendsList" class="friends-grid"></div>
+            </div>
         </div>
     </div>
-</div>
+
+    <!-- SOLICITUDES DE AMISTAD -->
+    <div id="friendsView" class="hidden">
+        <div class="panel">
+            <h3>Solicitudes Pendientes</h3>
+            <div id="requestsList" style="margin-top:15px;"></div>
+        </div>
+    </div>
+
+    <!-- CÓDIGO PARA EL JUEGO -->
+    <div id="gameView" class="hidden">
+        <div class="panel" style="text-align: center;">
+            <h3>Vincular con Game Blocks</h3>
+            <p style="margin: 10px 0; color: var(--text-secondary);">Genera un código e ingrésalo dentro del juego para iniciar sesión.</p>
+            <button class="btn" style="width: auto; padding: 10px 30px;" onclick="generateGameCode()">Generar Código</button>
+            <h1 id="gameCodeDisplay" style="font-size: 3rem; margin-top: 20px; color: var(--primary); letter-spacing: 5px;">------</h1>
+        </div>
+    </div>
+
+    <!-- PANEL ADMIN -->
+    <div id="adminView" class="hidden">
+        <div class="panel">
+            <h3>Gestión de Insignias</h3>
+            <div class="form-group" style="margin-top: 10px;">
+                <input type="text" id="adminUserTarget" placeholder="Nombre de usuario exacto">
+            </div>
+            <div class="form-group">
+                <select id="adminBadgeSelect" style="width:100%; padding:10px; background:var(--bg); color:#fff; border:1px solid var(--border);">
+                    <option value="server_booster">⭐ Server Booster</option>
+                    <option value="creator_content">▶️ Creador de Contenido</option>
+                    <option value="admin">🛡️ Admin (Solo Owner)</option>
+                </select>
+            </div>
+            <button class="btn" onclick="adminAddBadge()">Dar Insignia</button>
+            <button class="btn" style="background:#555;" onclick="adminRemoveBadge()">Quitar Insignia</button>
+        </div>
+    </div>
+</main>
 
 <script>
-    const BADGE_ICONS = {
-        server_booster: "⭐",
-        admin: "🛡️",
-        game_blocks: "🟥",
-        creator_content: "▶️"
+    const BADGE_MAP = {
+        server_booster: { icon: "⭐", name: "Server Booster" },
+        admin: { icon: "🛡️", name: "Admin" },
+        game_blocks: { icon: "🟥", name: "Game Blocks" },
+        creator_content: { icon: "▶️", name: "Creador de Contenido" }
     };
 
+    let isRegisterMode = false;
     let currentUser = null;
 
-    async function loadProfile() {
-        const res = await fetch("/api/me", {
-            headers: { "Authorization": "Bearer " + localStorage.getItem("token") }
-        });
-        if (res.ok) {
-            currentUser = await res.json();
-            renderProfile(currentUser, true);
-            loadFriends();
-        }
+    function getToken() { return localStorage.getItem("gb_token"); }
+    function setToken(token) { localStorage.setItem("gb_token", token); }
+    function removeToken() { localStorage.removeItem("gb_token"); }
+
+    async function apiRequest(endpoint, method = "GET", body = null) {
+        const headers = { "Content-Type": "application/json" };
+        if (getToken()) headers["Authorization"] = "Bearer " + getToken();
+        const options = { method, headers };
+        if (body) options.body = JSON.stringify(body);
+        const res = await fetch(endpoint, options);
+        return res.json();
     }
 
-    function renderProfile(user, isOwner) {
-        document.getElementById("profileUsername").innerText = user.username;
-        document.getElementById("profileBio").innerText = user.bio || "Sin biografía.";
-        document.getElementById("profileAvatar").src = user.avatar || "https://via.placeholder.com/120";
-        document.getElementById("editBioBtn").style.display = isOwner ? "inline-block" : "none";
+    // Inicialización
+    window.addEventListener("DOMContentLoaded", async () => {
+        if (getToken()) {
+            const data = await apiRequest("/api/me");
+            if (data.id) {
+                currentUser = data;
+                setupLoggedInUI();
+                return;
+            }
+        }
+        setupLoggedOutUI();
+    });
 
-        const badgesContainer = document.getElementById("profileBadges");
+    function setupLoggedInUI() {
+        document.getElementById("authView").classList.add("hidden");
+        document.getElementById("mainNav").classList.remove("hidden");
+        document.getElementById("searchBarWrapper").classList.remove("hidden");
+
+        if (currentUser.admin) {
+            document.getElementById("navAdmin").classList.remove("hidden");
+        }
+        showTab("profile");
+    }
+
+    function setupLoggedOutUI() {
+        currentUser = null;
+        removeToken();
+        document.getElementById("authView").classList.remove("hidden");
+        document.getElementById("mainNav").classList.add("hidden");
+        document.getElementById("searchBarWrapper").classList.add("hidden");
+        document.getElementById("profileView").classList.add("hidden");
+        document.getElementById("friendsView").classList.add("hidden");
+        document.getElementById("gameView").classList.add("hidden");
+        document.getElementById("adminView").classList.add("hidden");
+    }
+
+    function toggleAuthMode() {
+        isRegisterMode = !isRegisterMode;
+        document.getElementById("authTitle").innerText = isRegisterMode ? "Crear Cuenta" : "Iniciar Sesión";
+        document.getElementById("authSubmitBtn").innerText = isRegisterMode ? "Registrarse" : "Entrar";
+        document.getElementById("authToggleText").innerText = isRegisterMode ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?";
+    }
+
+    async function submitAuth() {
+        const username = document.getElementById("authUsername").value.trim();
+        const password = document.getElementById("authPassword").value;
+        const endpoint = isRegisterMode ? "/api/register" : "/api/login";
+
+        const data = await apiRequest(endpoint, "POST", { username, password });
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        setToken(data.token);
+        currentUser = data.user;
+        setupLoggedInUI();
+    }
+
+    function logout() {
+        apiRequest("/api/logout", "POST");
+        setupLoggedOutUI();
+    }
+
+    function showTab(tabName) {
+        ["profile", "friends", "game", "admin"].forEach(tab => {
+            const btn = document.getElementById("nav" + tab.charAt(0).toUpperCase() + tab.slice(1));
+            const view = document.getElementById(tab + "View");
+            if (btn) btn.classList.toggle("active", tab === tabName);
+            if (view) view.classList.toggle("hidden", tab !== tabName);
+        });
+
+        if (tabName === "profile") renderUserProfile(currentUser, true);
+        if (tabName === "friends") loadPendingRequests();
+    }
+
+    function renderUserProfile(user, isSelf) {
+        document.getElementById("viewUsername").innerText = user.username;
+        document.getElementById("viewBio").innerText = user.bio || "Sin biografía.";
+        document.getElementById("viewAvatar").src = user.avatar || "https://via.placeholder.com/130";
+        document.getElementById("editBioBtn").classList.toggle("hidden", !isSelf);
+
+        const badgesContainer = document.getElementById("viewBadges");
         badgesContainer.innerHTML = "";
         (user.badges || []).forEach(b => {
-            if (BADGE_ICONS[b]) {
+            if (BADGE_MAP[b]) {
                 const span = document.createElement("span");
-                span.className = "badge";
-                span.innerText = BADGE_ICONS[b];
+                span.className = "badge-icon";
+                span.innerText = BADGE_MAP[b].icon;
+                span.title = BADGE_MAP[b].name;
                 badgesContainer.appendChild(span);
             }
         });
+
+        loadFriendsList(user.id);
     }
 
-    function triggerAvatarUpload() {
-        document.getElementById("avatarInput").click();
+    function triggerAvatarSelect() {
+        document.getElementById("avatarFileInput").click();
     }
 
-    function uploadAvatar(event) {
+    async function handleAvatarChange(event) {
         const file = event.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = async function(e) {
+        reader.onload = async (e) => {
             const base64 = e.target.result;
-            const res = await fetch("/api/profile/update", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + localStorage.getItem("token")
-                },
-                body: JSON.stringify({ avatar: base64 })
-            });
-            if (res.ok) {
+            const res = await apiRequest("/api/profile/update", "POST", { avatar: base64 });
+            if (res.success) {
                 currentUser.avatar = base64;
-                document.getElementById("profileAvatar").src = base64;
+                document.getElementById("viewAvatar").src = base64;
             }
         };
         reader.readAsDataURL(file);
@@ -115,65 +301,131 @@
     async function editBio() {
         const newBio = prompt("Escribe tu nueva biografía:", currentUser.bio || "");
         if (newBio !== null) {
-            const res = await fetch("/api/profile/update", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + localStorage.getItem("token")
-                },
-                body: JSON.stringify({ bio: newBio })
-            });
-            if (res.ok) {
+            const res = await apiRequest("/api/profile/update", "POST", { bio: newBio });
+            if (res.success) {
                 currentUser.bio = newBio;
-                document.getElementById("profileBio").innerText = newBio;
+                document.getElementById("viewBio").innerText = newBio;
             }
         }
     }
 
-    async function loadFriends() {
-        const res = await fetch("/api/friends", {
-            headers: { "Authorization": "Bearer " + localStorage.getItem("token") }
-        });
-        if (res.ok) {
-            const data = await res.json();
-            const list = document.getElementById("friendsList");
-            list.innerHTML = "";
+    async function loadFriendsList(userId) {
+        const data = await apiRequest("/api/friends");
+        const container = document.getElementById("profileFriendsList");
+        container.innerHTML = "";
+
+        if (data.friends && data.friends.length > 0) {
             data.friends.forEach(f => {
-                const item = document.createElement("div");
-                item.className = "friend-item";
-                item.innerHTML = `
+                const card = document.createElement("div");
+                card.className = "friend-card";
+                card.innerHTML = `
                     <img src="${f.avatar || 'https://via.placeholder.com/40'}" class="friend-avatar">
-                    <span>${f.username}</span>
+                    <div><b>${f.username}</b></div>
                 `;
-                list.appendChild(item);
+                container.appendChild(card);
             });
+        } else {
+            container.innerHTML = "<p style='color:var(--text-secondary)'>Aún no tiene amigos.</p>";
         }
     }
 
-    async function searchUsers() {
-        const query = document.getElementById("globalSearch").value;
+    async function onSearchInput() {
+        const query = document.getElementById("globalSearch").value.trim();
         const resultsDiv = document.getElementById("searchResults");
-        if (!query.trim()) {
+
+        if (!query) {
             resultsDiv.style.display = "none";
             return;
         }
-        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
-            headers: { "Authorization": "Bearer " + localStorage.getItem("token") }
-        });
-        if (res.ok) {
-            const data = await res.json();
+
+        const data = await apiRequest(`/api/users/search?q=${encodeURIComponent(query)}`);
+        resultsDiv.innerHTML = "";
+
+        if (data.users && data.users.length > 0) {
             resultsDiv.style.display = "block";
-            resultsDiv.innerHTML = "<h3>Resultados:</h3>";
             data.users.forEach(u => {
-                const div = document.createElement("div");
-                div.className = "friend-item";
-                div.innerHTML = `<img src="${u.avatar || 'https://via.placeholder.com/40'}" class="friend-avatar"> <b>${u.username}</b>`;
-                resultsDiv.appendChild(div);
+                const item = document.createElement("div");
+                item.className = "search-item";
+                item.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${u.avatar || 'https://via.placeholder.com/40'}" style="width:30px; height:30px; border-radius:50%;">
+                        <span>${u.username}</span>
+                    </div>
+                    ${u.id !== currentUser.id ? `<button class="btn" style="width:auto; padding:4px 8px; font-size:0.8rem;" onclick="sendFriendRequest('${u.id}', event)">Añadir</button>` : ''}
+                `;
+                item.onclick = () => renderUserProfile(u, u.id === currentUser.id);
+                resultsDiv.appendChild(item);
             });
+        } else {
+            resultsDiv.style.display = "block";
+            resultsDiv.innerHTML = "<div class='search-item'>Sin resultados</div>";
         }
     }
 
-    loadProfile();
+    async function sendFriendRequest(userId, e) {
+        e.stopPropagation();
+        const res = await apiRequest("/api/friends/request", "POST", { userId });
+        if (res.error) alert(res.error);
+        else alert("Solicitud enviada.");
+    }
+
+    async function loadPendingRequests() {
+        const data = await apiRequest("/api/friends/requests");
+        const container = document.getElementById("requestsList");
+        container.innerHTML = "";
+
+        if (data.requests && data.requests.length > 0) {
+            data.requests.forEach(r => {
+                const div = document.createElement("div");
+                div.className = "friend-card";
+                div.style.justifyContent = "space-between";
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${r.avatar || 'https://via.placeholder.com/40'}" class="friend-avatar">
+                        <b>${r.username}</b>
+                    </div>
+                    <div>
+                        <button class="btn" style="width:auto; padding:4px 10px; font-size:0.8rem;" onclick="acceptRequest('${r.id}')">Aceptar</button>
+                        <button class="btn" style="width:auto; padding:4px 10px; font-size:0.8rem; background:#555;" onclick="rejectRequest('${r.id}')">Rechazar</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = "<p style='color:var(--text-secondary)'>No tienes solicitudes pendientes.</p>";
+        }
+    }
+
+    async function acceptRequest(requestId) {
+        await apiRequest("/api/friends/accept", "POST", { requestId });
+        loadPendingRequests();
+    }
+
+    async function rejectRequest(requestId) {
+        await apiRequest("/api/friends/reject", "POST", { requestId });
+        loadPendingRequests();
+    }
+
+    async function generateGameCode() {
+        const data = await apiRequest("/api/game/create-code", "POST");
+        if (data.code) document.getElementById("gameCodeDisplay").innerText = data.code;
+    }
+
+    async function adminAddBadge() {
+        const username = document.getElementById("adminUserTarget").value.trim();
+        const badge = document.getElementById("adminBadgeSelect").value;
+        const res = await apiRequest("/api/admin/badges/add", "POST", { username, badge });
+        if (res.error) alert(res.error);
+        else alert("Insignia asignada con éxito.");
+    }
+
+    async function adminRemoveBadge() {
+        const username = document.getElementById("adminUserTarget").value.trim();
+        const badge = document.getElementById("adminBadgeSelect").value;
+        const res = await apiRequest("/api/admin/badges/remove", "POST", { username, badge });
+        if (res.error) alert(res.error);
+        else alert("Insignia removida.");
+    }
 </script>
 </body>
 </html>
