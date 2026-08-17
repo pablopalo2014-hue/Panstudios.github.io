@@ -1,223 +1,317 @@
-const express = require("express");
-const cors = require("cors");
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
+const express = require('express');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(__dirname, "db.json");
 
-app.use(cors({ origin: "*" }));
-app.use(express.json({ limit: "15mb" })); // Límite ampliado para avatares
+// =========================================================
+// MIDDLEWARES FUNDAMENTALES (Evitan la respuesta inválida)
+// =========================================================
 
-const OWNER_NAMES = ["game_blocks_oficial", "game blocks oficial"];
+// Habilitar CORS para que el frontend pueda realizar peticiones desde cualquier origen
+app.use(cors());
 
-function normalizeUsername(username) {
-    return String(username || "").toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
-}
+// Procesar el cuerpo de las peticiones en formato JSON
+app.use(express.json());
 
-function isOwner(user) {
-    if (!user) return false;
-    return OWNER_NAMES.some(name => normalizeUsername(name) === normalizeUsername(user.username));
-}
+// Base de datos temporal en memoria (Sustituir por Base de Datos real si se requiere)
+const users = [];
+const tokens = {};
+const gameCodes = {};
+const friendRequests = [];
+const friendships = [];
 
-function isAdmin(user) {
-    if (!user) return false;
-    return isOwner(user) || user.admin === true || (Array.isArray(user.badges) && user.badges.includes("admin"));
-}
+/* =========================================================
+   MIDDLEWARE DE AUTENTICACIÓN
+========================================================= */
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-const BADGES = {
-    server_booster: { name: "Server Booster", icon: "⭐" },
-    admin: { name: "Admin", icon: "🛡️" },
-    game_blocks: { name: "Game Blocks", icon: "🟥" },
-    creator_content: { name: "Creador de Contenido", icon: "▶️" }
-};
-
-function createEmptyDatabase() {
-    return { users: [], friendships: [], sessions: [], gameCodes: [] };
-}
-
-function loadDatabase() {
-    if (!fs.existsSync(DB_FILE)) {
-        fs.writeFileSync(DB_FILE, JSON.stringify(createEmptyDatabase(), null, 2), "utf8");
+    if (!token || !tokens[token]) {
+        return res.status(401).json({ error: 'Sesión no válida o expirada.' });
     }
-    try {
-        const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
-        db.users = db.users || [];
-        db.friendships = db.friendships || [];
-        db.sessions = db.sessions || [];
-        db.gameCodes = db.gameCodes || [];
-        db.users.forEach(u => {
-            u.badges = u.badges || [];
-            u.bio = u.bio || "";
-            u.avatar = u.avatar || "";
-            if (isOwner(u) && !u.badges.includes("game_blocks")) {
-                u.badges.push("game_blocks");
-            }
-        });
-        return db;
-    } catch {
-        return createEmptyDatabase();
-    }
-}
 
-function saveDatabase(db) {
-    try {
-        const tmp = DB_FILE + ".tmp";
-        fs.writeFileSync(tmp, JSON.stringify(db, null, 2), "utf8");
-        fs.renameSync(tmp, DB_FILE);
-        return true;
-    } catch (e) {
-        console.error("Error guardando base de datos:", e);
-        return false;
-    }
-}
-
-let database = loadDatabase();
-
-function hashPassword(password) {
-    return new Promise((resolve, reject) => {
-        const salt = crypto.randomBytes(16).toString("hex");
-        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-            if (err) reject(err);
-            else resolve(salt + ":" + derivedKey.toString("hex"));
-        });
-    });
-}
-
-function checkPassword(password, stored) {
-    return new Promise(resolve => {
-        const parts = stored.split(":");
-        if (parts.length !== 2) return resolve(false);
-        crypto.scrypt(password, parts[0], 64, (err, derivedKey) => {
-            if (err) return resolve(false);
-            resolve(crypto.timingSafeEqual(Buffer.from(parts[1], "hex"), derivedKey));
-        });
-    });
-}
-
-function getUserFromRequest(req) {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ")) return null;
-    const session = database.sessions.find(s => s.token === auth.substring(7));
-    if (!session) return null;
-    return database.users.find(u => u.id === session.userId) || null;
-}
-
-function requireLogin(req, res, next) {
-    const user = getUserFromRequest(req);
-    if (!user) return res.status(401).json({ error: "No has iniciado sesión." });
-    req.user = user;
+    req.user = tokens[token];
     next();
 }
 
-function requireAdmin(req, res, next) {
-    const user = getUserFromRequest(req);
-    if (!user || !isAdmin(user)) return res.status(403).json({ error: "Sin permisos de administrador." });
-    req.user = user;
-    next();
-}
+/* =========================================================
+   ENDPOINTS DE AUTENTICACIÓN Y CUENTA
+========================================================= */
 
-// Endpoints
-app.post("/api/register", async (req, res) => {
+// Registrar usuario
+app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Datos incompletos." });
-    if (database.users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-        return res.status(409).json({ error: "El usuario ya existe." });
-    }
-    const hash = await hashPassword(password);
-    const badges = [];
-    if (isOwner({ username })) badges.push("game_blocks", "admin");
 
-    const user = {
-        id: crypto.randomUUID(),
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Completa todos los campos.' });
+    }
+
+    const existingUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (existingUser) {
+        return res.status(400).json({ error: 'El nombre de usuario ya existe.' });
+    }
+
+    const newUser = {
+        id: Date.now().toString(),
         username,
-        passwordHash: hash,
-        badges,
-        bio: "",
-        avatar: "",
-        admin: badges.includes("admin")
+        password,
+        admin: users.length === 0, // El primer usuario registrado será Administrador
+        avatar: 'https://via.placeholder.com/110',
+        bio: '',
+        badges: ['game_blocks']
     };
-    database.users.push(user);
-    saveDatabase(database);
 
-    const token = crypto.randomBytes(48).toString("hex");
-    database.sessions.push({ token, userId: user.id, createdAt: Date.now() });
-    saveDatabase(database);
+    users.push(newUser);
 
-    res.json({ success: true, token, user });
+    const token = 'token_' + Math.random().toString(36).substr(2);
+    tokens[token] = newUser;
+
+    res.json({ token, user: newUser });
 });
 
-app.post("/api/login", async (req, res) => {
+// Iniciar sesión
+app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    const user = database.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-    if (!user || !(await checkPassword(password, user.passwordHash))) {
-        return res.status(401).json({ error: "Credenciales incorrectas." });
+
+    const user = users.find(u => u.username.toLowerCase() === username?.toLowerCase() && u.password === password);
+    if (!user) {
+        return res.status(400).json({ error: 'Usuario o contraseña incorrectos.' });
     }
-    const token = crypto.randomBytes(48).toString("hex");
-    database.sessions.push({ token, userId: user.id, createdAt: Date.now() });
-    saveDatabase(database);
-    res.json({ success: true, token, user });
+
+    const token = 'token_' + Math.random().toString(36).substr(2);
+    tokens[token] = user;
+
+    res.json({ token, user });
 });
 
-app.get("/api/me", requireLogin, (req, res) => {
+// Obtener datos del usuario actual
+app.get('/api/me', authenticateToken, (req, res) => {
     res.json(req.user);
 });
 
-app.post("/api/profile/update", requireLogin, (req, res) => {
-    const { bio, avatar } = req.body;
-    if (typeof bio === "string") req.user.bio = bio;
-    if (typeof avatar === "string") req.user.avatar = avatar;
-    saveDatabase(database);
-    res.json({ success: true, user: req.user });
+// Cerrar sesión
+app.post('/api/logout', authenticateToken, (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    delete tokens[token];
+    res.json({ success: true });
 });
 
-app.get("/api/users/search", requireLogin, (req, res) => {
-    const q = String(req.query.q || "").toLowerCase();
-    const results = database.users
-        .filter(u => u.username.toLowerCase().includes(q))
-        .map(u => ({ id: u.id, username: u.username, badges: u.badges, avatar: u.avatar, bio: u.bio }));
+/* =========================================================
+   ENDPOINTS DE PERFIL Y BIO
+========================================================= */
+
+// Cambiar foto de perfil
+app.post('/api/profile/avatar', authenticateToken, (req, res) => {
+    const { avatar } = req.body;
+    if (!avatar) {
+        return res.status(400).json({ error: 'Proporciona una URL válida.' });
+    }
+
+    req.user.avatar = avatar;
+    res.json({ success: true, avatar: req.user.avatar });
+});
+
+// Cambiar biografía
+app.post('/api/profile/bio', authenticateToken, (req, res) => {
+    const { bio } = req.body;
+    req.user.bio = bio || '';
+    res.json({ success: true, bio: req.user.bio });
+});
+
+// Mis insignias
+app.get('/api/badges/me', authenticateToken, (req, res) => {
+    res.json({ badges: req.user.badges || [] });
+});
+
+/* =========================================================
+   ENDPOINTS DE JUEGO (GODOT) Y BÚSQUEDA
+========================================================= */
+
+// Generar código de conexión
+app.post('/api/game/create-code', authenticateToken, (req, res) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    gameCodes[code] = req.user.id;
+    res.json({ code });
+});
+
+// Buscar usuarios
+app.get('/api/users/search', authenticateToken, (req, res) => {
+    const query = req.query.q || '';
+    const results = users
+        .filter(u => u.id !== req.user.id && u.username.toLowerCase().includes(query.toLowerCase()))
+        .map(u => ({ id: u.id, username: u.username }));
+
     res.json({ users: results });
 });
 
-app.post("/api/admin/badges/add", requireAdmin, (req, res) => {
+/* =========================================================
+   ENDPOINTS DE AMIGOS Y SOLICITUDES
+========================================================= */
+
+app.post('/api/friends/request', authenticateToken, (req, res) => {
+    const { userId } = req.body;
+    if (!userId || userId === req.user.id) {
+        return res.status(400).json({ error: 'ID de usuario inválido.' });
+    }
+
+    const requestExists = friendRequests.some(r => r.from === req.user.id && r.to === userId);
+    if (requestExists) {
+        return res.status(400).json({ error: 'La solicitud ya fue enviada.' });
+    }
+
+    friendRequests.push({ id: Date.now().toString(), from: req.user.id, to: userId });
+    res.json({ success: true });
+});
+
+app.get('/api/friends/requests', authenticateToken, (req, res) => {
+    const myRequests = friendRequests
+        .filter(r => r.to === req.user.id)
+        .map(r => {
+            const sender = users.find(u => u.id === r.from);
+            return { id: r.id, username: sender ? sender.username : 'Usuario desconocido' };
+        });
+
+    res.json({ requests: myRequests });
+});
+
+app.post('/api/friends/accept', authenticateToken, (req, res) => {
+    const { requestId } = req.body;
+    const index = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
+
+    if (index === -1) {
+        return res.status(400).json({ error: 'Solicitud no encontrada.' });
+    }
+
+    const reqData = friendRequests[index];
+    friendships.push({ user1: reqData.from, user2: reqData.to });
+    friendRequests.splice(index, 1);
+
+    res.json({ success: true });
+});
+
+app.post('/api/friends/reject', authenticateToken, (req, res) => {
+    const { requestId } = req.body;
+    const index = friendRequests.findIndex(r => r.id === requestId && r.to === req.user.id);
+
+    if (index !== -1) {
+        friendRequests.splice(index, 1);
+    }
+
+    res.json({ success: true });
+});
+
+app.get('/api/friends', authenticateToken, (req, res) => {
+    const myFriends = friendships
+        .filter(f => f.user1 === req.user.id || f.user2 === req.user.id)
+        .map(f => {
+            const friendId = f.user1 === req.user.id ? f.user2 : f.user1;
+            const friendUser = users.find(u => u.id === friendId);
+            return { id: friendId, username: friendUser ? friendUser.username : 'Desconocido' };
+        });
+
+    res.json({ friends: myFriends });
+});
+
+app.post('/api/friends/remove', authenticateToken, (req, res) => {
+    const { userId } = req.body;
+    const index = friendships.findIndex(
+        f => (f.user1 === req.user.id && f.user2 === userId) || (f.user1 === userId && f.user2 === req.user.id)
+    );
+
+    if (index !== -1) {
+        friendships.splice(index, 1);
+    }
+
+    res.json({ success: true });
+});
+
+/* =========================================================
+   ENDPOINTS DE ADMINISTRADOR
+========================================================= */
+
+app.post('/api/admin/change-username', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'Nombre no válido.' });
+
+    req.user.username = username;
+    res.json({ success: true });
+});
+
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+    const query = req.query.q || '';
+    const filtered = users.filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+    res.json({ users: filtered });
+});
+
+app.post('/api/admin/users/change-username', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+    const { userId, username } = req.body;
+    const targetUser = users.find(u => u.id === userId);
+
+    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    targetUser.username = username;
+    res.json({ success: true });
+});
+
+app.post('/api/admin/users/delete', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
+    const { userId } = req.body;
+    const index = users.findIndex(u => u.id === userId);
+
+    if (index !== -1) {
+        users.splice(index, 1);
+    }
+
+    res.json({ success: true });
+});
+
+app.post('/api/admin/badges/add', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
     const { username, badge } = req.body;
-    if (!BADGES[badge]) return res.status(400).json({ error: "Insignia inválida." });
-    if (badge === "admin" && !isOwner(req.user)) {
-        return res.status(403).json({ error: "Solo la cuenta Owner puede dar la insignia de Admin." });
-    }
-    if (badge === "game_blocks") {
-        return res.status(403).json({ error: "Insignia reservada para Game Blocks." });
-    }
-    const user = database.users.find(u => u.username.toLowerCase() === String(username).toLowerCase());
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    const targetUser = users.find(u => u.username.toLowerCase() === username?.toLowerCase());
 
-    if (!user.badges.includes(badge)) {
-        user.badges.push(badge);
-        if (badge === "admin") user.admin = true;
-        saveDatabase(database);
+    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    if (!targetUser.badges.includes(badge)) {
+        targetUser.badges.push(badge);
     }
-    res.json({ success: true, badges: user.badges });
+
+    res.json({ success: true });
 });
 
-app.post("/api/admin/badges/remove", requireAdmin, (req, res) => {
+app.post('/api/admin/badges/remove', authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.status(403).json({ error: 'Sin permisos de admin.' });
     const { username, badge } = req.body;
-    const user = database.users.find(u => u.username.toLowerCase() === String(username).toLowerCase());
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    const targetUser = users.find(u => u.username.toLowerCase() === username?.toLowerCase());
 
-    user.badges = user.badges.filter(b => b !== badge);
-    if (badge === "admin") user.admin = false;
-    saveDatabase(database);
-    res.json({ success: true, badges: user.badges });
+    if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    targetUser.badges = targetUser.badges.filter(b => b !== badge);
+
+    res.json({ success: true });
 });
 
-app.get("/api/friends", requireLogin, (req, res) => {
-    const friendIds = database.friendships
-        .filter(f => f.status === "accepted" && (f.from === req.user.id || f.to === req.user.id))
-        .map(f => (f.from === req.user.id ? f.to : f.from));
-    const friends = database.users.filter(u => friendIds.includes(u.id));
-    res.json({ friends });
+/* =========================================================
+   MANEJO GLOBAL DE ERRORES (Garantiza respuestas JSON)
+========================================================= */
+
+// Capturar rutas no encontradas (404)
+app.use((req, res) => {
+    res.status(404).json({ error: 'Ruta de API no encontrada.' });
 });
 
-app.listen(PORT, () => console.log(`Servidor iniciado en el puerto ${PORT}`));
+// Capturar errores no controlados (500)
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Error interno del servidor.' });
+});
+
+/* =========================================================
+   INICIO DEL SERVIDOR
+========================================================= */
+app.listen(PORT, () => {
+    console.log(`Servidor de Game Blocks corriendo en el puerto ${PORT}`);
+});
