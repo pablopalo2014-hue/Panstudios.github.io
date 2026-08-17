@@ -259,6 +259,7 @@ textarea:focus {
     align-items: center;
     gap: 12px;
     cursor: pointer;
+    width: 100%;
 }
 
 .user-info-click:hover {
@@ -369,6 +370,7 @@ textarea:focus {
 <div class="topbar">
     <div class="topbar-left">
         <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
+        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
     </div>
     <div class="topbar-right">
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
@@ -389,7 +391,7 @@ textarea:focus {
     </div>
 </section>
 
-<!-- MODAL DE USUARIO / CUENTA -->
+<!-- MODAL -->
 <div id="accountModal" class="modal" onclick="outsideClose(event)">
 <div class="modal-box">
 <button class="close" onclick="closeAccount()">×</button>
@@ -483,7 +485,7 @@ textarea:focus {
     </div>
 
     <div class="section">
-        <h3>🔎 Buscar cuentas</h3>
+        <h3>🔎 Resultados de Búsqueda</h3>
         <div id="searchResults"></div>
     </div>
 
@@ -783,10 +785,11 @@ async function searchUsers() {
     const results = document.getElementById("searchResults");
 
     if (!query) {
-        results.textContent = "Escribe algo para buscar.";
+        results.textContent = "Escribe algo en el buscador superior.";
         return;
     }
 
+    openAccount();
     results.textContent = "Buscando...";
 
     try {
