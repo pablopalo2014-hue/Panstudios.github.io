@@ -10,7 +10,7 @@ const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
 // Configuración de GitHub API para persistencia
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN || "NO_TOKEN" });
 const REPO_OWNER = process.env.REPO_OWNER || "tu-usuario-github";
 const REPO_NAME = process.env.REPO_NAME || "tu-repositorio";
 const FILE_PATH = "database.json";
@@ -70,7 +70,7 @@ async function loadDataFromGit() {
         bannerText = parsed.bannerText || "";
         console.log("✅ Datos persistidos cargados correctamente desde Git.");
     } catch (err) {
-        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error. Se creará al guardar.", err.message);
+        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error. Se creará al guardar:", err.message);
     }
 }
 
@@ -163,8 +163,9 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
+
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-    
     if (!user) return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
