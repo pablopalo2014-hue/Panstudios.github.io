@@ -10,12 +10,12 @@ const SECRET_KEY = process.env.JWT_SECRET || "secreto_game_blocks_super_seguro";
 app.use(cors());
 app.use(express.json());
 
-// Bases de datos simuladas en memoria (reemplazar por MongoDB, PostgreSQL, etc. en producción)
+// Base de datos simulada en memoria
 const users = [];
 const friendRequests = [];
 const gameCodes = {};
 
-// Middleware para verificar autenticación vía JWT
+// Middleware de autenticación
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -33,7 +33,7 @@ function authenticateToken(req, res, next) {
     }
 }
 
-// Middleware para verificar permisos de administrador
+// Middleware de administrador
 function requireAdmin(req, res, next) {
     if (!req.user || !req.user.admin) {
         return res.status(403).json({ error: "Acceso denegado. Requiere privilegios de administrador." });
@@ -41,7 +41,6 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-// Helper para formatear datos públicos de usuario
 function formatPublicUser(user) {
     return {
         id: user.id,
@@ -52,21 +51,13 @@ function formatPublicUser(user) {
     };
 }
 
-/* ==========================================
-   RUTAS DE AUTENTICACIÓN Y SESIÓN
-   ========================================== */
-
-// Registro
+// Rutas de Sesión
 app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: "Nombre de usuario y contraseña requeridos." });
-    }
+    if (!username || !password) return res.status(400).json({ error: "Usuario y contraseña requeridos." });
 
     const existingUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-    if (existingUser) {
-        return res.status(400).json({ error: "El nombre de usuario ya está registrado." });
-    }
+    if (existingUser) return res.status(400).json({ error: "El usuario ya existe." });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = {
@@ -77,16 +68,14 @@ app.post('/api/register', async (req, res) => {
         bio: "",
         badges: ["🧱 Blocker"],
         friends: [],
-        admin: users.length === 0 // El primer usuario registrado se convierte en admin automáticamente
+        admin: users.length === 0
     };
 
     users.push(newUser);
-
     const token = jwt.encode({ id: newUser.id }, SECRET_KEY);
-    res.json({ message: "Cuenta creada con éxito.", token });
+    res.json({ message: "Cuenta creada.", token });
 });
 
-// Login
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
@@ -100,12 +89,10 @@ app.post('/api/login', async (req, res) => {
     res.json({ message: "Inicio de sesión exitoso.", token });
 });
 
-// Logout
 app.post('/api/logout', authenticateToken, (req, res) => {
-    res.json({ message: "Sesión cerrada correctamente." });
+    res.json({ message: "Sesión cerrada." });
 });
 
-// Obtener datos de la cuenta activa
 app.get('/api/me', authenticateToken, (req, res) => {
     res.json({
         id: req.user.id,
@@ -117,21 +104,18 @@ app.get('/api/me', authenticateToken, (req, res) => {
     });
 });
 
-/* ==========================================
-   PERFIL Y BÚSQUEDA DE USUARIOS
-   ========================================== */
-
+// Rutas Perfil y Búsqueda
 app.post('/api/profile/avatar', authenticateToken, (req, res) => {
     const { avatar } = req.body;
-    if (!avatar) return res.status(400).json({ error: "URL de avatar no válida." });
+    if (!avatar) return res.status(400).json({ error: "URL inválida." });
     req.user.avatar = avatar;
-    res.json({ message: "Avatar actualizado con éxito." });
+    res.json({ message: "Avatar actualizado." });
 });
 
 app.post('/api/profile/bio', authenticateToken, (req, res) => {
     const { bio } = req.body;
     req.user.bio = bio || "";
-    res.json({ message: "Biografía actualizada con éxito." });
+    res.json({ message: "Biografía actualizada." });
 });
 
 app.get('/api/badges/me', authenticateToken, (req, res) => {
@@ -155,10 +139,7 @@ app.get('/api/users/search', (req, res) => {
     res.json({ users: results });
 });
 
-/* ==========================================
-   AMIGOS Y SOLICITUDES
-   ========================================== */
-
+// Rutas Amigos
 app.get('/api/friends', authenticateToken, (req, res) => {
     const friendList = users
         .filter(u => req.user.friends.includes(u.id))
@@ -173,7 +154,7 @@ app.get('/api/friends/requests', authenticateToken, (req, res) => {
             const sender = users.find(u => u.id === r.fromUserId);
             return {
                 id: r.id,
-                username: sender ? sender.username : "Usuario desconocido"
+                username: sender ? sender.username : "Desconocido"
             };
         });
     res.json({ requests });
@@ -181,19 +162,12 @@ app.get('/api/friends/requests', authenticateToken, (req, res) => {
 
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
-    if (userId === req.user.id) return res.status(400).json({ error: "No puedes enviarte una solicitud a ti mismo." });
-    
+    if (userId === req.user.id) return res.status(400).json({ error: "Operación inválida." });
+
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    if (req.user.friends.includes(userId)) {
-        return res.status(400).json({ error: "Ya son amigos." });
-    }
-
-    const existingReq = friendRequests.find(r => 
-        (r.fromUserId === req.user.id && r.toUserId === userId && r.status === 'pending')
-    );
-    if (existingReq) return res.status(400).json({ error: "Solicitud ya enviada." });
+    if (req.user.friends.includes(userId)) return res.status(400).json({ error: "Ya son amigos." });
 
     friendRequests.push({
         id: Date.now().toString(),
@@ -202,7 +176,7 @@ app.post('/api/friends/request', authenticateToken, (req, res) => {
         status: 'pending'
     });
 
-    res.json({ message: "Solicitud de amistad enviada." });
+    res.json({ message: "Solicitud enviada." });
 });
 
 app.post('/api/friends/accept', authenticateToken, (req, res) => {
@@ -245,29 +219,20 @@ app.post('/api/friends/remove', authenticateToken, (req, res) => {
     res.json({ message: "Amigo eliminado." });
 });
 
-/* ==========================================
-   INTEGRACIÓN CON EL JUEGO
-   ========================================== */
-
+// Código del Juego
 app.post('/api/game/create-code', authenticateToken, (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    gameCodes[code] = {
-        userId: req.user.id,
-        createdAt: Date.now()
-    };
+    gameCodes[code] = { userId: req.user.id, createdAt: Date.now() };
     res.json({ code });
 });
 
-/* ==========================================
-   PANEL DE ADMINISTRACIÓN
-   ========================================== */
-
+// Rutas Admin
 app.post('/api/admin/change-username', authenticateToken, requireAdmin, (req, res) => {
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: "Nombre inválido." });
 
     req.user.username = username;
-    res.json({ message: "Nombre de usuario actualizado con éxito." });
+    res.json({ message: "Nombre de usuario actualizado." });
 });
 
 app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
@@ -301,10 +266,8 @@ app.post('/api/admin/badges/add', authenticateToken, requireAdmin, (req, res) =>
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    if (!user.badges.includes(badge)) {
-        user.badges.push(badge);
-    }
-    res.json({ message: "Insignia otorgada." });
+    if (!user.badges.includes(badge)) user.badges.push(badge);
+    res.json({ message: "Insignia añadida." });
 });
 
 app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, (req, res) => {
@@ -313,10 +276,9 @@ app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, (req, res)
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
 
     user.badges = user.badges.filter(b => b !== badge);
-    res.json({ message: "Insignia removida." });
+    res.json({ message: "Insignia eliminada." });
 });
 
-// Iniciar servidor
 app.listen(PORT, () => {
-    console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+    console.log(`Servidor activo en el puerto ${PORT}`);
 });
