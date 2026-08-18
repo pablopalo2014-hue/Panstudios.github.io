@@ -4,14 +4,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { Octokit } = require('@octokit/rest');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
-// Configuración de GitHub API para persistencia vía GIST o REPO
-const GIST_ID = process.env.GIST_ID || ""; 
-const octokit = new Octokit({ auth: process.env.GIST_TOKEN || process.env.GITHUB_TOKEN });
+// Configuración de GitHub API para persistencia
+const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const REPO_OWNER = process.env.REPO_OWNER || "tu-usuario-github";
 const REPO_NAME = process.env.REPO_NAME || "tu-repositorio";
 const FILE_PATH = "database.json";
@@ -43,78 +43,71 @@ let gameCodes = {};      // { code: userId }
 let accessories = [];    // { id, glbUrl, imageUrl, limited, maxPerUser, price }
 let bannerText = "";
 
-// Cargar base de datos desde Gist o Git al iniciar
+// Función de Sanitización básica contra XSS persistent
+function sanitizeText(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    })[m]);
+}
+
+// Cargar base de datos desde repositorio Git al iniciar
 async function loadDataFromGit() {
-    const token = process.env.GIST_TOKEN || process.env.GITHUB_TOKEN;
-    if (!token) {
-        console.log("⚠️ GITHUB_TOKEN/GIST_TOKEN no configurado. Operando con memoria local temporal.");
+    if (!process.env.GITHUB_TOKEN) {
+        console.log("⚠️ GITHUB_TOKEN no configurado. Operando con memoria local temporal.");
         return;
     }
     try {
-        let content = "";
-        if (GIST_ID) {
-            const res = await octokit.gists.get({ gist_id: GIST_ID });
-            if (res.data.files[FILE_PATH]) {
-                content = res.data.files[FILE_PATH].content;
-            }
-        } else {
-            const res = await octokit.repos.getContent({
-                owner: REPO_OWNER,
-                repo: REPO_NAME,
-                path: FILE_PATH
-            });
-            fileSha = res.data.sha;
-            content = Buffer.from(res.data.content, 'base64').toString('utf-8');
-        }
-
-        if (content) {
-            const parsed = JSON.parse(content);
-            users = (parsed.users || []).map(u => ({
-                ...u,
-                inventory: (u.inventory || []).map(id => String(id)),
-                badges: u.badges || [],
-                coins: typeof u.coins === 'number' ? u.coins : 100,
-                equippedAccessory: u.equippedAccessory ? String(u.equippedAccessory) : null
-            }));
-            friendships = parsed.friendships || [];
-            accessories = (parsed.accessories || []).map(a => ({ ...a, id: String(a.id) }));
-            bannerText = parsed.bannerText || "";
-            console.log("✅ Datos persistidos cargados correctamente.");
-        }
+        const res = await octokit.repos.getContent({
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH
+        });
+        fileSha = res.data.sha;
+        const content = Buffer.from(res.data.content, 'base64').toString('utf-8');
+        const parsed = JSON.parse(content);
+        
+        users = (parsed.users || []).map(u => ({
+            ...u,
+            inventory: u.inventory || [],
+            badges: u.badges || [],
+            coins: typeof u.coins === 'number' ? u.coins : 100,
+            equippedAccessory: u.equippedAccessory || null
+        }));
+        friendships = parsed.friendships || [];
+        accessories = parsed.accessories || [];
+        bannerText = parsed.bannerText || "";
+        console.log("✅ Datos persistidos cargados correctamente desde Git.");
     } catch (err) {
-        console.log("⚠️ No se encontró la base de datos previa o hubo un error al cargar:", err.message);
+        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error. Se creará al guardar.", err.message);
     }
 }
 
-// Guardar base de datos actualizada en Gist o Git
+// Guardar base de datos actualizada en el repositorio Git
 async function saveDataToGit() {
-    const token = process.env.GIST_TOKEN || process.env.GITHUB_TOKEN;
-    if (!token) return;
+    if (!process.env.GITHUB_TOKEN) return;
     try {
         const dataToSave = JSON.stringify({ users, friendships, accessories, bannerText }, null, 2);
+        const contentEncoded = Buffer.from(dataToSave).toString('base64');
 
-        if (GIST_ID) {
-            await octokit.gists.update({
-                gist_id: GIST_ID,
-                files: {
-                    [FILE_PATH]: { content: dataToSave }
-                }
-            });
-        } else {
-            const contentEncoded = Buffer.from(dataToSave).toString('base64');
-            const params = {
-                owner: REPO_OWNER,
-                repo: REPO_NAME,
-                path: FILE_PATH,
-                message: "bot: actualización de database.json",
-                content: contentEncoded
-            };
-            if (fileSha) params.sha = fileSha;
-            const res = await octokit.repos.createOrUpdateFileContents(params);
-            fileSha = res.data.content.sha;
-        }
+        const params = {
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH,
+            message: "bot: actualización de datos (cuentas/compras/inventario)",
+            content: contentEncoded
+        };
+
+        if (fileSha) params.sha = fileSha;
+
+        const res = await octokit.repos.createOrUpdateFileContents(params);
+        fileSha = res.data.content.sha;
     } catch (err) {
-        console.error("❌ Error al persistir datos:", err.message);
+        console.error("❌ Error al persistir cambios en Git:", err.message);
     }
 }
 
@@ -147,20 +140,25 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-// RUTAS DE AUTENTICACIÓN
+// -------------------------------------------------------------
+// RUTAS DE AUTENTICACIÓN Y PERFIL
+// -------------------------------------------------------------
+
 app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
-    const existing = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    const cleanUsername = sanitizeText(username.trim());
+    const existing = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
     if (existing) return res.status(400).json({ error: "El nombre de usuario ya existe." });
 
     const isOwner = users.length === 0;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = {
         id: Date.now().toString(),
-        username,
-        password,
+        username: cleanUsername,
+        password: hashedPassword,
         avatar: "https://via.placeholder.com/110",
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner"] : [],
@@ -178,18 +176,35 @@ app.post('/api/register', async (req, res) => {
     res.json({ success: true, token });
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+    if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
+
+    const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
     
     if (!user) return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
+
+    // Verificación segura con Bcrypt (Soporta compatibilidad previa con texto plano)
+    let isPasswordValid = false;
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+        isPasswordValid = await bcrypt.compare(password, user.password);
+    } else {
+        isPasswordValid = (user.password === password);
+        if (isPasswordValid) {
+            user.password = await bcrypt.hash(password, 10);
+            await saveDataToGit();
+        }
+    }
+
+    if (!isPasswordValid) return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
     res.json({ success: true, token });
 });
 
 app.get('/api/me', authenticateToken, (req, res) => {
-    res.json(req.user);
+    const { password, ...safeUserData } = req.user;
+    res.json(safeUserData);
 });
 
 app.post('/api/logout', (req, res) => {
@@ -205,7 +220,7 @@ app.post('/api/profile/avatar', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/profile/bio', authenticateToken, async (req, res) => {
-    req.user.bio = req.body.bio || "";
+    req.user.bio = sanitizeText(req.body.bio || "");
     await saveDataToGit();
     res.json({ success: true, bio: req.user.bio });
 });
@@ -234,7 +249,10 @@ app.get('/api/users/search', (req, res) => {
     res.json({ users: matches });
 });
 
-// AMIGOS
+// -------------------------------------------------------------
+// SISTEMA DE AMIGOS
+// -------------------------------------------------------------
+
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
     if (userId === req.user.id) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
@@ -295,27 +313,32 @@ app.post('/api/friends/remove', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
-// CÓDIGOS DE JUEGO
+// -------------------------------------------------------------
+// CONEXIÓN CON EL JUEGO Y CÓDIGOS
+// -------------------------------------------------------------
+
 app.post('/api/game/create-code', authenticateToken, (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     gameCodes[code] = req.user.id;
     res.json({ success: true, code });
 });
 
-// ACCESORIOS Y TIENDA
+// -------------------------------------------------------------
+// TIENDA, COMPRA Y EQUIPAMIENTO DE ACCESORIOS
+// -------------------------------------------------------------
+
 app.get('/api/accessories', (req, res) => {
     res.json({ items: accessories });
 });
 
 app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     const { itemId } = req.body;
-    const targetId = String(itemId);
-    const item = accessories.find(a => String(a.id) === targetId);
+    const item = accessories.find(a => Number(a.id) === Number(itemId));
 
     if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
 
     if (!req.user.inventory) req.user.inventory = [];
-    if (req.user.inventory.includes(targetId)) {
+    if (req.user.inventory.includes(item.id)) {
         return res.status(400).json({ error: "Ya posees este accesorio." });
     }
 
@@ -324,7 +347,7 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     }
 
     req.user.coins -= item.price;
-    req.user.inventory.push(targetId);
+    req.user.inventory.push(item.id);
 
     await saveDataToGit();
     res.json({ success: true, newBalance: req.user.coins });
@@ -332,17 +355,15 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
 
 app.post('/api/accessories/equip', authenticateToken, async (req, res) => {
     const { itemId } = req.body;
-    const targetId = String(itemId);
+    const targetId = Number(itemId);
 
     if (!req.user.inventory || !req.user.inventory.includes(targetId)) {
         return res.status(400).json({ error: "No posees este accesorio." });
     }
 
-    const item = accessories.find(a => String(a.id) === targetId);
     req.user.equippedAccessory = targetId;
     await saveDataToGit();
-
-    res.json({ success: true, equipped: targetId, glbUrl: item ? item.glbUrl : "" });
+    res.json({ success: true, equipped: targetId });
 });
 
 app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
@@ -353,8 +374,13 @@ app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
 
 app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req, res) => {
     upload.single('glb')(req, res, async (err) => {
-        if (err) return res.status(500).json({ error: "Error al guardar el GLB: " + err.message });
-        if (!req.file) return res.status(400).json({ error: "Debes adjuntar un archivo .GLB local." });
+        if (err) {
+            return res.status(500).json({ error: "Error al guardar el archivo GLB: " + err.message });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ error: "Debes adjuntar un archivo .GLB local." });
+        }
 
         const { imageUrl, limited, maxPerUser, price } = req.body;
         if (!imageUrl || !price) {
@@ -363,7 +389,7 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
 
         try {
             const newAccessory = {
-                id: Date.now().toString(),
+                id: Date.now(),
                 glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
                 imageUrl: imageUrl.trim(),
                 limited: limited === 'true' || limited === true,
@@ -375,12 +401,15 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
             await saveDataToGit();
             res.json({ success: true, accessory: newAccessory });
         } catch (error) {
-            res.status(500).json({ error: "Error al procesar el accesorio." });
+            res.status(500).json({ error: "Error al procesar los datos del accesorio." });
         }
     });
 });
 
-// ADMIN / OWNER
+// -------------------------------------------------------------
+// PANEL DE ADMINISTRACIÓN / OWNER
+// -------------------------------------------------------------
+
 app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, amount } = req.body;
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
@@ -394,7 +423,7 @@ app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, re
 app.post('/api/admin/change-username', authenticateToken, requireAdmin, async (req, res) => {
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: "Escribe un nombre válido." });
-    req.user.username = username;
+    req.user.username = sanitizeText(username.trim());
     await saveDataToGit();
     res.json({ success: true });
 });
@@ -411,7 +440,7 @@ app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, as
     const { userId, username } = req.body;
     const target = users.find(u => u.id === userId);
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-    target.username = username;
+    target.username = sanitizeText(username.trim());
     await saveDataToGit();
     res.json({ success: true });
 });
@@ -446,7 +475,7 @@ app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req
 });
 
 app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) => {
-    bannerText = req.body.text || "";
+    bannerText = sanitizeText(req.body.text || "");
     await saveDataToGit();
     res.json({ success: true, text: bannerText });
 });
@@ -455,8 +484,12 @@ app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
+// -------------------------------------------------------------
+// MANEJADORES GLOBALES DE ERROR
+// -------------------------------------------------------------
+
 app.use((req, res) => {
-    res.status(404).json({ error: "La ruta solicitada no existe." });
+    res.status(404).json({ error: "La ruta solicitada no existe en el servidor." });
 });
 
 app.use((err, req, res, next) => {
@@ -464,6 +497,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Error interno del servidor." });
 });
 
+// INICIAR SERVIDOR Y CARGAR DATOS PERSISTIDOS
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     await loadDataFromGit();
