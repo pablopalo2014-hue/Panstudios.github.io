@@ -70,7 +70,6 @@ body {
     background: #ddd;
 }
 
-/* Moneda en la Topbar */
 .coin-display {
     background: #1a1a1a;
     color: #ffd700;
@@ -389,7 +388,6 @@ textarea:focus {
     line-height: 1.5;
 }
 
-/* Estilos de Avatar y Tienda */
 .avatar-modal-body {
     display: flex;
     gap: 20px;
@@ -455,11 +453,9 @@ model-viewer {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
-        <!-- Monedas -->
         <div class="coin-display" id="userCoinsDisplay" title="Monedas">
             <span id="userCoinsText">0</span> 🪙
         </div>
-        <!-- Botón de avatar a la derecha de la moneda -->
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
@@ -658,7 +654,7 @@ model-viewer {
 </div>
 </div>
 
-<!-- MODAL VISUALIZADOR DE AVATAR Y TIENDA DE ACCESORIOS -->
+<!-- MODAL AVATAR Y TIENDA -->
 <div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
 <div class="modal-box" style="max-width: 750px;">
     <button class="close" onclick="closeAvatarModal()">×</button>
@@ -670,7 +666,7 @@ model-viewer {
                 <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" style="position: absolute; inset:0; z-index:1;"></model-viewer>
                 <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
             </div>
-            <small style="color:#888; margin-top:5px;">Visualizador estático (sin rotación)</small>
+            <small style="color:#888; margin-top:5px;">Visualizador estático</small>
         </div>
 
         <div style="flex:1; min-width: 260px;">
@@ -1314,7 +1310,7 @@ async function removeBadge() {
     }
 }
 
-/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR CON COMPRA Y EQUIPAR */
+/* COMPRA Y EQUIPAR DE ACCESORIOS */
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
     try {
@@ -1329,10 +1325,21 @@ async function loadShopItems() {
             return;
         }
 
-        const myInventory = me ? (me.inventory || []) : [];
-        const equippedId = me ? me.equippedAccessory : null;
+        const myInventory = me ? (me.inventory || []).map(id => String(id)) : [];
+        const equippedId = me && me.equippedAccessory ? String(me.equippedAccessory) : null;
+
+        // Actualizar visor 3D según el ítem equipado
+        if (equippedId) {
+            const equippedItem = data.items.find(a => String(a.id) === equippedId);
+            if (equippedItem) {
+                document.getElementById("accessoryViewer").src = equippedItem.glbUrl;
+            }
+        } else {
+            document.getElementById("accessoryViewer").src = "";
+        }
 
         data.items.forEach(item => {
+            const itemIdStr = String(item.id);
             const card = document.createElement("div");
             card.className = "shop-card";
 
@@ -1347,8 +1354,8 @@ async function loadShopItems() {
             btn.style.padding = "4px";
             btn.style.marginTop = "5px";
 
-            const isOwned = myInventory.includes(item.id);
-            const isEquipped = equippedId === item.id;
+            const isOwned = myInventory.includes(itemIdStr);
+            const isEquipped = equippedId === itemIdStr;
 
             if (isEquipped) {
                 btn.textContent = "Desequipar";
@@ -1359,12 +1366,12 @@ async function loadShopItems() {
                 btn.textContent = "Equipar";
                 btn.style.background = "#28a745";
                 btn.style.color = "#fff";
-                btn.onclick = () => equipAccessory(item.id, item.glbUrl);
+                btn.onclick = () => equipAccessory(itemIdStr);
             } else {
                 btn.textContent = "Comprar";
                 btn.style.background = "#fff";
                 btn.style.color = "#000";
-                btn.onclick = () => buyAccessory(item.id);
+                btn.onclick = () => buyAccessory(itemIdStr);
             }
 
             card.appendChild(img);
@@ -1396,11 +1403,12 @@ async function buyAccessory(itemId) {
     }
 }
 
-async function equipAccessory(itemId, glbUrl) {
+async function equipAccessory(itemId) {
     try {
-        await request("/api/accessories/equip", "POST", { itemId });
-        const accViewer = document.getElementById("accessoryViewer");
-        accViewer.src = glbUrl;
+        const res = await request("/api/accessories/equip", "POST", { itemId });
+        if (res.glbUrl) {
+            document.getElementById("accessoryViewer").src = res.glbUrl;
+        }
         loadShopItems();
     } catch (error) {
         alert(error.message);
@@ -1410,15 +1418,13 @@ async function equipAccessory(itemId, glbUrl) {
 async function unequipAccessory() {
     try {
         await request("/api/accessories/unequip", "POST");
-        const accViewer = document.getElementById("accessoryViewer");
-        accViewer.src = "";
+        document.getElementById("accessoryViewer").src = "";
         loadShopItems();
     } catch (error) {
         alert(error.message);
     }
 }
 
-/* SUBIR ACCESORIO GLB DESDE PC POR OWNER */
 async function uploadAccessory() {
     const glbFile = document.getElementById("accessoryGlbFile").files[0];
     const isLimited = document.getElementById("accessoryIsLimited").value === "si";
@@ -1460,7 +1466,6 @@ async function uploadAccessory() {
     }
 }
 
-/* AÑADIR MONEDAS POR ADMIN */
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value.trim();
     const amount = document.getElementById("coinAmount").value;
@@ -1482,7 +1487,6 @@ async function adminAddCoins() {
     }
 }
 
-/* GUARDAR Y CARGAR BANNER DE TEXTO DE OWNER */
 async function saveOwnerBanner() {
     const text = document.getElementById("bannerTextInput").value.trim();
     const msg = document.getElementById("bannerMsg");
