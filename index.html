@@ -459,7 +459,7 @@ model-viewer {
         <div class="coin-display" id="userCoinsDisplay" title="Monedas">
             <span id="userCoinsText">0</span> 🪙
         </div>
-        <!-- Botón de avatar a la derecha de la moneda (entre descargar y monedas) -->
+        <!-- Botón de avatar a la derecha de la moneda -->
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
@@ -507,16 +507,13 @@ model-viewer {
 
 <!-- CUENTA -->
 <div id="accountView" class="hidden">
-    <!-- FOTO -->
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
         <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
     </div>
 
-    <!-- NOMBRE -->
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
 
-    <!-- CONFIGURACIÓN DE RUTA EXE -->
     <div class="section">
         <h3>⚙️ Configuración del Juego</h3>
         <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
@@ -525,13 +522,11 @@ model-viewer {
         <p id="exeMessage"></p>
     </div>
 
-    <!-- INSIGNIAS -->
     <div class="section">
         <h3>🏅 Insignias</h3>
         <div id="myBadges" class="badges">Cargando...</div>
     </div>
 
-    <!-- BIO -->
     <div class="section">
         <h3>📝 Biografía</h3>
         <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
@@ -539,7 +534,6 @@ model-viewer {
         <p id="bioMessage"></p>
     </div>
 
-    <!-- ADMIN PANEL / OWNER PANEL -->
     <div id="adminPanel" class="admin-panel hidden">
         <h2>🛠️ Panel de administración</h2>
         <p>Herramientas administrativas de Game Blocks.</p>
@@ -572,7 +566,6 @@ model-viewer {
             <p id="badgeMessage"></p>
         </div>
 
-        <!-- PANEL DE SUBIR ACCESORIOS SOLO PARA OWNER -->
         <div class="section">
             <h3>📦 Subir Accesorio de Avatar</h3>
             <label style="font-size: 13px; color: #aaa;">Importar .GLB desde archivos del PC:</label>
@@ -598,7 +591,6 @@ model-viewer {
             <p id="accessoryUploadMsg"></p>
         </div>
 
-        <!-- AÑADIR MONEDAS A USUARIOS DESDE ADMIN PANEL -->
         <div class="section">
             <h3>🪙 Añadir Monedas a Usuario</h3>
             <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
@@ -607,7 +599,6 @@ model-viewer {
             <p id="coinAdminMsg"></p>
         </div>
 
-        <!-- ESTABLECER BANNER DE TEXTO ABAJO DE BARRA LATERAL -->
         <div class="section">
             <h3>📢 Banner de Texto Informativo</h3>
             <input type="text" id="bannerTextInput" placeholder="Texto del banner inferior">
@@ -674,25 +665,20 @@ model-viewer {
     <h2>🎭 Personalizar Avatar & Tienda</h2>
     
     <div class="avatar-modal-body">
-        <!-- Visualizador de Modelo de Git (noob.glb sin girar) -->
         <div style="display:flex; flex-direction:column; align-items:center;">
             <div class="avatar-viewer-box">
-                <!-- Visualizador del modelo noob.glb base -->
                 <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" style="position: absolute; inset:0; z-index:1;"></model-viewer>
-                <!-- Capa del Accesorio / Sombrero GLB arriba del visualizador -->
                 <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
             </div>
             <small style="color:#888; margin-top:5px;">Visualizador estático (sin rotación)</small>
         </div>
 
-        <!-- Tienda de Accesorios -->
         <div style="flex:1; min-width: 260px;">
             <h3>🛒 Tienda de Accesorios</h3>
             <div id="shopContainer" class="shop-items">Cargando catálogo...</div>
         </div>
     </div>
 
-    <!-- Banner de Texto configurado por el Owner -->
     <div id="sidebarBannerContainer" class="sidebar-banner hidden"></div>
 </div>
 </div>
@@ -1328,16 +1314,23 @@ async function removeBadge() {
     }
 }
 
-/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR */
+/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR CON COMPRA Y EQUIPAR */
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
     try {
-        const data = await request("/api/accessories");
+        const [data, me] = await Promise.all([
+            request("/api/accessories"),
+            request("/api/me").catch(() => null)
+        ]);
+
         container.innerHTML = "";
         if (!data.items || data.items.length === 0) {
             container.textContent = "No hay accesorios disponibles.";
             return;
         }
+
+        const myInventory = me ? (me.inventory || []) : [];
+        const equippedId = me ? me.equippedAccessory : null;
 
         data.items.forEach(item => {
             const card = document.createElement("div");
@@ -1353,17 +1346,37 @@ async function loadShopItems() {
             btn.className = "form-button";
             btn.style.padding = "4px";
             btn.style.marginTop = "5px";
-            btn.textContent = "Equipar";
-            btn.onclick = () => equipHat(item.glbUrl);
+
+            const isOwned = myInventory.includes(item.id);
+            const isEquipped = equippedId === item.id;
+
+            if (isEquipped) {
+                btn.textContent = "Desequipar";
+                btn.style.background = "#ff4444";
+                btn.style.color = "#fff";
+                btn.onclick = () => unequipAccessory();
+            } else if (isOwned) {
+                btn.textContent = "Equipar";
+                btn.style.background = "#28a745";
+                btn.style.color = "#fff";
+                btn.onclick = () => equipAccessory(item.id, item.glbUrl);
+            } else {
+                btn.textContent = "Comprar";
+                btn.style.background = "#fff";
+                btn.style.color = "#000";
+                btn.onclick = () => buyAccessory(item.id);
+            }
 
             card.appendChild(img);
             card.appendChild(price);
+
             if (item.limited) {
                 const lim = document.createElement("small");
                 lim.style.color = "gold";
                 lim.textContent = "Limited (" + item.maxPerUser + " max)";
                 card.appendChild(lim);
             }
+
             card.appendChild(btn);
             container.appendChild(card);
         });
@@ -1372,9 +1385,37 @@ async function loadShopItems() {
     }
 }
 
-function equipHat(glbUrl) {
-    const accViewer = document.getElementById("accessoryViewer");
-    accViewer.src = glbUrl;
+async function buyAccessory(itemId) {
+    try {
+        const res = await request("/api/accessories/buy", "POST", { itemId });
+        alert("¡Compra realizada con éxito!");
+        document.getElementById("userCoinsText").textContent = res.newBalance;
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function equipAccessory(itemId, glbUrl) {
+    try {
+        await request("/api/accessories/equip", "POST", { itemId });
+        const accViewer = document.getElementById("accessoryViewer");
+        accViewer.src = glbUrl;
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function unequipAccessory() {
+    try {
+        await request("/api/accessories/unequip", "POST");
+        const accViewer = document.getElementById("accessoryViewer");
+        accViewer.src = "";
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
 }
 
 /* SUBIR ACCESORIO GLB DESDE PC POR OWNER */
@@ -1412,6 +1453,7 @@ async function uploadAccessory() {
 
         msg.className = "success";
         msg.textContent = "Accesorio subido correctamente.";
+        loadShopItems();
     } catch (error) {
         msg.className = "error";
         msg.textContent = error.message;
