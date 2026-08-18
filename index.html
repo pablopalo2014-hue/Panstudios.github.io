@@ -397,7 +397,6 @@ textarea:focus {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
-        <!-- Monedas -->
         <div class="coin-display" title="Monedas" onclick="alert('Próximamente')">
             0 🪙
         </div>
@@ -447,16 +446,13 @@ textarea:focus {
 
 <!-- CUENTA -->
 <div id="accountView" class="hidden">
-    <!-- FOTO -->
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
         <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
     </div>
 
-    <!-- NOMBRE -->
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
 
-    <!-- CONFIGURACIÓN DE RUTA EXE -->
     <div class="section">
         <h3>⚙️ Configuración del Juego</h3>
         <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
@@ -465,13 +461,11 @@ textarea:focus {
         <p id="exeMessage"></p>
     </div>
 
-    <!-- INSIGNIAS -->
     <div class="section">
         <h3>🏅 Insignias</h3>
         <div id="myBadges" class="badges">Cargando...</div>
     </div>
 
-    <!-- BIO -->
     <div class="section">
         <h3>📝 Biografía</h3>
         <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
