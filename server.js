@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
@@ -9,11 +10,18 @@ const JWT_SECRET = "gameblocks_secret_key_change_in_production";
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Crear carpeta 'uploads' si no existe
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+app.use('/uploads', express.static(uploadDir));
 
 // Configuración de Multer para archivos GLB locales
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
+    destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage });
@@ -63,13 +71,12 @@ app.post('/api/register', (req, res) => {
     const existing = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (existing) return res.status(400).json({ error: "El nombre de usuario ya existe." });
 
-    // El primer usuario creado se registra como Owner/Admin
     const isOwner = users.length === 0;
 
     const newUser = {
         id: Date.now().toString(),
         username,
-        password, // Nota: Se recomienda hashear contraseñas en producción
+        password,
         avatar: "https://via.placeholder.com/110",
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner"] : [],
@@ -211,27 +218,39 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 });
 
 // -------------------------------------------------------------
-// TIENDA Y ACCESORIOS AVATAR (NUEVO)
+// TIENDA Y ACCESORIOS AVATAR
 // -------------------------------------------------------------
 
 app.get('/api/accessories', (req, res) => {
     res.json({ items: accessories });
 });
 
-app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, upload.single('glb'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "Debes adjuntar un archivo .GLB local." });
+app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req, res) => {
+    upload.single('glb')(req, res, (err) => {
+        if (err) {
+            return res.status(500).json({ error: "Error al guardar el archivo GLB: " + err.message });
+        }
 
-    const newAccessory = {
-        id: Date.now(),
-        glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
-        imageUrl: req.body.imageUrl,
-        limited: req.body.limited === 'true',
-        maxPerUser: parseInt(req.body.maxPerUser) || 1,
-        price: parseInt(req.body.price) || 0
-    };
+        if (!req.file) {
+            return res.status(400).json({ error: "Debes adjuntar un archivo .GLB local." });
+        }
 
-    accessories.push(newAccessory);
-    res.json({ success: true, accessory: newAccessory });
+        try {
+            const newAccessory = {
+                id: Date.now(),
+                glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
+                imageUrl: req.body.imageUrl,
+                limited: req.body.limited === 'true',
+                maxPerUser: parseInt(req.body.maxPerUser) || 1,
+                price: parseInt(req.body.price) || 0
+            };
+
+            accessories.push(newAccessory);
+            res.json({ success: true, accessory: newAccessory });
+        } catch (error) {
+            res.status(500).json({ error: "Error al procesar los datos del accesorio." });
+        }
+    });
 });
 
 // -------------------------------------------------------------
@@ -303,7 +322,7 @@ app.get('/api/banner', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// MANEJADORES GLOBALES DE ERROR (PREVIENE RESPUESTAS HTML 404)
+// MANEJADORES GLOBALES DE ERROR
 // -------------------------------------------------------------
 
 app.use((req, res) => {
