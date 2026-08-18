@@ -70,7 +70,6 @@ body {
     background: #ddd;
 }
 
-/* Moneda en la Topbar */
 .coin-display {
     background: #1a1a1a;
     color: #ffd700;
@@ -389,7 +388,6 @@ textarea:focus {
     line-height: 1.5;
 }
 
-/* Estilos de Avatar y Tienda */
 .avatar-modal-body {
     display: flex;
     gap: 20px;
@@ -455,11 +453,9 @@ model-viewer {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
-        <!-- Monedas -->
         <div class="coin-display" id="userCoinsDisplay" title="Monedas">
             <span id="userCoinsText">0</span> 🪙
         </div>
-        <!-- Botón de avatar a la derecha de la moneda -->
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
@@ -686,13 +682,21 @@ model-viewer {
 <script>
 const RENDER_API = "https://panstudios-github-io-1.onrender.com";
 
-async function request(endpoint, method = "GET", body = null) {
-    const headers = { "Content-Type": "application/json" };
+async function request(endpoint, method = "GET", body = null, isFormData = false) {
+    const headers = {};
     const token = localStorage.getItem("gameblocks_token");
     if (token) headers.Authorization = "Bearer " + token;
 
     const options = { method, headers };
-    if (body !== null) options.body = JSON.stringify(body);
+
+    if (body !== null) {
+        if (isFormData) {
+            options.body = body;
+        } else {
+            headers["Content-Type"] = "application/json";
+            options.body = JSON.stringify(body);
+        }
+    }
 
     const response = await fetch(RENDER_API + endpoint, options);
     let data;
@@ -1314,7 +1318,6 @@ async function removeBadge() {
     }
 }
 
-/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR CON COMPRA Y EQUIPAR */
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
     try {
@@ -1418,7 +1421,6 @@ async function unequipAccessory() {
     }
 }
 
-/* SUBIR ACCESORIO GLB DESDE PC POR OWNER */
 async function uploadAccessory() {
     const glbFile = document.getElementById("accessoryGlbFile").files[0];
     const isLimited = document.getElementById("accessoryIsLimited").value === "si";
@@ -1442,14 +1444,7 @@ async function uploadAccessory() {
 
     try {
         msg.textContent = "Subiendo accesorio...";
-        const token = localStorage.getItem("gameblocks_token");
-        const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + token },
-            body: formData
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error al subir.");
+        await request("/api/admin/accessories/upload", "POST", formData, true);
 
         msg.className = "success";
         msg.textContent = "Accesorio subido correctamente.";
@@ -1460,7 +1455,6 @@ async function uploadAccessory() {
     }
 }
 
-/* AÑADIR MONEDAS POR ADMIN */
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value.trim();
     const amount = document.getElementById("coinAmount").value;
@@ -1482,7 +1476,6 @@ async function adminAddCoins() {
     }
 }
 
-/* GUARDAR Y CARGAR BANNER DE TEXTO DE OWNER */
 async function saveOwnerBanner() {
     const text = document.getElementById("bannerTextInput").value.trim();
     const msg = document.getElementById("bannerMsg");
