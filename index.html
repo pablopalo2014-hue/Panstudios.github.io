@@ -67,6 +67,29 @@ body {
     background: #ddd;
 }
 
+/* Moneda en la Topbar */
+.coin-display {
+    background: #1a1a1a;
+    color: #ffd700;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.coin-display:hover {
+    background: #2a2a2a;
+    border-color: #ffd700;
+    transform: scale(1.05);
+}
+
 .hero {
     min-height: 100vh;
     display: flex;
@@ -374,6 +397,10 @@ textarea:focus {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
+        <!-- Monedas -->
+        <div class="coin-display" title="Monedas" onclick="alert('Próximamente')">
+            0 🪙
+        </div>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
     </div>
