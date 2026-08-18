@@ -472,3 +472,99 @@ app.listen(PORT, async () => {
     await loadDataFromGit();
     console.log(`🎮 Servidor Game Blocks corriendo en el puerto ${PORT}`);
 });
+// -------------------------------------------------------------
+// TIENDA, COMPRA Y EQUIPAMIENTO DE ACCESORIOS (SISTEMA DE COMPRAS)
+// -------------------------------------------------------------
+
+// Obtenemos el catálogo de accesorios
+app.get('/api/accessories', (req, res) => {
+    res.json({ items: accessories });
+});
+
+// Alias por si el frontend busca '/api/shop' o '/api/store'
+app.get('/api/shop', (req, res) => {
+    res.json({ items: accessories });
+});
+
+// Ruta principal para comprar accesorios
+app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
+    const { itemId } = req.body;
+    
+    if (itemId === undefined || itemId === null) {
+        return res.status(400).json({ error: "Debes enviar el itemId del producto." });
+    }
+
+    // Buscamos el ítem convirtiendo ambos a número o string para evitar fallos de tipo
+    const item = accessories.find(a => String(a.id) === String(itemId));
+
+    if (!item) {
+        return res.status(404).json({ error: "El accesorio especificado no existe en el catálogo." });
+    }
+
+    if (!req.user.inventory) req.user.inventory = [];
+
+    // Verificamos si el usuario ya tiene el artículo
+    const yaLoTiene = req.user.inventory.some(id => String(id) === String(item.id));
+    if (yaLoTiene) {
+        return res.status(400).json({ error: "Ya posees este accesorio en tu inventario." });
+    }
+
+    // Verificación del saldo de monedas
+    const userCoins = Number(req.user.coins) || 0;
+    const itemPrice = Number(item.price) || 0;
+
+    if (userCoins < itemPrice) {
+        return res.status(400).json({ error: "Monedas insuficientes para realizar la compra." });
+    }
+
+    // Procesar la transacción
+    req.user.coins = userCoins - itemPrice;
+    req.user.inventory.push(item.id);
+
+    await saveDataToGit();
+
+    return res.json({ 
+        success: true, 
+        message: "¡Compra realizada con éxito!",
+        newBalance: req.user.coins,
+        inventory: req.user.inventory
+    });
+});
+
+// Rutas alternativas para evitar fallos por URL en el frontend
+app.post('/api/shop/buy', authenticateToken, async (req, res) => {
+    req.url = '/api/accessories/buy';
+    return app._router.handle(req, res);
+});
+
+app.post('/api/buy', authenticateToken, async (req, res) => {
+    req.url = '/api/accessories/buy';
+    return app._router.handle(req, res);
+});
+
+// Equipar objeto del inventario
+app.post('/api/accessories/equip', authenticateToken, async (req, res) => {
+    const { itemId } = req.body;
+    
+    if (itemId === undefined || itemId === null) {
+        return res.status(400).json({ error: "Debes enviar el itemId." });
+    }
+
+    const poseeObjeto = req.user.inventory && req.user.inventory.some(id => String(id) === String(itemId));
+
+    if (!poseeObjeto) {
+        return res.status(400).json({ error: "No tienes este objeto en tu inventario." });
+    }
+
+    req.user.equippedAccessory = itemId;
+    await saveDataToGit();
+
+    res.json({ success: true, equipped: itemId });
+});
+
+// Desequipar objeto
+app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
+    req.user.equippedAccessory = null;
+    await saveDataToGit();
+    res.json({ success: true });
+});
