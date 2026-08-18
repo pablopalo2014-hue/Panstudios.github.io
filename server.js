@@ -345,7 +345,7 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     if ((req.user.coins || 0) < item.price) {
         return res.status(400).json({ error: "Monedas insuficientes." });
     }
-
+ 
     req.user.coins -= item.price;
     req.user.inventory.push(item.id);
 
