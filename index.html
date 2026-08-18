@@ -1,246 +1,1186 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
 <meta charset="UTF-8">
-<title>Game Blocks - Avatar & Tienda</title>
-<!-- Three.js y GLTFLoader para visualización 3D -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Blocks</title>
 
 <style>
-* { box-sizing: border-box; }
-body { margin: 0; background: #000; color: #fff; font-family: Arial, sans-serif; }
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
 
 .topbar {
-    position: fixed; top: 0; left: 0; width: 100%; height: 65px;
-    background: #111; border-bottom: 2px solid #292929;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 20px; z-index: 1000;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 65px;
+    background: #111;
+    border-bottom: 2px solid #292929;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
 }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.topbar-left,
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.top-search {
+    width: 200px;
+    padding: 8px 12px;
+    margin: 0;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+}
 
 .top-button {
-    background: #fff; color: #000; padding: 9px 16px; border: 0;
-    border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none;
+    background: #fff;
+    color: #000;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 5px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
 }
 
+.top-button:hover {
+    background: #ddd;
+}
+
+/* Moneda en la Topbar */
 .coin-display {
-    background: #1a1a1a; color: #ffd700; border: 1px solid #333;
-    padding: 8px 14px; border-radius: 20px; font-weight: bold; cursor: pointer;
+    background: #1a1a1a;
+    color: #ffd700;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
-/* Visor 3D de Avatar */
-#avatar-container {
-    width: 300px; height: 350px; background: #151515;
-    border: 1px solid #333; border-radius: 8px; margin: 80px auto 20px;
+.coin-display:hover {
+    background: #2a2a2a;
+    border-color: #ffd700;
+    transform: scale(1.05);
 }
 
-.panel {
-    max-width: 600px; margin: 20px auto; background: #111;
-    border: 1px solid #333; padding: 20px; border-radius: 8px;
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 90px 20px 40px;
 }
 
-input, select, button {
-    width: 100%; padding: 10px; margin: 6px 0 12px;
-    background: #050505; color: #fff; border: 1px solid #444; border-radius: 5px;
+.logo {
+    width: 300px;
+    max-width: 80%;
+    margin-bottom: 20px;
 }
 
-button { background: #fff; color: #000; font-weight: bold; cursor: pointer; }
-
-/* Banner Inferior */
-.bottom-banner {
-    position: fixed; bottom: 0; left: 0; width: 100%; background: #1b1b1b;
-    border-top: 1px solid #444; text-align: center; padding: 10px; font-weight: bold;
+.slogan {
+    font-size: 42px;
+    margin: 15px 0 30px;
+    font-weight: bold;
 }
 
-.grid-shop { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.shop-item { border: 1px solid #333; padding: 10px; text-align: center; background: #080808; }
+.hero-download-btn {
+    margin-bottom: 30px;
+}
+
+.buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    max-width: 900px;
+}
+
+.button {
+    padding: 14px 22px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+}
+
+.download-button {
+    background: #fff;
+    color: #000;
+}
+
+.discord-button {
+    background: #5865F2;
+    color: #fff;
+}
+
+.login-action-button {
+    background: #151515;
+    color: #fff;
+    border: 1px solid #444;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.modal-box {
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 0 30px #000;
+}
+
+.close {
+    float: right;
+    background: transparent;
+    color: #aaa;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #fff;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 13px;
+    margin: 7px 0 12px;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+    font-family: inherit;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #fff;
+}
+
+.form-button {
+    width: 100%;
+    padding: 13px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.secondary-button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: #191919;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.danger-button {
+    background: #641b1b;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.friend-button {
+    background: #222;
+    color: white;
+    border: 1px solid #444;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.admin-button {
+    background: #7a4cff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.result {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.user-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.user-info-click {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.user-info-click:hover {
+    opacity: 0.8;
+}
+
+.result-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #444;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-bio-preview {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 3px;
+}
+
+.section {
+    margin-top: 25px;
+}
+
+.error {
+    color: #ff5555;
+}
+
+.success {
+    color: #55dd77;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.badge {
+    background: #202020;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+.profile-avatar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #444;
+    background: #000;
+}
+
+.admin-panel {
+    margin-top: 25px;
+    padding: 18px;
+    background: #080808;
+    border: 1px solid #633cff;
+    border-radius: 8px;
+}
+
+.game-connect {
+    margin-top: 25px;
+    padding: 15px;
+    background: #080808;
+    border: 1px solid #333;
+    border-radius: 7px;
+    text-align: center;
+}
+
+.game-code {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin: 15px 0;
+}
+
+.code-info {
+    color: #888;
+    font-size: 13px;
+    line-height: 1.5;
+}
 </style>
 </head>
+
 <body>
 
 <div class="topbar">
-    <div><strong>Game Blocks</strong></div>
+    <div class="topbar-left">
+        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
+        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
+        <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
+    </div>
     <div class="topbar-right">
-        <div id="userCoins" class="coin-display" onclick="alert('Próximamente')">0 🪙</div>
-        <!-- Botón de Avatar a la derecha de las monedas -->
-        <button class="top-button" onclick="scrollToAvatar()">👕 Avatar</button>
-        <a class="top-button" href="#">Descargar</a>
+        <!-- Monedas -->
+        <div class="coin-display" title="Monedas" onclick="alert('Próximamente')">
+            0 🪙
+        </div>
+        <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
     </div>
 </div>
 
-<!-- Visualizador 3D -->
-<div id="avatar-container"></div>
+<section class="hero">
+    <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
+    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construccion</h1>
+    <div class="hero-download-btn">
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+    </div>
+    <div class="buttons">
+        <a class="button discord-button" href="https://discord.gg/Up24N45SK3" target="_blank">💬 Discord</a>
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">⬇️ Descargar</a>
+        <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
+    </div>
+</section>
 
-<!-- Panel Owner / Subir Sombrero GLB -->
-<div class="panel">
-    <h3>👑 Panel Owner - Subir Accesorio Sombrero (.GLB)</h3>
-    <input type="text" id="itemName" placeholder="Nombre del accesorio">
-    <label>Archivo GLB desde el PC:</label>
-    <input type="file" id="itemGlb" accept=".glb">
+<!-- MODAL -->
+<div id="accountModal" class="modal" onclick="outsideClose(event)">
+<div class="modal-box">
+<button class="close" onclick="closeAccount()">×</button>
+
+<!-- LOGIN -->
+<div id="loginView">
+    <h2>Iniciar sesión</h2>
+    <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
+    <input id="loginPassword" type="password" placeholder="Contraseña">
+    <button class="form-button" onclick="login()">Iniciar sesión</button>
+    <button class="secondary-button" onclick="showRegister()">Crear cuenta</button>
+    <p id="loginMessage"></p>
+</div>
+
+<!-- REGISTER -->
+<div id="registerView" class="hidden">
+    <h2>Crear cuenta</h2>
+    <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
+    <input id="registerPassword" type="password" placeholder="Contraseña">
+    <input id="registerPassword2" type="password" placeholder="Repetir contraseña">
+    <button class="form-button" onclick="register()">Crear cuenta</button>
+    <button class="secondary-button" onclick="showLogin()">Ya tengo una cuenta</button>
+    <p id="registerMessage"></p>
+</div>
+
+<!-- CUENTA -->
+<div id="accountView" class="hidden">
+    <!-- FOTO -->
+    <div class="profile-avatar-container">
+        <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
+    </div>
+
+    <!-- NOMBRE -->
+    <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
+
+    <!-- CONFIGURACIÓN DE RUTA EXE -->
+    <div class="section">
+        <h3>⚙️ Configuración del Juego</h3>
+        <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
+        <input id="exePath" type="text" placeholder="C:\Juegos\GameBlocks\GameBlocks.exe o gameblocks://">
+        <button class="secondary-button" style="width: auto;" onclick="saveExePath()">Guardar configuración</button>
+        <p id="exeMessage"></p>
+    </div>
+
+    <!-- INSIGNIAS -->
+    <div class="section">
+        <h3>🏅 Insignias</h3>
+        <div id="myBadges" class="badges">Cargando...</div>
+    </div>
+
+    <!-- BIO -->
+    <div class="section">
+        <h3>📝 Biografía</h3>
+        <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
+        <button class="secondary-button" style="width: auto;" onclick="saveBio()">Guardar biografía</button>
+        <p id="bioMessage"></p>
+    </div>
+
+    <!-- ADMIN PANEL -->
+    <div id="adminPanel" class="admin-panel hidden">
+        <h2>🛠️ Panel de administración</h2>
+        <p>Herramientas administrativas de Game Blocks.</p>
+        <div class="section">
+            <h3>✏️ Cambiar nombre</h3>
+            <input id="adminUsername" type="text" placeholder="Nuevo nombre" maxlength="40">
+            <button class="admin-button" onclick="adminChangeUsername()">Cambiar mi nombre</button>
+        </div>
+        <div class="section">
+            <h3>👤 Administrar cuentas</h3>
+            <input id="adminSearch" type="text" placeholder="Buscar cuenta...">
+            <button class="admin-button" onclick="adminSearchUsers()">Buscar</button>
+            <div id="adminUsers"></div>
+        </div>
+        <div class="section">
+            <h3>🏅 Administrar insignias</h3>
+            <input id="badgeUser" type="text" placeholder="Nombre de usuario">
+            <select id="badgeSelect">
+                <option value="server_booster">🚀 Server Booster</option>
+                <option value="blocker">🧱 Blocker</option>
+                <option value="admin">🛠️ Admin</option>
+                <option value="creator_content">🎨 Creator Content</option>
+                <option value="game_blocks">🎮 Game Blocks</option>
+            </select>
+            <button class="admin-button" onclick="addBadge()">Añadir insignia</button>
+            <button class="danger-button" onclick="removeBadge()">Quitar insignia</button>
+            <p id="badgeMessage"></p>
+        </div>
+    </div>
+
+    <div class="game-connect">
+        <h3>🎮 Conectar con Game Blocks</h3>
+        <p class="code-info">Genera un código para conectar esta cuenta con el juego.</p>
+        <button class="form-button" onclick="createGameCode()">🔗 Generar código</button>
+        <div id="gameCodeContainer" class="hidden">
+            <div id="gameCode" class="game-code">------</div>
+            <p class="code-info">Introduce este código en Game Blocks.<br>No compartas este código.</p>
+        </div>
+        <p id="gameCodeMessage"></p>
+    </div>
+
+    <div class="section">
+        <h3>🔎 Resultados de Búsqueda</h3>
+        <div id="searchResults"></div>
+    </div>
+
+    <div class="section">
+        <h3>👥 Solicitudes</h3>
+        <div id="requests">Cargando...</div>
+    </div>
+
+    <div class="section">
+        <h3>⭐ Amigos</h3>
+        <div id="friends">Cargando...</div>
+    </div>
+
+    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
+</div>
+
+<!-- VISTA DE PERFIL PÚBLICO -->
+<div id="publicProfileView" class="hidden">
+    <button class="secondary-button" style="width: auto; margin-bottom: 15px;" onclick="showAccount()">⬅️ Volver a mi cuenta</button>
+    <div class="profile-avatar-container">
+        <img id="publicAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+    </div>
+    <h2 id="publicUsername" style="text-align: center; margin-top: 0;">Usuario</h2>
     
-    <label>¿Es Limited?</label>
-    <select id="itemLimited" onchange="toggleLimitedFields()">
-        <option value="false">No</option>
-        <option value="true">Sí</option>
-    </select>
-
-    <div id="limitedFields" style="display:none;">
-        <input type="number" id="itemCopies" placeholder="Copias totales">
-        <input type="number" id="itemMaxUser" placeholder="Máximo por usuario">
+    <div class="section">
+        <h3>🏅 Insignias</h3>
+        <div id="publicBadges" class="badges">Ninguna.</div>
     </div>
 
-    <input type="number" id="itemPrice" placeholder="Precio en monedas">
-    <button onclick="uploadGlbItem()">Subir Accesorio GLB</button>
+    <div class="section">
+        <h3>📝 Biografía</h3>
+        <p id="publicBio" style="background: #050505; padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+    </div>
 </div>
 
-<!-- Panel Admin - Añadir Monedas & Banner -->
-<div class="panel">
-    <h3>⚙️ Admin - Gestión de Economía y Banner</h3>
-    <input type="text" id="coinUser" placeholder="Usuario">
-    <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
-    <button onclick="addCoins()">Añadir Monedas</button>
-
-    <hr style="border-color:#333; margin: 15px 0;">
-
-    <input type="text" id="bannerInput" placeholder="Texto del Banner inferior">
-    <button onclick="updateBanner()">Establecer Banner</button>
 </div>
-
-<!-- Tienda de Accesorios -->
-<div class="panel">
-    <h3>🛒 Tienda de Accesorios</h3>
-    <div id="shopContainer" class="grid-shop"></div>
 </div>
-
-<!-- Banner de Texto Inferior -->
-<div id="siteBanner" class="bottom-banner">Cargando banner...</div>
 
 <script>
-// --- CONFIGURACIÓN THREE.JS (VISOR 3D ESTÁTICO) ---
-const container = document.getElementById('avatar-container');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x151515);
+const RENDER_API = "https://panstudios-github-io-1.onrender.com";
 
-const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-camera.position.set(0, 1.2, 3);
+async function request(endpoint, method = "GET", body = null) {
+    const headers = { "Content-Type": "application/json" };
+    const token = localStorage.getItem("gameblocks_token");
+    if (token) headers.Authorization = "Bearer " + token;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(container.clientWidth, container.clientHeight);
-container.appendChild(renderer.domElement);
+    const options = { method, headers };
+    if (body !== null) options.body = JSON.stringify(body);
 
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(2, 4, 5);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const response = await fetch(RENDER_API + endpoint, options);
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("El servidor devolvió una respuesta inválida.");
+    }
 
-let baseModel = null;
-let currentHat = null;
-const loader = new THREE.GLTFLoader();
+    if (!response.ok) throw new Error(data.error || "Error del servidor.");
+    return data;
+}
 
-// Cargar modelo base noob.glb desde el repositorio/servidor
-loader.load('noob.glb', (gltf) => {
-    baseModel = gltf.scene;
-    baseModel.position.set(0, 0, 0);
-    scene.add(baseModel);
-}, undefined, (error) => {
-    console.log('Asegúrate de tener noob.glb en el directorio raíz:', error);
+function openAccount() {
+    document.getElementById("accountModal").style.display = "flex";
+    updateAccount();
+}
+
+function closeAccount() {
+    document.getElementById("accountModal").style.display = "none";
+}
+
+function outsideClose(event) {
+    if (event.target.id === "accountModal") closeAccount();
+}
+
+function showLogin() {
+    document.getElementById("loginView").classList.remove("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showRegister() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.remove("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showAccount() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.remove("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showPublicProfile(user) {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.remove("hidden");
+
+    document.getElementById("publicAvatar").src = user.avatar || "https://via.placeholder.com/110";
+    document.getElementById("publicUsername").textContent = "👤 " + user.username;
+    document.getElementById("publicBio").textContent = user.bio || "Sin biografía.";
+
+    const badgesContainer = document.getElementById("publicBadges");
+    badgesContainer.innerHTML = "";
+    if (user.badges && user.badges.length > 0) {
+        user.badges.forEach(badge => {
+            const el = document.createElement("div");
+            el.className = "badge";
+            el.textContent = badge.name || badge;
+            badgesContainer.appendChild(el);
+        });
+    } else {
+        badgesContainer.textContent = "Sin insignias.";
+    }
+}
+
+function saveExePath() {
+    const path = document.getElementById("exePath").value.trim();
+    const msg = document.getElementById("exeMessage");
+    if (!path) {
+        msg.className = "error";
+        msg.textContent = "Ingresa una ruta válida.";
+        return;
+    }
+    localStorage.setItem("gameblocks_exe_path", path);
+    msg.className = "success";
+    msg.textContent = "Ruta guardada en este navegador.";
+}
+
+function launchGame() {
+    const path = localStorage.getItem("gameblocks_exe_path");
+    if (!path) {
+        alert("Configura primero la ruta del ejecutable en tu cuenta.");
+        openAccount();
+        return;
+    }
+    window.location.href = path.includes("://") ? path : "file:///" + path.replace(/\\/g, "/");
+}
+
+async function viewUserProfile(userId) {
+    try {
+        const user = await request("/api/users/profile/" + userId);
+        showPublicProfile(user);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function register() {
+    const username = document.getElementById("registerUsername").value.trim();
+    const password = document.getElementById("registerPassword").value;
+    const password2 = document.getElementById("registerPassword2").value;
+    const message = document.getElementById("registerMessage");
+
+    if (!username || !password || !password2) {
+        message.className = "error";
+        message.textContent = "Completa todos los campos.";
+        return;
+    }
+    if (password !== password2) {
+        message.className = "error";
+        message.textContent = "Las contraseñas no coinciden.";
+        return;
+    }
+
+    try {
+        message.textContent = "Creando cuenta...";
+        const data = await request("/api/register", "POST", { username, password });
+        localStorage.setItem("gameblocks_token", data.token);
+        await updateAccount();
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function login() {
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const message = document.getElementById("loginMessage");
+
+    if (!username || !password) {
+        message.className = "error";
+        message.textContent = "Introduce usuario y contraseña.";
+        return;
+    }
+
+    try {
+        message.textContent = "Iniciando sesión...";
+        const data = await request("/api/login", "POST", { username, password });
+        localStorage.setItem("gameblocks_token", data.token);
+        await updateAccount();
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function updateAccount() {
+    const token = localStorage.getItem("gameblocks_token");
+
+    const savedPath = localStorage.getItem("gameblocks_exe_path");
+    if (savedPath) document.getElementById("exePath").value = savedPath;
+
+    if (!token) {
+        document.getElementById("heroSlogan").classList.add("hidden");
+        document.getElementById("loginBtn").classList.remove("hidden");
+        document.getElementById("accountButton").classList.add("hidden");
+        showLogin();
+        return;
+    }
+
+    try {
+        const user = await request("/api/me");
+        document.getElementById("heroSlogan").classList.remove("hidden");
+        document.getElementById("loginBtn").classList.add("hidden");
+        document.getElementById("accountButton").classList.remove("hidden");
+
+        showAccount();
+
+        document.getElementById("welcome").textContent = "👤 " + user.username;
+        if (user.avatar) document.getElementById("myAvatar").src = user.avatar;
+        if (user.bio) document.getElementById("myBio").value = user.bio;
+
+        loadFriends();
+        loadRequests();
+        loadBadges();
+
+        if (user.admin === true) {
+            document.getElementById("adminPanel").classList.remove("hidden");
+        } else {
+            document.getElementById("adminPanel").classList.add("hidden");
+        }
+    } catch {
+        localStorage.removeItem("gameblocks_token");
+        document.getElementById("heroSlogan").classList.add("hidden");
+        document.getElementById("loginBtn").classList.remove("hidden");
+        document.getElementById("accountButton").classList.add("hidden");
+        showLogin();
+    }
+}
+
+async function editAvatar() {
+    const url = prompt("Introduce la URL de tu nueva imagen de perfil:");
+    if (!url) return;
+
+    try {
+        await request("/api/profile/avatar", "POST", { avatar: url });
+        document.getElementById("myAvatar").src = url;
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function saveBio() {
+    const bio = document.getElementById("myBio").value.trim();
+    const msg = document.getElementById("bioMessage");
+
+    try {
+        await request("/api/profile/bio", "POST", { bio });
+        msg.className = "success";
+        msg.textContent = "Biografía guardada correctamente.";
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function loadBadges() {
+    const container = document.getElementById("myBadges");
+    try {
+        const data = await request("/api/badges/me");
+        container.innerHTML = "";
+        if (!data.badges || data.badges.length === 0) {
+            container.textContent = "No tienes insignias.";
+            return;
+        }
+        data.badges.forEach(badge => {
+            const element = document.createElement("div");
+            element.className = "badge";
+            element.textContent = badge.name || badge;
+            container.appendChild(element);
+        });
+    } catch (error) {
+        container.textContent = "No se pudieron cargar las insignias.";
+    }
+}
+
+async function logout() {
+    try {
+        await request("/api/logout", "POST");
+    } catch {}
+    localStorage.removeItem("gameblocks_token");
+    closeAccount();
+    updateAccount();
+}
+
+async function createGameCode() {
+    const container = document.getElementById("gameCodeContainer");
+    const codeElement = document.getElementById("gameCode");
+    const message = document.getElementById("gameCodeMessage");
+
+    container.classList.add("hidden");
+    message.textContent = "Generando código...";
+
+    try {
+        const data = await request("/api/game/create-code", "POST");
+        codeElement.textContent = data.code;
+        container.classList.remove("hidden");
+        message.className = "success";
+        message.textContent = "Código generado correctamente.";
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function searchUsers() {
+    const query = document.getElementById("searchInput").value.trim();
+    const results = document.getElementById("searchResults");
+
+    if (!query) {
+        results.textContent = "Escribe algo en el buscador superior.";
+        return;
+    }
+
+    openAccount();
+    results.textContent = "Buscando...";
+
+    try {
+        const data = await request("/api/users/search?q=" + encodeURIComponent(query));
+        results.innerHTML = "";
+
+        if (data.users.length === 0) {
+            results.textContent = "No se encontraron usuarios.";
+            return;
+        }
+
+        data.users.forEach(user => {
+            const div = document.createElement("div");
+            div.className = "result";
+
+            const header = document.createElement("div");
+            header.className = "user-card-header";
+
+            const userClickable = document.createElement("div");
+            userClickable.className = "user-info-click";
+            userClickable.onclick = () => viewUserProfile(user.id);
+
+            const img = document.createElement("img");
+            img.className = "result-avatar";
+            img.src = user.avatar || "https://via.placeholder.com/110";
+
+            const details = document.createElement("div");
+            details.className = "user-details";
+
+            const name = document.createElement("strong");
+            name.textContent = user.username;
+
+            const bioPreview = document.createElement("span");
+            bioPreview.className = "user-bio-preview";
+            bioPreview.textContent = user.bio ? (user.bio.substring(0, 35) + "...") : "Sin biografía";
+
+            details.appendChild(name);
+            details.appendChild(bioPreview);
+            userClickable.appendChild(img);
+            userClickable.appendChild(details);
+
+            const button = document.createElement("button");
+            button.className = "friend-button";
+            button.textContent = "Añadir";
+            button.onclick = (e) => {
+                e.stopPropagation();
+                sendFriendRequest(user.id);
+            };
+
+            header.appendChild(userClickable);
+            header.appendChild(button);
+            div.appendChild(header);
+
+            const badgesDiv = document.createElement("div");
+            badgesDiv.className = "badges";
+            if (user.badges && user.badges.length > 0) {
+                user.badges.forEach(b => {
+                    const badgeSpan = document.createElement("span");
+                    badgeSpan.className = "badge";
+                    badgeSpan.textContent = b;
+                    badgesDiv.appendChild(badgeSpan);
+                });
+            }
+            div.appendChild(badgesDiv);
+
+            results.appendChild(div);
+        });
+
+    } catch (error) {
+        results.textContent = error.message;
+    }
+}
+
+async function sendFriendRequest(userId) {
+    try {
+        await request("/api/friends/request", "POST", { userId });
+        alert("Solicitud enviada.");
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadRequests() {
+    const container = document.getElementById("requests");
+    try {
+        const data = await request("/api/friends/requests");
+        container.innerHTML = "";
+        if (data.requests.length === 0) {
+            container.textContent = "No tienes solicitudes.";
+            return;
+        }
+
+        data.requests.forEach(requestData => {
+            const div = document.createElement("div");
+            div.className = "result";
+
+            const header = document.createElement("div");
+            header.className = "user-card-header";
+
+            const name = document.createElement("span");
+            name.textContent = "👤 " + requestData.username;
+
+            const buttons = document.createElement("div");
+            const accept = document.createElement("button");
+            accept.className = "friend-button";
+            accept.textContent = "Aceptar";
+            accept.onclick = async () => {
+                await request("/api/friends/accept", "POST", { requestId: requestData.id });
+                loadRequests();
+                loadFriends();
+            };
+
+            const reject = document.createElement("button");
+            reject.className = "danger-button";
+            reject.textContent = "Rechazar";
+            reject.onclick = async () => {
+                await request("/api/friends/reject", "POST", { requestId: requestData.id });
+                loadRequests();
+            };
+
+            buttons.appendChild(accept);
+            buttons.appendChild(reject);
+            header.appendChild(name);
+            header.appendChild(buttons);
+            div.appendChild(header);
+
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.textContent = error.message;
+    }
+}
+
+async function loadFriends() {
+    const container = document.getElementById("friends");
+    try {
+        const data = await request("/api/friends");
+        container.innerHTML = "";
+        if (data.friends.length === 0) {
+            container.textContent = "Todavía no tienes amigos.";
+            return;
+        }
+
+        data.friends.forEach(friend => {
+            const div = document.createElement("div");
+            div.className = "result";
+
+            const header = document.createElement("div");
+            header.className = "user-card-header";
+
+            const userClickable = document.createElement("div");
+            userClickable.className = "user-info-click";
+            userClickable.onclick = () => viewUserProfile(friend.id);
+
+            const img = document.createElement("img");
+            img.className = "result-avatar";
+            img.src = friend.avatar || "https://via.placeholder.com/110";
+
+            const details = document.createElement("div");
+            details.className = "user-details";
+
+            const name = document.createElement("strong");
+            name.textContent = "⭐ " + friend.username;
+
+            details.appendChild(name);
+            userClickable.appendChild(img);
+            userClickable.appendChild(details);
+
+            const remove = document.createElement("button");
+            remove.className = "danger-button";
+            remove.textContent = "Eliminar";
+            remove.onclick = (e) => {
+                e.stopPropagation();
+                removeFriend(friend.id);
+            };
+
+            header.appendChild(userClickable);
+            header.appendChild(remove);
+            div.appendChild(header);
+
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.textContent = error.message;
+    }
+}
+
+async function removeFriend(userId) {
+    if (!confirm("¿Eliminar este amigo?")) return;
+    try {
+        await request("/api/friends/remove", "POST", { userId });
+        loadFriends();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function adminChangeUsername() {
+    const username = document.getElementById("adminUsername").value.trim();
+    if (!username) {
+        alert("Escribe un nombre.");
+        return;
+    }
+    try {
+        await request("/api/admin/change-username", "POST", { username });
+        alert("Nombre cambiado.");
+        document.getElementById("adminUsername").value = "";
+        updateAccount();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function adminSearchUsers() {
+    const query = document.getElementById("adminSearch").value.trim();
+    const container = document.getElementById("adminUsers");
+    if (!query) {
+        container.textContent = "Escribe un nombre.";
+        return;
+    }
+
+    try {
+        const data = await request("/api/admin/users?q=" + encodeURIComponent(query));
+        container.innerHTML = "";
+
+        if (!data.users || data.users.length === 0) {
+            container.textContent = "No se encontraron cuentas.";
+            return;
+        }
+
+        data.users.forEach(user => {
+            const div = document.createElement("div");
+            div.className = "admin-user";
+            div.innerHTML = "<strong>👤 " + escapeHTML(user.username) + "</strong>";
+
+            const actions = document.createElement("div");
+            actions.className = "admin-actions";
+
+            const rename = document.createElement("button");
+            rename.className = "admin-button";
+            rename.textContent = "Cambiar nombre";
+            rename.onclick = () => adminRenameUser(user.id, user.username);
+
+            const deleteButton = document.createElement("button");
+            deleteButton.className = "danger-button";
+            deleteButton.textContent = "Borrar cuenta";
+            deleteButton.onclick = () => adminDeleteUser(user.id, user.username);
+
+            actions.appendChild(rename);
+            actions.appendChild(deleteButton);
+            div.appendChild(actions);
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.textContent = error.message;
+    }
+}
+
+async function adminRenameUser(userId, oldName) {
+    const newName = prompt("Nuevo nombre para " + oldName + ":");
+    if (!newName) return;
+
+    try {
+        await request("/api/admin/users/change-username", "POST", { userId, username: newName });
+        alert("Nombre cambiado.");
+        adminSearchUsers();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function adminDeleteUser(userId, username) {
+    if (!confirm("¿Seguro que quieres borrar la cuenta " + username + "?")) return;
+
+    try {
+        await request("/api/admin/users/delete", "POST", { userId });
+        alert("Cuenta eliminada.");
+        adminSearchUsers();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function addBadge() {
+    const username = document.getElementById("badgeUser").value.trim();
+    const badge = document.getElementById("badgeSelect").value;
+    const message = document.getElementById("badgeMessage");
+
+    try {
+        await request("/api/admin/badges/add", "POST", { username, badge });
+        message.className = "success";
+        message.textContent = "Insignia añadida correctamente.";
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function removeBadge() {
+    const username = document.getElementById("badgeUser").value.trim();
+    const badge = document.getElementById("badgeSelect").value;
+    const message = document.getElementById("badgeMessage");
+
+    try {
+        await request("/api/admin/badges/remove", "POST", { username, badge });
+        message.className = "success";
+        message.textContent = "Insignia eliminada.";
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+function escapeHTML(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Enter" && document.activeElement.id === "searchInput") {
+        searchUsers();
+    }
 });
 
-// Render estático sin rotación
-function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-}
-animate();
-
-// Añadir accesorio GLB encima del avatar
-function equipHat(glbUrl) {
-    if (currentHat) scene.remove(currentHat);
-
-    loader.load(glbUrl, (gltf) => {
-        currentHat = gltf.scene;
-        // Ajuste de posición sobre la cabeza del noob
-        currentHat.position.set(0, 0.75, 0); 
-        scene.add(currentHat);
-    });
-}
-
-// --- LÓGICA DE INTERFAZ Y COMUNICACIÓN CON SERVIDOR ---
-function toggleLimitedFields() {
-    const isLimited = document.getElementById('itemLimited').value === 'true';
-    document.getElementById('limitedFields').style.display = isLimited ? 'block' : 'none';
-}
-
-function scrollToAvatar() {
-    container.scrollIntoView({ behavior: 'smooth' });
-}
-
-async function uploadGlbItem() {
-    const fileInput = document.getElementById('itemGlb');
-    if (!fileInput.files[0]) return alert("Selecciona un archivo .glb");
-
-    const formData = new FormData();
-    formData.append('name', document.getElementById('itemName').value);
-    formData.append('glbFile', fileInput.files[0]);
-    formData.append('isLimited', document.getElementById('itemLimited').value);
-    formData.append('copies', document.getElementById('itemCopies').value);
-    formData.append('maxPerUser', document.getElementById('itemMaxUser').value);
-    formData.append('price', document.getElementById('itemPrice').value);
-
-    const res = await fetch('/api/admin/upload-item', { method: 'POST', body: formData });
-    const data = await res.json();
-    alert(data.message);
-    loadShop();
-}
-
-async function addCoins() {
-    const username = document.getElementById('coinUser').value;
-    const amount = document.getElementById('coinAmount').value;
-    const res = await fetch('/api/admin/add-coins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, amount })
-    });
-    const data = await res.json();
-    alert(data.message);
-}
-
-async function updateBanner() {
-    const text = document.getElementById('bannerInput').value;
-    const res = await fetch('/api/admin/banner', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-    });
-    const data = await res.json();
-    document.getElementById('siteBanner').textContent = data.banner;
-}
-
-async function loadShop() {
-    const res = await fetch('/api/shop/items');
-    const data = await res.json();
-    const container = document.getElementById('shopContainer');
-    container.innerHTML = '';
-
-    data.items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'shop-item';
-        div.innerHTML = `
-            <strong>${item.name}</strong><br>
-            🪙 ${item.price} Monedas<br>
-            ${item.isLimited ? `<small>Limited (${item.copies} copias)</small><br>` : ''}
-            <button onclick="equipHat('${item.glbUrl}')">Probar Sombrero</button>
-        `;
-        container.appendChild(div);
-    });
-}
-
-// Carga inicial
-fetch('/api/banner').then(res => res.json()).then(d => {
-    document.getElementById('siteBanner').textContent = d.banner;
+window.addEventListener("load", () => {
+    updateAccount();
 });
-loadShop();
 </script>
 </body>
 </html>
