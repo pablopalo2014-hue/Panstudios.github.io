@@ -7,12 +7,12 @@ const jwt = require('jsonwebtoken');
 const { Octokit } = require('@octokit/rest');
 
 const app = express();
-const JWT_SECRET = "gameblocks_secret_key_change_in_production";
+const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
 // Configuración de GitHub API para persistencia
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-const REPO_OWNER = "tu-usuario-github"; // Reemplaza por tu usuario
-const REPO_NAME = "tu-repositorio";     // Reemplaza por el nombre de tu repositorio
+const REPO_OWNER = process.env.REPO_OWNER || "tu-usuario-github";
+const REPO_NAME = process.env.REPO_NAME || "tu-repositorio";
 const FILE_PATH = "database.json";
 let fileSha = "";
 
@@ -30,7 +30,7 @@ app.use('/uploads', express.static(uploadDir));
 // Configuración de Multer para archivos GLB locales
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'))
 });
 const upload = multer({ storage });
 
@@ -44,7 +44,10 @@ let bannerText = "";
 
 // Cargar base de datos desde repositorio Git al iniciar
 async function loadDataFromGit() {
-    if (!process.env.GITHUB_TOKEN) return;
+    if (!process.env.GITHUB_TOKEN) {
+        console.log("⚠️ GITHUB_TOKEN no configurado. Operando con memoria local temporal.");
+        return;
+    }
     try {
         const res = await octokit.repos.getContent({
             owner: REPO_OWNER,
@@ -54,13 +57,20 @@ async function loadDataFromGit() {
         fileSha = res.data.sha;
         const content = Buffer.from(res.data.content, 'base64').toString('utf-8');
         const parsed = JSON.parse(content);
-        users = parsed.users || [];
+        
+        users = (parsed.users || []).map(u => ({
+            ...u,
+            inventory: u.inventory || [],
+            badges: u.badges || [],
+            coins: typeof u.coins === 'number' ? u.coins : 100,
+            equippedAccessory: u.equippedAccessory || null
+        }));
         friendships = parsed.friendships || [];
         accessories = parsed.accessories || [];
         bannerText = parsed.bannerText || "";
         console.log("✅ Datos persistidos cargados correctamente desde Git.");
     } catch (err) {
-        console.log("⚠️ No se encontró la base de datos previa en Git. Se creará al guardar.");
+        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error. Se creará al guardar.", err.message);
     }
 }
 
@@ -101,6 +111,9 @@ function authenticateToken(req, res, next) {
         const foundUser = users.find(u => u.id === user.id);
         if (!foundUser) return res.status(404).json({ error: "Usuario no encontrado." });
         
+        if (!foundUser.inventory) foundUser.inventory = [];
+        if (!foundUser.badges) foundUser.badges = [];
+
         req.user = foundUser;
         next();
     });
@@ -181,7 +194,7 @@ app.post('/api/profile/bio', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/badges/me', authenticateToken, (req, res) => {
-    res.json({ badges: req.user.badges });
+    res.json({ badges: req.user.badges || [] });
 });
 
 app.get('/api/users/profile/:id', (req, res) => {
@@ -192,7 +205,7 @@ app.get('/api/users/profile/:id', (req, res) => {
         username: user.username,
         avatar: user.avatar,
         bio: user.bio,
-        badges: user.badges
+        badges: user.badges || []
     });
 });
 
@@ -200,7 +213,7 @@ app.get('/api/users/search', (req, res) => {
     const q = (req.query.q || "").toLowerCase();
     const matches = users
         .filter(u => u.username.toLowerCase().includes(q))
-        .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges }));
+        .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges || [] }));
     res.json({ users: matches });
 });
 
@@ -288,12 +301,12 @@ app.get('/api/accessories', (req, res) => {
 
 app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     const { itemId } = req.body;
-    const item = accessories.find(a => a.id === itemId);
+    const item = accessories.find(a => Number(a.id) === Number(itemId));
 
     if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
 
     if (!req.user.inventory) req.user.inventory = [];
-    if (req.user.inventory.includes(itemId)) {
+    if (req.user.inventory.includes(item.id)) {
         return res.status(400).json({ error: "Ya posees este accesorio." });
     }
 
@@ -302,7 +315,7 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     }
 
     req.user.coins -= item.price;
-    req.user.inventory.push(itemId);
+    req.user.inventory.push(item.id);
 
     await saveDataToGit();
     res.json({ success: true, newBalance: req.user.coins });
@@ -310,13 +323,15 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
 
 app.post('/api/accessories/equip', authenticateToken, async (req, res) => {
     const { itemId } = req.body;
-    if (!req.user.inventory || !req.user.inventory.includes(itemId)) {
+    const targetId = Number(itemId);
+
+    if (!req.user.inventory || !req.user.inventory.includes(targetId)) {
         return res.status(400).json({ error: "No posees este accesorio." });
     }
 
-    req.user.equippedAccessory = itemId;
+    req.user.equippedAccessory = targetId;
     await saveDataToGit();
-    res.json({ success: true, equipped: itemId });
+    res.json({ success: true, equipped: targetId });
 });
 
 app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
@@ -335,14 +350,19 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
             return res.status(400).json({ error: "Debes adjuntar un archivo .GLB local." });
         }
 
+        const { imageUrl, limited, maxPerUser, price } = req.body;
+        if (!imageUrl || !price) {
+            return res.status(400).json({ error: "Faltan datos obligatorios (URL de imagen o precio)." });
+        }
+
         try {
             const newAccessory = {
                 id: Date.now(),
                 glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
-                imageUrl: req.body.imageUrl,
-                limited: req.body.limited === 'true',
-                maxPerUser: parseInt(req.body.maxPerUser) || 1,
-                price: parseInt(req.body.price) || 0
+                imageUrl: imageUrl.trim(),
+                limited: limited === 'true' || limited === true,
+                maxPerUser: parseInt(maxPerUser) || 1,
+                price: parseInt(price) || 0
             };
 
             accessories.push(newAccessory);
@@ -363,13 +383,14 @@ app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, re
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    target.coins = (target.coins || 0) + parseInt(amount);
+    target.coins = (target.coins || 0) + parseInt(amount || 0);
     await saveDataToGit();
     res.json({ success: true, newBalance: target.coins });
 });
 
 app.post('/api/admin/change-username', authenticateToken, requireAdmin, async (req, res) => {
     const { username } = req.body;
+    if (!username) return res.status(400).json({ error: "Escribe un nombre válido." });
     req.user.username = username;
     await saveDataToGit();
     res.json({ success: true });
@@ -404,6 +425,7 @@ app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, r
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
+    if (!target.badges) target.badges = [];
     if (!target.badges.includes(badge)) target.badges.push(badge);
     await saveDataToGit();
     res.json({ success: true });
@@ -414,6 +436,7 @@ app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
+    if (!target.badges) target.badges = [];
     target.badges = target.badges.filter(b => b !== badge);
     await saveDataToGit();
     res.json({ success: true });
