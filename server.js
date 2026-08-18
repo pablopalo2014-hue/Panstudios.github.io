@@ -4,56 +4,66 @@ const multer = require('multer');
 const path = require('path');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Configuración de Multer para recibir archivos GLB locales
+// Configuración de multer para guardar archivos GLB enviados desde PC
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
 });
 const upload = multer({ storage });
 
-// Base de Datos Temporal
+// Almacenamiento local temporal (se puede sustituir por DB)
 let accessories = [];
-let userCoins = {}; // { username: 100 }
 let bannerText = "";
+let userCoins = {}; 
 
-// ENDPOINTS
-
-// 1. Obtener Lista de Accesorios
+// Endpoint para obtener accesorios de la tienda
 app.get('/api/accessories', (req, res) => {
-    res.json(accessories);
+    res.json({ items: accessories });
 });
 
-// 2. Subir Accesorio GLB desde archivo (Solo Owner/Admin)
-app.post('/api/admin/accessories', upload.single('glb'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "Archivo GLB no subido." });
+// Endpoint para subir un accesorio GLB desde PC
+app.post('/api/admin/accessories/upload', upload.single('glb'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "Archivo GLB requerido." });
+        }
 
-    const newAccessory = {
-        id: Date.now(),
-        glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
-        imageUrl: req.body.imageUrl,
-        limited: req.body.limited === 'true',
-        maxCopies: parseInt(req.body.maxCopies) || 0,
-        price: parseInt(req.body.price) || 0
-    };
+        const newAccessory = {
+            id: Date.now(),
+            glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
+            imageUrl: req.body.imageUrl,
+            limited: req.body.limited === 'true',
+            maxPerUser: parseInt(req.body.maxPerUser) || 1,
+            price: parseInt(req.body.price) || 0
+        };
 
-    accessories.push(newAccessory);
-    res.json({ success: true, accessory: newAccessory });
+        accessories.push(newAccessory);
+        res.json({ success: true, accessory: newAccessory });
+    } catch (err) {
+        res.status(500).json({ error: "Error interno en el servidor." });
+    }
 });
 
-// 3. Añadir Monedas a un Usuario
-app.post('/api/admin/add-coins', (req, res) => {
+// Endpoint para dar monedas
+app.post('/api/admin/coins/add', (req, res) => {
     const { username, amount } = req.body;
-    if (!username || !amount) return res.status(400).json({ error: "Datos incompletos." });
-
+    if (!username || !amount) {
+        return res.status(400).json({ error: "Nombre y cantidad requeridos." });
+    }
     userCoins[username] = (userCoins[username] || 0) + parseInt(amount);
-    res.json({ success: true, coins: userCoins[username] });
+    res.json({ success: true, newBalance: userCoins[username] });
 });
 
-// 4. Banner del Owner
+// Endpoints de banner
 app.post('/api/admin/banner', (req, res) => {
     bannerText = req.body.text || "";
     res.json({ success: true, text: bannerText });
@@ -63,4 +73,8 @@ app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
-app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
+// Servidor escuchando en puerto 3000
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Servidor activo en el puerto ${PORT}`);
+});
