@@ -4,9 +4,17 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const { Octokit } = require('@octokit/rest');
 
 const app = express();
 const JWT_SECRET = "gameblocks_secret_key_change_in_production";
+
+// Configuración de GitHub API para persistencia
+const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+const REPO_OWNER = "tu-usuario-github"; // Reemplaza por tu usuario
+const REPO_NAME = "tu-repositorio";     // Reemplaza por el nombre de tu repositorio
+const FILE_PATH = "database.json";
+let fileSha = "";
 
 app.use(cors());
 app.use(express.json());
@@ -27,12 +35,58 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // BASE DE DATOS EN MEMORIA
-let users = [];          // { id, username, password, avatar, bio, badges, coins, admin, owner }
+let users = [];          // { id, username, password, avatar, bio, badges, coins, inventory, equippedAccessory, admin, owner }
 let friendRequests = []; // { id, senderId, receiverId }
 let friendships = [];    // { id, user1, user2 }
 let gameCodes = {};      // { code: userId }
 let accessories = [];    // { id, glbUrl, imageUrl, limited, maxPerUser, price }
 let bannerText = "";
+
+// Cargar base de datos desde repositorio Git al iniciar
+async function loadDataFromGit() {
+    if (!process.env.GITHUB_TOKEN) return;
+    try {
+        const res = await octokit.repos.getContent({
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH
+        });
+        fileSha = res.data.sha;
+        const content = Buffer.from(res.data.content, 'base64').toString('utf-8');
+        const parsed = JSON.parse(content);
+        users = parsed.users || [];
+        friendships = parsed.friendships || [];
+        accessories = parsed.accessories || [];
+        bannerText = parsed.bannerText || "";
+        console.log("✅ Datos persistidos cargados correctamente desde Git.");
+    } catch (err) {
+        console.log("⚠️ No se encontró la base de datos previa en Git. Se creará al guardar.");
+    }
+}
+
+// Guardar base de datos actualizada en el repositorio Git
+async function saveDataToGit() {
+    if (!process.env.GITHUB_TOKEN) return;
+    try {
+        const dataToSave = JSON.stringify({ users, friendships, accessories, bannerText }, null, 2);
+        const contentEncoded = Buffer.from(dataToSave).toString('base64');
+
+        const params = {
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
+            path: FILE_PATH,
+            message: "bot: actualización de datos (cuentas/compras/inventario)",
+            content: contentEncoded
+        };
+
+        if (fileSha) params.sha = fileSha;
+
+        const res = await octokit.repos.createOrUpdateFileContents(params);
+        fileSha = res.data.content.sha;
+    } catch (err) {
+        console.error("❌ Error al persistir cambios en Git:", err.message);
+    }
+}
 
 // MIDDLEWARE DE AUTENTICACIÓN JWT
 function authenticateToken(req, res, next) {
@@ -64,7 +118,7 @@ function requireAdmin(req, res, next) {
 // RUTAS DE AUTENTICACIÓN Y PERFIL
 // -------------------------------------------------------------
 
-app.post('/api/register', (req, res) => {
+app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
@@ -81,11 +135,14 @@ app.post('/api/register', (req, res) => {
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner"] : [],
         coins: 100,
+        inventory: [],
+        equippedAccessory: null,
         admin: isOwner,
         owner: isOwner
     };
 
     users.push(newUser);
+    await saveDataToGit();
 
     const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET);
     res.json({ success: true, token });
@@ -109,15 +166,17 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/profile/avatar', authenticateToken, (req, res) => {
+app.post('/api/profile/avatar', authenticateToken, async (req, res) => {
     const { avatar } = req.body;
     if (!avatar) return res.status(400).json({ error: "URL de avatar requerida." });
     req.user.avatar = avatar;
+    await saveDataToGit();
     res.json({ success: true, avatar });
 });
 
-app.post('/api/profile/bio', authenticateToken, (req, res) => {
+app.post('/api/profile/bio', authenticateToken, async (req, res) => {
     req.user.bio = req.body.bio || "";
+    await saveDataToGit();
     res.json({ success: true, bio: req.user.bio });
 });
 
@@ -170,7 +229,7 @@ app.get('/api/friends/requests', authenticateToken, (req, res) => {
     res.json({ requests: reqs });
 });
 
-app.post('/api/friends/accept', authenticateToken, (req, res) => {
+app.post('/api/friends/accept', authenticateToken, async (req, res) => {
     const { requestId } = req.body;
     const index = friendRequests.findIndex(r => r.id === requestId && r.receiverId === req.user.id);
     if (index === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
@@ -178,6 +237,7 @@ app.post('/api/friends/accept', authenticateToken, (req, res) => {
     const reqData = friendRequests[index];
     friendships.push({ id: Date.now().toString(), user1: reqData.senderId, user2: req.user.id });
     friendRequests.splice(index, 1);
+    await saveDataToGit();
     res.json({ success: true });
 });
 
@@ -199,11 +259,12 @@ app.get('/api/friends', authenticateToken, (req, res) => {
     res.json({ friends: myFriends });
 });
 
-app.post('/api/friends/remove', authenticateToken, (req, res) => {
+app.post('/api/friends/remove', authenticateToken, async (req, res) => {
     const { userId } = req.body;
     friendships = friendships.filter(f => 
         !( (f.user1 === req.user.id && f.user2 === userId) || (f.user2 === req.user.id && f.user1 === userId) )
     );
+    await saveDataToGit();
     res.json({ success: true });
 });
 
@@ -218,15 +279,54 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 });
 
 // -------------------------------------------------------------
-// TIENDA Y ACCESORIOS AVATAR
+// TIENDA, COMPRA Y EQUIPAMIENTO DE ACCESORIOS
 // -------------------------------------------------------------
 
 app.get('/api/accessories', (req, res) => {
     res.json({ items: accessories });
 });
 
+app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
+    const { itemId } = req.body;
+    const item = accessories.find(a => a.id === itemId);
+
+    if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
+
+    if (!req.user.inventory) req.user.inventory = [];
+    if (req.user.inventory.includes(itemId)) {
+        return res.status(400).json({ error: "Ya posees este accesorio." });
+    }
+
+    if ((req.user.coins || 0) < item.price) {
+        return res.status(400).json({ error: "Monedas insuficientes." });
+    }
+
+    req.user.coins -= item.price;
+    req.user.inventory.push(itemId);
+
+    await saveDataToGit();
+    res.json({ success: true, newBalance: req.user.coins });
+});
+
+app.post('/api/accessories/equip', authenticateToken, async (req, res) => {
+    const { itemId } = req.body;
+    if (!req.user.inventory || !req.user.inventory.includes(itemId)) {
+        return res.status(400).json({ error: "No posees este accesorio." });
+    }
+
+    req.user.equippedAccessory = itemId;
+    await saveDataToGit();
+    res.json({ success: true, equipped: itemId });
+});
+
+app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
+    req.user.equippedAccessory = null;
+    await saveDataToGit();
+    res.json({ success: true });
+});
+
 app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req, res) => {
-    upload.single('glb')(req, res, (err) => {
+    upload.single('glb')(req, res, async (err) => {
         if (err) {
             return res.status(500).json({ error: "Error al guardar el archivo GLB: " + err.message });
         }
@@ -246,6 +346,7 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
             };
 
             accessories.push(newAccessory);
+            await saveDataToGit();
             res.json({ success: true, accessory: newAccessory });
         } catch (error) {
             res.status(500).json({ error: "Error al procesar los datos del accesorio." });
@@ -257,18 +358,20 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
 // PANEL DE ADMINISTRACIÓN / OWNER
 // -------------------------------------------------------------
 
-app.post('/api/admin/coins/add', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, amount } = req.body;
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
     target.coins = (target.coins || 0) + parseInt(amount);
+    await saveDataToGit();
     res.json({ success: true, newBalance: target.coins });
 });
 
-app.post('/api/admin/change-username', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/change-username', authenticateToken, requireAdmin, async (req, res) => {
     const { username } = req.body;
     req.user.username = username;
+    await saveDataToGit();
     res.json({ success: true });
 });
 
@@ -280,40 +383,45 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
     res.json({ users: list });
 });
 
-app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, async (req, res) => {
     const { userId, username } = req.body;
     const target = users.find(u => u.id === userId);
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
     target.username = username;
+    await saveDataToGit();
     res.json({ success: true });
 });
 
-app.post('/api/admin/users/delete', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/users/delete', authenticateToken, requireAdmin, async (req, res) => {
     const { userId } = req.body;
     users = users.filter(u => u.id !== userId);
+    await saveDataToGit();
     res.json({ success: true });
 });
 
-app.post('/api/admin/badges/add', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, badge } = req.body;
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
     if (!target.badges.includes(badge)) target.badges.push(badge);
+    await saveDataToGit();
     res.json({ success: true });
 });
 
-app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req, res) => {
     const { username, badge } = req.body;
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
     target.badges = target.badges.filter(b => b !== badge);
+    await saveDataToGit();
     res.json({ success: true });
 });
 
-app.post('/api/admin/banner', authenticateToken, requireAdmin, (req, res) => {
+app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) => {
     bannerText = req.body.text || "";
+    await saveDataToGit();
     res.json({ success: true, text: bannerText });
 });
 
@@ -334,8 +442,9 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Error interno del servidor." });
 });
 
-// INICIAR SERVIDOR
+// INICIAR SERVIDOR Y CARGAR DATOS PERSISTIDOS
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    await loadDataFromGit();
     console.log(`🎮 Servidor Game Blocks corriendo en el puerto ${PORT}`);
 });
