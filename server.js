@@ -43,7 +43,7 @@ let gameCodes = {};      // { code: userId }
 let accessories = [];    // { id, glbUrl, imageUrl, limited, maxPerUser, price }
 let bannerText = "";
 
-// Función de Sanitización básica contra XSS persistent
+// Función de Sanitización básica contra XSS
 function sanitizeText(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (m) => ({
@@ -83,7 +83,7 @@ async function loadDataFromGit() {
         bannerText = parsed.bannerText || "";
         console.log("✅ Datos persistidos cargados correctamente desde Git.");
     } catch (err) {
-        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error. Se creará al guardar.", err.message);
+        console.log("⚠️ No se encontró la base de datos previa en Git o hubo un error.", err.message);
     }
 }
 
@@ -121,7 +121,7 @@ function authenticateToken(req, res, next) {
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) return res.status(403).json({ error: "Sesión expirada o inválida." });
         
-        const foundUser = users.find(u => u.id === user.id);
+        const foundUser = users.find(u => String(u.id) === String(user.id));
         if (!foundUser) return res.status(404).json({ error: "Usuario no encontrado." });
         
         if (!foundUser.inventory) foundUser.inventory = [];
@@ -181,10 +181,8 @@ app.post('/api/login', async (req, res) => {
     if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
 
     const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    
     if (!user) return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
 
-    // Verificación segura con Bcrypt (Soporta compatibilidad previa con texto plano)
     let isPasswordValid = false;
     if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
         isPasswordValid = await bcrypt.compare(password, user.password);
@@ -230,7 +228,7 @@ app.get('/api/badges/me', authenticateToken, (req, res) => {
 });
 
 app.get('/api/users/profile/:id', (req, res) => {
-    const user = users.find(u => u.id === req.params.id);
+    const user = users.find(u => String(u.id) === String(req.params.id));
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
     res.json({
         id: user.id,
@@ -255,9 +253,9 @@ app.get('/api/users/search', (req, res) => {
 
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
-    if (userId === req.user.id) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
+    if (String(userId) === String(req.user.id)) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
 
-    const existingReq = friendRequests.find(r => r.senderId === req.user.id && r.receiverId === userId);
+    const existingReq = friendRequests.find(r => String(r.senderId) === String(req.user.id) && String(r.receiverId) === String(userId));
     if (existingReq) return res.status(400).json({ error: "Ya enviaste una solicitud a este usuario." });
 
     friendRequests.push({ id: Date.now().toString(), senderId: req.user.id, receiverId: userId });
@@ -266,9 +264,9 @@ app.post('/api/friends/request', authenticateToken, (req, res) => {
 
 app.get('/api/friends/requests', authenticateToken, (req, res) => {
     const reqs = friendRequests
-        .filter(r => r.receiverId === req.user.id)
+        .filter(r => String(r.receiverId) === String(req.user.id))
         .map(r => {
-            const sender = users.find(u => u.id === r.senderId);
+            const sender = users.find(u => String(u.id) === String(r.senderId));
             return { id: r.id, username: sender ? sender.username : "Desconocido" };
         });
     res.json({ requests: reqs });
@@ -276,7 +274,7 @@ app.get('/api/friends/requests', authenticateToken, (req, res) => {
 
 app.post('/api/friends/accept', authenticateToken, async (req, res) => {
     const { requestId } = req.body;
-    const index = friendRequests.findIndex(r => r.id === requestId && r.receiverId === req.user.id);
+    const index = friendRequests.findIndex(r => String(r.id) === String(requestId) && String(r.receiverId) === String(req.user.id));
     if (index === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
 
     const reqData = friendRequests[index];
@@ -288,16 +286,16 @@ app.post('/api/friends/accept', authenticateToken, async (req, res) => {
 
 app.post('/api/friends/reject', authenticateToken, (req, res) => {
     const { requestId } = req.body;
-    friendRequests = friendRequests.filter(r => !(r.id === requestId && r.receiverId === req.user.id));
+    friendRequests = friendRequests.filter(r => !(String(r.id) === String(requestId) && String(r.receiverId) === String(req.user.id)));
     res.json({ success: true });
 });
 
 app.get('/api/friends', authenticateToken, (req, res) => {
     const myFriends = friendships
-        .filter(f => f.user1 === req.user.id || f.user2 === req.user.id)
+        .filter(f => String(f.user1) === String(req.user.id) || String(f.user2) === String(req.user.id))
         .map(f => {
-            const friendId = f.user1 === req.user.id ? f.user2 : f.user1;
-            const friendUser = users.find(u => u.id === friendId);
+            const friendId = String(f.user1) === String(req.user.id) ? f.user2 : f.user1;
+            const friendUser = users.find(u => String(u.id) === String(friendId));
             return friendUser ? { id: friendUser.id, username: friendUser.username, avatar: friendUser.avatar } : null;
         })
         .filter(Boolean);
@@ -307,7 +305,8 @@ app.get('/api/friends', authenticateToken, (req, res) => {
 app.post('/api/friends/remove', authenticateToken, async (req, res) => {
     const { userId } = req.body;
     friendships = friendships.filter(f => 
-        !( (f.user1 === req.user.id && f.user2 === userId) || (f.user2 === req.user.id && f.user1 === userId) )
+        !( (String(f.user1) === String(req.user.id) && String(f.user2) === String(userId)) || 
+           (String(f.user2) === String(req.user.id) && String(f.user1) === String(userId)) )
     );
     await saveDataToGit();
     res.json({ success: true });
@@ -324,49 +323,70 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 });
 
 // -------------------------------------------------------------
-// TIENDA, COMPRA Y EQUIPAMIENTO DE ACCESORIOS
+// SISTEMA DE COMPRAS, TIENDA Y EQUIPAMIENTO (CON ALIAS ANTI-404)
 // -------------------------------------------------------------
 
-app.get('/api/accessories', (req, res) => {
+app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     res.json({ items: accessories });
 });
 
-app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
-    const { itemId } = req.body;
-    const item = accessories.find(a => Number(a.id) === Number(itemId));
+// Handler unificado de compra
+const handleBuyProcess = async (req, res) => {
+    try {
+        const itemId = req.body.itemId || req.body.id || req.body.accessoryId;
+        if (!itemId) return res.status(400).json({ error: "ID de accesorio requerido." });
 
-    if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
+        const item = accessories.find(a => String(a.id) === String(itemId));
+        if (!item) return res.status(404).json({ error: "Accesorio no encontrado en la tienda." });
 
-    if (!req.user.inventory) req.user.inventory = [];
-    if (req.user.inventory.includes(item.id)) {
-        return res.status(400).json({ error: "Ya posees este accesorio." });
+        if (!req.user.inventory) req.user.inventory = [];
+        
+        const alreadyOwned = req.user.inventory.some(id => String(id) === String(item.id));
+        if (alreadyOwned) {
+            return res.status(400).json({ error: "Ya posees este accesorio en tu inventario." });
+        }
+
+        const userCoins = req.user.coins || 0;
+        if (userCoins < item.price) {
+            return res.status(400).json({ error: "Monedas insuficientes." });
+        }
+
+        req.user.coins -= item.price;
+        req.user.inventory.push(item.id);
+
+        await saveDataToGit();
+        return res.json({ 
+            success: true, 
+            message: "¡Compra realizada con éxito!", 
+            newBalance: req.user.coins,
+            inventory: req.user.inventory
+        });
+    } catch (error) {
+        return res.status(500).json({ error: "Error interno al procesar la compra." });
+    }
+};
+
+// Se vinculan múltiples variantes de ruta para interceptar cualquier llamada del frontend
+app.post('/api/accessories/buy', authenticateToken, handleBuyProcess);
+app.post('/api/buy', authenticateToken, handleBuyProcess);
+app.post('/api/shop/buy', authenticateToken, handleBuyProcess);
+app.post('/api/store/buy', authenticateToken, handleBuyProcess);
+
+app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req, res) => {
+    const itemId = req.body.itemId || req.body.id;
+    if (!itemId) return res.status(400).json({ error: "ID de accesorio requerido." });
+
+    const hasItem = (req.user.inventory || []).some(id => String(id) === String(itemId));
+    if (!hasItem) {
+        return res.status(403).json({ error: "No posees este accesorio." });
     }
 
-    if ((req.user.coins || 0) < item.price) {
-        return res.status(400).json({ error: "Monedas insuficientes." });
-    }
- 
-    req.user.coins -= item.price;
-    req.user.inventory.push(item.id);
-
+    req.user.equippedAccessory = itemId;
     await saveDataToGit();
-    res.json({ success: true, newBalance: req.user.coins });
+    res.json({ success: true, equipped: itemId });
 });
 
-app.post('/api/accessories/equip', authenticateToken, async (req, res) => {
-    const { itemId } = req.body;
-    const targetId = Number(itemId);
-
-    if (!req.user.inventory || !req.user.inventory.includes(targetId)) {
-        return res.status(400).json({ error: "No posees este accesorio." });
-    }
-
-    req.user.equippedAccessory = targetId;
-    await saveDataToGit();
-    res.json({ success: true, equipped: targetId });
-});
-
-app.post('/api/accessories/unequip', authenticateToken, async (req, res) => {
+app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async (req, res) => {
     req.user.equippedAccessory = null;
     await saveDataToGit();
     res.json({ success: true });
@@ -389,7 +409,7 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
 
         try {
             const newAccessory = {
-                id: Date.now(),
+                id: Date.now().toString(),
                 glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
                 imageUrl: imageUrl.trim(),
                 limited: limited === 'true' || limited === true,
@@ -438,7 +458,7 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
 
 app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, async (req, res) => {
     const { userId, username } = req.body;
-    const target = users.find(u => u.id === userId);
+    const target = users.find(u => String(u.id) === String(userId));
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
     target.username = sanitizeText(username.trim());
     await saveDataToGit();
@@ -447,7 +467,7 @@ app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, as
 
 app.post('/api/admin/users/delete', authenticateToken, requireAdmin, async (req, res) => {
     const { userId } = req.body;
-    users = users.filter(u => u.id !== userId);
+    users = users.filter(u => String(u.id) !== String(userId));
     await saveDataToGit();
     res.json({ success: true });
 });
@@ -485,10 +505,12 @@ app.get('/api/banner', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// MANEJADORES GLOBALES DE ERROR
+// DIAGNÓSTICO Y MANEJADOR 404
 // -------------------------------------------------------------
 
 app.use((req, res) => {
+    // Imprime en la consola la ruta exacta que está fallando
+    console.error(`❌ 404 NOT FOUND: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ error: "La ruta solicitada no existe en el servidor." });
 });
 
@@ -497,7 +519,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Error interno del servidor." });
 });
 
-// INICIAR SERVIDOR Y CARGAR DATOS PERSISTIDOS
+// INICIAR SERVIDOR Y CARGAR DATOS
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     await loadDataFromGit();
