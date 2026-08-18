@@ -41,7 +41,7 @@ body {
 }
 
 .top-search {
-    width: 250px;
+    width: 200px;
     padding: 8px 12px;
     margin: 0;
     background: #050505;
@@ -371,6 +371,7 @@ textarea:focus {
     <div class="topbar-left">
         <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
         <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
+        <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
@@ -419,22 +420,31 @@ textarea:focus {
 
 <!-- CUENTA -->
 <div id="accountView" class="hidden">
-    <!-- 1. FOTO DE PERFIL EDITABLE -->
+    <!-- FOTO -->
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
         <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
     </div>
 
-    <!-- 2. NOMBRE DE USUARIO -->
+    <!-- NOMBRE -->
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
 
-    <!-- 3. INSIGNIAS -->
+    <!-- CONFIGURACIÓN DE RUTA EXE -->
+    <div class="section">
+        <h3>⚙️ Configuración del Juego</h3>
+        <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
+        <input id="exePath" type="text" placeholder="C:\Juegos\GameBlocks\GameBlocks.exe o gameblocks://">
+        <button class="secondary-button" style="width: auto;" onclick="saveExePath()">Guardar configuración</button>
+        <p id="exeMessage"></p>
+    </div>
+
+    <!-- INSIGNIAS -->
     <div class="section">
         <h3>🏅 Insignias</h3>
         <div id="myBadges" class="badges">Cargando...</div>
     </div>
 
-    <!-- 4. BIO EDITABLE -->
+    <!-- BIO -->
     <div class="section">
         <h3>📝 Biografía</h3>
         <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
@@ -442,7 +452,7 @@ textarea:focus {
         <p id="bioMessage"></p>
     </div>
 
-    <!-- 5. PANEL DE ADMINISTRACION -->
+    <!-- ADMIN PANEL -->
     <div id="adminPanel" class="admin-panel hidden">
         <h2>🛠️ Panel de administración</h2>
         <p>Herramientas administrativas de Game Blocks.</p>
@@ -605,6 +615,29 @@ function showPublicProfile(user) {
     }
 }
 
+function saveExePath() {
+    const path = document.getElementById("exePath").value.trim();
+    const msg = document.getElementById("exeMessage");
+    if (!path) {
+        msg.className = "error";
+        msg.textContent = "Ingresa una ruta válida.";
+        return;
+    }
+    localStorage.setItem("gameblocks_exe_path", path);
+    msg.className = "success";
+    msg.textContent = "Ruta guardada en este navegador.";
+}
+
+function launchGame() {
+    const path = localStorage.getItem("gameblocks_exe_path");
+    if (!path) {
+        alert("Configura primero la ruta del ejecutable en tu cuenta.");
+        openAccount();
+        return;
+    }
+    window.location.href = path.includes("://") ? path : "file:///" + path.replace(/\\/g, "/");
+}
+
 async function viewUserProfile(userId) {
     try {
         const user = await request("/api/users/profile/" + userId);
@@ -666,6 +699,9 @@ async function login() {
 
 async function updateAccount() {
     const token = localStorage.getItem("gameblocks_token");
+
+    const savedPath = localStorage.getItem("gameblocks_exe_path");
+    if (savedPath) document.getElementById("exePath").value = savedPath;
 
     if (!token) {
         document.getElementById("heroSlogan").classList.add("hidden");
