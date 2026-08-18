@@ -1,4 +1,18 @@
 {
+  "name": "game-blocks-backend",
+  "version": "1.0.0",
+  "description": "Backend API para Game Blocks",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jwt-simple": "^0.5.6"
+  }
+}{
   "name": "game-blocks-api",
   "version": "1.0.0",
   "description": "Game Blocks accounts API",
