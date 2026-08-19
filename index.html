@@ -70,6 +70,7 @@ body {
     background: #ddd;
 }
 
+/* Moneda en la Topbar */
 .coin-display {
     background: #1a1a1a;
     color: #ffd700;
@@ -388,6 +389,7 @@ textarea:focus {
     line-height: 1.5;
 }
 
+/* Estilos de Avatar y Tienda */
 .avatar-modal-body {
     display: flex;
     gap: 20px;
@@ -453,9 +455,11 @@ model-viewer {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
+        <!-- Monedas -->
         <div class="coin-display" id="userCoinsDisplay" title="Monedas">
             <span id="userCoinsText">0</span> 🪙
         </div>
+        <!-- Botón de avatar a la derecha de la moneda -->
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
@@ -682,21 +686,13 @@ model-viewer {
 <script>
 const RENDER_API = "https://panstudios-github-io-1.onrender.com";
 
-async function request(endpoint, method = "GET", body = null, isFormData = false) {
-    const headers = {};
+async function request(endpoint, method = "GET", body = null) {
+    const headers = { "Content-Type": "application/json" };
     const token = localStorage.getItem("gameblocks_token");
     if (token) headers.Authorization = "Bearer " + token;
 
     const options = { method, headers };
-
-    if (body !== null) {
-        if (isFormData) {
-            options.body = body;
-        } else {
-            headers["Content-Type"] = "application/json";
-            options.body = JSON.stringify(body);
-        }
-    }
+    if (body !== null) options.body = JSON.stringify(body);
 
     const response = await fetch(RENDER_API + endpoint, options);
     let data;
@@ -1318,6 +1314,7 @@ async function removeBadge() {
     }
 }
 
+/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR CON COMPRA Y EQUIPAR REESTRUCTURADA */
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
     try {
@@ -1350,7 +1347,10 @@ async function loadShopItems() {
             btn.style.padding = "4px";
             btn.style.marginTop = "5px";
 
-            const isOwned = myInventory.includes(item.id);
+            // Lógica avanzada para saber si el usuario alcanzó el límite de compra
+            const ownedCount = myInventory.filter(id => String(id) === String(item.id)).length;
+            const maxAllowed = item.limited ? (item.maxPerUser || 1) : 1;
+            const hasReachedLimit = ownedCount >= maxAllowed;
             const isEquipped = equippedId === item.id;
 
             if (isEquipped) {
@@ -1358,7 +1358,7 @@ async function loadShopItems() {
                 btn.style.background = "#ff4444";
                 btn.style.color = "#fff";
                 btn.onclick = () => unequipAccessory();
-            } else if (isOwned) {
+            } else if (hasReachedLimit) {
                 btn.textContent = "Equipar";
                 btn.style.background = "#28a745";
                 btn.style.color = "#fff";
@@ -1376,7 +1376,9 @@ async function loadShopItems() {
             if (item.limited) {
                 const lim = document.createElement("small");
                 lim.style.color = "gold";
-                lim.textContent = "Limited (" + item.maxPerUser + " max)";
+                // Mostramos cuántos tiene si es un objeto que permite más de 1
+                const countText = maxAllowed > 1 ? ` (Tienes ${ownedCount}/${maxAllowed})` : '';
+                lim.textContent = "Limited" + countText;
                 card.appendChild(lim);
             }
 
@@ -1389,13 +1391,21 @@ async function loadShopItems() {
 }
 
 async function buyAccessory(itemId) {
+    // Añadimos una confirmación para evitar compras accidentales
+    if (!confirm("¿Seguro que deseas comprar este accesorio?")) return;
+    
     try {
         const res = await request("/api/accessories/buy", "POST", { itemId });
-        alert("¡Compra realizada con éxito!");
+        alert(res.message || "¡Compra realizada con éxito!");
+        
+        // Actualizamos las monedas en tiempo real en la interfaz
         document.getElementById("userCoinsText").textContent = res.newBalance;
+        
+        // Recargamos la tienda para que el botón cambie de "Comprar" a "Equipar"
         loadShopItems();
     } catch (error) {
-        alert(error.message);
+        // Mostramos el mensaje exacto que configuramos en el backend
+        alert("Error en la compra: " + error.message);
     }
 }
 
@@ -1421,6 +1431,7 @@ async function unequipAccessory() {
     }
 }
 
+/* SUBIR ACCESORIO GLB DESDE PC POR OWNER */
 async function uploadAccessory() {
     const glbFile = document.getElementById("accessoryGlbFile").files[0];
     const isLimited = document.getElementById("accessoryIsLimited").value === "si";
@@ -1444,7 +1455,14 @@ async function uploadAccessory() {
 
     try {
         msg.textContent = "Subiendo accesorio...";
-        await request("/api/admin/accessories/upload", "POST", formData, true);
+        const token = localStorage.getItem("gameblocks_token");
+        const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+            body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al subir.");
 
         msg.className = "success";
         msg.textContent = "Accesorio subido correctamente.";
@@ -1455,6 +1473,7 @@ async function uploadAccessory() {
     }
 }
 
+/* AÑADIR MONEDAS POR ADMIN */
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value.trim();
     const amount = document.getElementById("coinAmount").value;
@@ -1476,6 +1495,7 @@ async function adminAddCoins() {
     }
 }
 
+/* GUARDAR Y CARGAR BANNER DE TEXTO DE OWNER */
 async function saveOwnerBanner() {
     const text = document.getElementById("bannerTextInput").value.trim();
     const msg = document.getElementById("bannerMsg");
