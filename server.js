@@ -10,6 +10,7 @@ const { Octokit } = require('@octokit/rest');
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
+// Configuración de GitHub API para persistencia
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const REPO_OWNER = process.env.REPO_OWNER || "tu-usuario-github";
 const REPO_NAME = process.env.REPO_NAME || "tu-repositorio";
@@ -19,6 +20,7 @@ let fileSha = "";
 app.use(cors());
 app.use(express.json());
 
+// Crear carpeta 'uploads' si no existe
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -26,19 +28,22 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use('/uploads', express.static(uploadDir));
 
+// Configuración de Multer para archivos GLB locales
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'))
 });
 const upload = multer({ storage });
 
-let users = [];
-let friendRequests = [];
-let friendships = [];
-let gameCodes = {};
-let accessories = [];
+// BASE DE DATOS EN MEMORIA
+let users = [];          // { id, username, password, avatar, bio, badges, coins, inventory, equippedAccessory, admin, owner }
+let friendRequests = []; // { id, senderId, receiverId }
+let friendships = [];    // { id, user1, user2 }
+let gameCodes = {};      // { code: userId }
+let accessories = [];    // { id, glbUrl, imageUrl, limited, maxPerUser, price }
 let bannerText = "";
 
+// Función de Sanitización básica contra XSS
 function sanitizeText(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (m) => ({
@@ -50,6 +55,7 @@ function sanitizeText(str) {
     })[m]);
 }
 
+// Cargar base de datos desde repositorio Git al iniciar
 async function loadDataFromGit() {
     if (!process.env.GITHUB_TOKEN) {
         console.log("⚠️ GITHUB_TOKEN no configurado. Operando con memoria local temporal.");
@@ -81,6 +87,7 @@ async function loadDataFromGit() {
     }
 }
 
+// Guardar base de datos actualizada en el repositorio Git
 async function saveDataToGit() {
     if (!process.env.GITHUB_TOKEN) return;
     try {
@@ -104,6 +111,7 @@ async function saveDataToGit() {
     }
 }
 
+// MIDDLEWARE DE AUTENTICACIÓN JWT
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -124,6 +132,7 @@ function authenticateToken(req, res, next) {
     });
 }
 
+// MIDDLEWARE SOLO OWNER / ADMIN
 function requireAdmin(req, res, next) {
     if (!req.user || (!req.user.admin && !req.user.owner)) {
         return res.status(403).json({ error: "Requiere permisos de administrador u Owner." });
@@ -131,7 +140,10 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-// AUTENTICACIÓN
+// -------------------------------------------------------------
+// RUTAS DE AUTENTICACIÓN Y PERFIL
+// -------------------------------------------------------------
+
 app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
@@ -235,7 +247,10 @@ app.get('/api/users/search', (req, res) => {
     res.json({ users: matches });
 });
 
-// AMIGOS
+// -------------------------------------------------------------
+// SISTEMA DE AMIGOS
+// -------------------------------------------------------------
+
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
     if (String(userId) === String(req.user.id)) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
@@ -297,42 +312,62 @@ app.post('/api/friends/remove', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
-// CÓDIGO DE JUEGO
+// -------------------------------------------------------------
+// CONEXIÓN CON EL JUEGO Y CÓDIGOS
+// -------------------------------------------------------------
+
 app.post('/api/game/create-code', authenticateToken, (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     gameCodes[code] = req.user.id;
     res.json({ success: true, code });
 });
 
-// TIENDA
+// -------------------------------------------------------------
+// SISTEMA DE COMPRAS, TIENDA Y EQUIPAMIENTO (CON ALIAS ANTI-404)
+// -------------------------------------------------------------
+
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     res.json({ items: accessories });
 });
 
+// Handler unificado de compra (REESTRUCTURADO DESDE CERO)
 const handleBuyProcess = async (req, res) => {
     try {
+        // 1. OBTENCIÓN Y VALIDACIÓN DEL ÍTEM
         const itemId = req.body.itemId || req.body.id || req.body.accessoryId;
         if (!itemId) return res.status(400).json({ error: "ID de accesorio requerido." });
 
         const item = accessories.find(a => String(a.id) === String(itemId));
         if (!item) return res.status(404).json({ error: "Accesorio no encontrado en la tienda." });
 
+        // 2. VALIDACIÓN DE INVENTARIO Y LÍMITES
         if (!req.user.inventory) req.user.inventory = [];
         
-        const alreadyOwned = req.user.inventory.some(id => String(id) === String(item.id));
-        if (alreadyOwned) {
-            return res.status(400).json({ error: "Ya posees este accesorio en tu inventario." });
+        // Contamos cuántas copias exactas tiene el usuario de este ítem
+        const userOwnedCount = req.user.inventory.filter(id => String(id) === String(item.id)).length;
+        const maxAllowed = item.limited ? (item.maxPerUser || 1) : 1;
+
+        if (userOwnedCount >= maxAllowed) {
+            return res.status(400).json({ 
+                error: item.limited 
+                    ? `Has alcanzado el límite máximo de ${maxAllowed} copias para este accesorio limitado.` 
+                    : "Ya posees este accesorio en tu inventario y no se pueden tener copias duplicadas."
+            });
         }
 
+        // 3. VALIDACIÓN DE ECONOMÍA Y TRANSACCIÓN
         const userCoins = req.user.coins || 0;
         if (userCoins < item.price) {
-            return res.status(400).json({ error: "Monedas insuficientes." });
+            return res.status(400).json({ error: "Monedas insuficientes para realizar esta compra." });
         }
 
+        // Ejecutar la compra
         req.user.coins -= item.price;
         req.user.inventory.push(item.id);
 
+        // Guardar persistencia
         await saveDataToGit();
+        
         return res.json({ 
             success: true, 
             message: "¡Compra realizada con éxito!", 
@@ -340,11 +375,16 @@ const handleBuyProcess = async (req, res) => {
             inventory: req.user.inventory
         });
     } catch (error) {
-        return res.status(500).json({ error: "Error interno al procesar la compra." });
+        console.error("Error en la compra:", error);
+        return res.status(500).json({ error: "Error interno al procesar la compra. Inténtalo de nuevo." });
     }
 };
 
-app.post(['/api/accessories/buy', '/api/buy', '/api/shop/buy', '/api/store/buy'], authenticateToken, handleBuyProcess);
+// Se vinculan múltiples variantes de ruta para interceptar cualquier llamada del frontend
+app.post('/api/accessories/buy', authenticateToken, handleBuyProcess);
+app.post('/api/buy', authenticateToken, handleBuyProcess);
+app.post('/api/shop/buy', authenticateToken, handleBuyProcess);
+app.post('/api/store/buy', authenticateToken, handleBuyProcess);
 
 app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req, res) => {
     const itemId = req.body.itemId || req.body.id;
@@ -400,7 +440,10 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
     });
 });
 
-// ADMIN
+// -------------------------------------------------------------
+// PANEL DE ADMINISTRACIÓN / OWNER
+// -------------------------------------------------------------
+
 app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, amount } = req.body;
     const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
@@ -475,7 +518,12 @@ app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
+// -------------------------------------------------------------
+// DIAGNÓSTICO Y MANEJADOR 404
+// -------------------------------------------------------------
+
 app.use((req, res) => {
+    // Imprime en la consola la ruta exacta que está fallando
     console.error(`❌ 404 NOT FOUND: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ error: "La ruta solicitada no existe en el servidor." });
 });
@@ -485,6 +533,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: "Error interno del servidor." });
 });
 
+// INICIAR SERVIDOR Y CARGAR DATOS
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
     await loadDataFromGit();
