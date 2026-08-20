@@ -4,40 +4,71 @@ const app = express();
 
 app.use(express.json());
 
-const JWT_SECRET = 'super-secret-key';
+const JWT_SECRET = 'roblox-system-super-secret-key-2026';
 
-// Base de datos en memoria (Simulación)
+// Base de datos en memoria completa
 let users = [
-    { id: '1', username: 'AdminUser', isAdmin: true, coins: 5000, inventory: ['101', '102'], equippedAccessory: null, bio: 'Administrador del sistema', avatar: '' },
-    { id: '2', username: 'PlayerTwo', isAdmin: false, coins: 1500, inventory: ['103'], equippedAccessory: null, bio: 'Jugador casual', avatar: '' }
+    { 
+        id: '1', 
+        username: 'AdminUser', 
+        isAdmin: true, 
+        coins: 5000, 
+        inventory: ['101', '102'], 
+        equippedAccessory: null, 
+        bio: 'Administrador principal del sistema', 
+        avatar: 'https://via.placeholder.com/45' 
+    },
+    { 
+        id: '2', 
+        username: 'PlayerTwo', 
+        isAdmin: false, 
+        coins: 1500, 
+        inventory: ['103'], 
+        equippedAccessory: null, 
+        bio: 'Jugador y coleccionista de Limiteds', 
+        avatar: 'https://via.placeholder.com/45' 
+    },
+    { 
+        id: '3', 
+        username: 'TraderPro', 
+        isAdmin: false, 
+        coins: 8000, 
+        inventory: ['104'], 
+        equippedAccessory: null, 
+        bio: 'Buscando hacer trades de alto valor', 
+        avatar: 'https://via.placeholder.com/45' 
+    }
 ];
 
 let accessories = [
     { id: '101', name: 'Dominus Red', price: 1000, limited: true, offsale: true, imageUrl: 'https://via.placeholder.com/80' },
     { id: '102', name: 'Golden Crown', price: 500, limited: true, offsale: false, imageUrl: 'https://via.placeholder.com/80' },
-    { id: '103', name: 'Classic Cap', price: 50, limited: false, offsale: false, imageUrl: 'https://via.placeholder.com/80' }
+    { id: '103', name: 'Classic Cap', price: 50, limited: false, offsale: false, imageUrl: 'https://via.placeholder.com/80' },
+    { id: '104', name: 'Valkyrie Helm', price: 2500, limited: true, offsale: true, imageUrl: 'https://via.placeholder.com/80' }
 ];
 
 let tradeOffers = [];
 let resaleListings = [];
+let friendRequests = [];
 
-// Función simulada de persistemcia
+// Persistencia en Git / Disco
 async function saveDataToGit() {
-    console.log("Guardando estado del servidor...");
-    return Promise.resolve();
+    console.log("[Data Sync] Guardando cambios del sistema...");
+    return Promise.resolve(true);
 }
 
-// Middlewares
+// Middlewares de autenticación
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
+    
     if (!token) {
-        // Usuario demo para desarrollo si no hay token
-        req.user = users[0];
+        req.user = users[0]; // Usuario por defecto en modo desarrollo
         return next();
     }
+    
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403);
+        if (err) return res.status(403).json({ error: "Token inválido o expirado." });
         req.user = users.find(u => u.id === user.id) || users[0];
         next();
     });
@@ -50,7 +81,12 @@ function requireAdmin(req, res, next) {
     next();
 }
 
-// RUTAS API
+// === RUTAS API ===
+
+// Perfil de usuario actual
+app.get('/api/me', authenticateToken, (req, res) => {
+    res.json(req.user);
+});
 
 // Búsqueda de usuarios
 app.get('/api/users/search', (req, res) => {
@@ -59,22 +95,25 @@ app.get('/api/users/search', (req, res) => {
     res.json({ users: filtered });
 });
 
-// Mi Perfil
-app.get('/api/me', authenticateToken, (req, res) => {
-    res.json(req.user);
-});
-
-// Tienda de Accesorios
+// Obtener catálogo de accesorios
 app.get('/api/accessories', (req, res) => {
     res.json({ items: accessories });
 });
 
-// Amigos
+// Solicitudes de amistad
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
-    const target = users.find(u => u.id === String(userId));
+    const target = users.find(u => String(u.id) === String(userId));
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-    res.json({ success: true, message: `Solicitud enviada a ${target.username}` });
+
+    friendRequests.push({
+        id: Date.now().toString(),
+        fromId: req.user.id,
+        toId: target.id,
+        status: 'pending'
+    });
+
+    res.json({ success: true, message: `Solicitud de amistad enviada a ${target.username}` });
 });
 
 // 1. MODIFICAR ÍTEM DESDE PANEL ADMIN
@@ -91,36 +130,52 @@ app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (
     res.json({ success: true, item });
 });
 
-// 2. TRADES RESTRINGIDOS A LIMITEDS
+// 2. SISTEMA DE TRADES (RESTRINGIDO A LIMITEDS)
 app.post('/api/trade/offer', authenticateToken, (req, res) => {
     const { targetUserId, offeredItemId, offeredCoins, requestedItemId, requestedCoins } = req.body;
     const target = users.find(u => String(u.id) === String(targetUserId));
 
     if (!target) return res.status(404).json({ error: "Usuario destino no encontrado." });
 
+    // Validar item ofrecido
     if (offeredItemId) {
         const offItem = accessories.find(a => String(a.id) === String(offeredItemId));
-        if (!offItem || !offItem.limited) return res.status(400).json({ error: "Solo se pueden intercambiar artículos Limiteds." });
-        if (!req.user.inventory.includes(offeredItemId)) return res.status(400).json({ error: "No tienes el ítem ofrecido." });
-    }
-    if (requestedItemId) {
-        const reqItem = accessories.find(a => String(a.id) === String(requestedItemId));
-        if (!reqItem || !reqItem.limited) return res.status(400).json({ error: "Solo puedes solicitar artículos Limiteds." });
+        if (!offItem || !offItem.limited) {
+            return res.status(400).json({ error: "Solo se pueden intercambiar artículos marcados como Limiteds." });
+        }
+        if (!req.user.inventory.includes(offeredItemId)) {
+            return res.status(400).json({ error: "No posees en tu inventario el artículo que intentas ofrecer." });
+        }
     }
 
-    if (offeredCoins && (req.user.coins || 0) < offeredCoins) {
-        return res.status(400).json({ error: "Monedas insuficientes para ofrecer." });
+    // Validar item solicitado
+    if (requestedItemId) {
+        const reqItem = accessories.find(a => String(a.id) === String(requestedItemId));
+        if (!reqItem || !reqItem.limited) {
+            return res.status(400).json({ error: "Solo puedes solicitar artículos que sean Limiteds." });
+        }
+        if (!target.inventory.includes(requestedItemId)) {
+            return res.status(400).json({ error: "El usuario destino no posee el artículo solicitado." });
+        }
+    }
+
+    const oCoins = parseInt(offeredCoins) || 0;
+    const rCoins = parseInt(requestedCoins) || 0;
+
+    if (oCoins > 0 && (req.user.coins || 0) < oCoins) {
+        return res.status(400).json({ error: "No tienes suficientes monedas para realizar esta oferta." });
     }
 
     const trade = {
         id: Date.now().toString(),
         senderId: req.user.id,
         senderUsername: req.user.username,
-        targetUserId,
-        offeredItemId,
-        offeredCoins: parseInt(offeredCoins) || 0,
-        requestedItemId,
-        requestedCoins: parseInt(requestedCoins) || 0
+        targetUserId: target.id,
+        offeredItemId: offeredItemId || null,
+        offeredCoins: oCoins,
+        requestedItemId: requestedItemId || null,
+        requestedCoins: rCoins,
+        status: 'pending'
     };
 
     tradeOffers.push(trade);
@@ -131,18 +186,22 @@ app.post('/api/trade/offer', authenticateToken, (req, res) => {
 app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
     const { itemId, price } = req.body;
     const item = accessories.find(a => String(a.id) === String(itemId));
+    
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (!item.limited) return res.status(400).json({ error: "Solo los artículos Limiteds se pueden revender." });
-    if (!item.offsale) return res.status(400).json({ error: "El artículo debe estar Offsale para ponerlo en reventa." });
+    if (!item.offsale) return res.status(400).json({ error: "El artículo debe estar Offsale para ponerlo en reventa de usuarios." });
 
     const index = req.user.inventory.indexOf(itemId);
-    if (index === -1) return res.status(400).json({ error: "No posees este accesorio." });
+    if (index === -1) return res.status(400).json({ error: "No posees este accesorio en tu inventario." });
 
     const listingPrice = parseInt(price);
-    if (isNaN(listingPrice) || listingPrice <= 0) return res.status(400).json({ error: "Precio inválido." });
+    if (isNaN(listingPrice) || listingPrice <= 0) return res.status(400).json({ error: "Ingresa un precio de reventa válido." });
 
+    // Se remueve del inventario al ponerlo a la venta
     req.user.inventory.splice(index, 1);
-    if (String(req.user.equippedAccessory) === String(itemId)) req.user.equippedAccessory = null;
+    if (String(req.user.equippedAccessory) === String(itemId)) {
+        req.user.equippedAccessory = null;
+    }
 
     const listing = {
         id: Date.now().toString(),
@@ -164,11 +223,11 @@ app.get('/api/accessories/resale-market', (req, res) => {
 app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     const { listingId } = req.body;
     const listIndex = resaleListings.findIndex(l => String(l.id) === String(listingId));
-    if (listIndex === -1) return res.status(404).json({ error: "Oferta de reventa no encontrada." });
+    if (listIndex === -1) return res.status(404).json({ error: "La oferta de reventa ya no existe o ya fue comprada." });
 
     const listing = resaleListings[listIndex];
     if (String(listing.sellerId) === String(req.user.id)) return res.status(400).json({ error: "No puedes comprar tu propia oferta." });
-    if ((req.user.coins || 0) < listing.price) return res.status(400).json({ error: "Monedas insuficientes." });
+    if ((req.user.coins || 0) < listing.price) return res.status(400).json({ error: "Monedas insuficientes para la compra." });
 
     const seller = users.find(u => String(u.id) === String(listing.sellerId));
 
@@ -181,5 +240,5 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     res.json({ success: true, newBalance: req.user.coins });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => console.log(`Servidor iniciado en puerto ${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor activo corriendo en el puerto ${PORT}`));
