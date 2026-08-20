@@ -245,9 +245,9 @@ textarea:focus {
 }
 
 .friend-button {
-    background: #222;
+    background: #10b981;
     color: white;
-    border: 1px solid #444;
+    border: none;
     padding: 8px 12px;
     border-radius: 5px;
     cursor: pointer;
@@ -382,12 +382,6 @@ textarea:focus {
     margin: 15px 0;
 }
 
-.code-info {
-    color: #888;
-    font-size: 13px;
-    line-height: 1.5;
-}
-
 .avatar-modal-body {
     display: flex;
     gap: 20px;
@@ -434,6 +428,12 @@ model-viewer {
     object-fit: contain;
 }
 
+.item-id-label {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
 .sidebar-banner {
     margin-top: 15px;
     padding: 10px;
@@ -443,6 +443,43 @@ model-viewer {
     font-size: 13px;
     color: #ffd700;
     text-align: center;
+}
+
+/* Modal Trades Roblox Style */
+.trade-window {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #151515;
+    border: 1px solid #333;
+    padding: 18px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.trade-section {
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.trade-section-title {
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.trade-value-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 15px;
+    border-top: 1px solid #333;
+    padding-top: 10px;
 }
 </style>
 </head>
@@ -540,29 +577,29 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>👤 Administrar cuentas</h3>
-            <input id="adminSearch" type="text" placeholder="Buscar cuenta...">
-            <button class="admin-button" onclick="adminSearchUsers()">Buscar</button>
-            <div id="adminUsers"></div>
-        </div>
-
-        <div class="section">
-            <h3>🏅 Administrar insignias</h3>
-            <input id="badgeUser" type="text" placeholder="Nombre de usuario">
-            <select id="badgeSelect">
-                <option value="server_booster">🚀 Server Booster</option>
-                <option value="blocker">🧱 Blocker</option>
-                <option value="admin">🛠️ Admin</option>
-                <option value="creator_content">🎨 Creator Content</option>
-                <option value="game_blocks">🎮 Game Blocks</option>
+            <h3>✏️ Editar Accesorio por ID</h3>
+            <input type="text" id="editItemId" placeholder="ID del accesorio">
+            <input type="number" id="editItemPrice" placeholder="Nuevo Precio (opcional)">
+            <label style="font-size:12px; color:#aaa;">¿Limited?</label>
+            <select id="editItemLimited">
+                <option value="">No cambiar</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
             </select>
-            <button class="admin-button" onclick="addBadge()">Añadir insignia</button>
-            <button class="danger-button" onclick="removeBadge()">Quitar insignia</button>
-            <p id="badgeMessage"></p>
+            <label style="font-size:12px; color:#aaa;">¿Offsale?</label>
+            <select id="editItemOffsale">
+                <option value="">No cambiar</option>
+                <option value="true">Sí (Offsale)</option>
+                <option value="false">No (En Venta)</option>
+            </select>
+            <button class="admin-button" onclick="adminEditAccessory()">Guardar Cambios de Accesorio</button>
         </div>
 
         <div class="section">
             <h3>📦 Subir Accesorio Limited / Normal</h3>
+            <label style="font-size: 13px; color: #aaa;">Nombre del Accesorio:</label>
+            <input type="text" id="accessoryName" placeholder="Nombre">
+
             <label style="font-size: 13px; color: #aaa;">Archivo .GLB local:</label>
             <input type="file" id="accessoryGlbFile" accept=".glb">
             
@@ -570,6 +607,12 @@ model-viewer {
             <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
                 <option value="no">no</option>
                 <option value="si">si</option>
+            </select>
+
+            <label style="font-size: 13px; color: #aaa;">¿Está OFFSALE?:</label>
+            <select id="accessoryIsOffsale">
+                <option value="no">no (En venta)</option>
+                <option value="si">si (Offsale)</option>
             </select>
             
             <div id="limitedOptions" class="hidden">
@@ -660,7 +703,7 @@ model-viewer {
 
 <!-- MODAL TIENDA Y AVATAR -->
 <div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
-<div class="modal-box" style="max-width: 750px;">
+<div class="modal-box" style="max-width: 850px;">
     <button class="close" onclick="closeAvatarModal()">×</button>
     <h2>🎭 Personalizar Avatar & Tienda</h2>
     
@@ -674,8 +717,11 @@ model-viewer {
         </div>
 
         <div style="flex:1; min-width: 260px;">
-            <h3>🛒 Tienda de Accesorios & Limiteds</h3>
+            <h3>🛒 Tienda de Accesorios</h3>
             <div id="shopContainer" class="shop-items">Cargando catálogo...</div>
+
+            <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
+            <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
         </div>
     </div>
 
@@ -683,15 +729,38 @@ model-viewer {
 </div>
 </div>
 
+<!-- MODAL INTERFAZ DE TRADE (ESTILO ROBLOX) -->
+<div id="tradeModal" class="modal">
+    <div class="modal-box" style="max-width: 600px;">
+        <button class="close" onclick="closeTradeModal()">×</button>
+        <h2 id="tradeTargetTitle" style="margin:0;">Trade with User</h2>
+        <div class="trade-window">
+            <div class="trade-section">
+                <div class="trade-section-title">Items you will give (Solo Limiteds)</div>
+                <input type="text" id="tradeGiveItemId" placeholder="ID del artículo Limited que ofreces">
+                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0">
+            </div>
+            <div class="trade-section">
+                <div class="trade-section-title">Items you will receive (Solo Limiteds)</div>
+                <input type="text" id="tradeGetItemId" placeholder="ID del artículo Limited que pides">
+                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0">
+            </div>
+            <div class="trade-value-footer">
+                <span>Oferta de Intercambio</span>
+                <button class="admin-button" style="padding: 10px 20px;" onclick="sendTradeOffer()">Enviar Oferta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const RENDER_API = "https://panstudios-github-io-1.onrender.com";
+let currentTradeTargetId = null;
 
-// Envio automatico de paquete/ping cada 40s para mantener Render despierto
 setInterval(async () => {
     try {
         const res = await fetch(RENDER_API + "/api/ping");
-        const msg = await res.text();
-        console.log("Ping Anti-sleep Render:", msg);
+        await res.text();
     } catch(e) {}
 }, 40000);
 
@@ -731,6 +800,7 @@ function outsideClose(event) {
 function openAvatarModal() {
     document.getElementById("avatarModal").style.display = "flex";
     loadShopItems();
+    loadResaleMarket();
     loadBanner();
 }
 
@@ -991,6 +1061,15 @@ async function loadShopItems() {
             const img = document.createElement("img");
             img.src = item.imageUrl || "https://via.placeholder.com/80";
 
+            const name = document.createElement("div");
+            name.style.fontWeight = "bold";
+            name.style.fontSize = "13px";
+            name.textContent = item.name || "Accesorio";
+
+            const idLabel = document.createElement("div");
+            idLabel.className = "item-id-label";
+            idLabel.textContent = "ID: " + item.id;
+
             const price = document.createElement("div");
             price.innerHTML = "<b>" + item.price + " 🪙</b>";
 
@@ -1020,36 +1099,38 @@ async function loadShopItems() {
             }
 
             card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(idLabel);
             card.appendChild(price);
 
             if (item.limited) {
                 const lim = document.createElement("small");
                 lim.style.color = "gold";
                 let limText = "LIMITED";
-                if (item.maxGlobal) limText += " (" + item.totalSold + "/" + item.maxGlobal + " stock)";
+                if (item.maxGlobal) limText += " (" + item.totalSold + "/" + item.maxGlobal + ")";
                 lim.textContent = limText;
                 card.appendChild(lim);
             }
 
-            if (item.expiresAt) {
-                const exp = document.createElement("small");
-                const remainingHours = Math.max(0, Math.round((item.expiresAt - Date.now()) / (1000 * 60 * 60)));
-                exp.style.color = remainingHours > 0 ? "#ff9900" : "#ff4444";
-                exp.textContent = remainingHours > 0 ? "Expira en " + remainingHours + "h" : "EXPIRADO";
-                card.appendChild(exp);
+            if (item.offsale) {
+                const off = document.createElement("small");
+                off.style.color = "#ff4444";
+                off.style.fontWeight = "bold";
+                off.textContent = "OFFSALE";
+                card.appendChild(off);
             }
 
             card.appendChild(btnAction);
 
-            // Botón de reventa si se posee el ítem
-            if (isOwned) {
-                const sellBtn = document.createElement("button");
-                sellBtn.className = "danger-button";
-                sellBtn.style.marginTop = "4px";
-                sellBtn.style.fontSize = "11px";
-                sellBtn.textContent = "🏷️ Revender (50%)";
-                sellBtn.onclick = () => sellAccessory(item.id);
-                card.appendChild(sellBtn);
+            // Reventa para Limiteds Offsale
+            if (isOwned && item.limited && item.offsale) {
+                const resellBtn = document.createElement("button");
+                resellBtn.className = "admin-button";
+                resellBtn.style.marginTop = "4px";
+                resellBtn.style.fontSize = "11px";
+                resellBtn.textContent = "🏷️ Revender";
+                resellBtn.onclick = () => listResaleItem(item.id);
+                card.appendChild(resellBtn);
             }
 
             container.appendChild(card);
@@ -1059,22 +1140,87 @@ async function loadShopItems() {
     }
 }
 
+async function listResaleItem(itemId) {
+    const price = prompt("Ingresa el precio en monedas para ponerlo en reventa:");
+    if (!price) return;
+    try {
+        await request("/api/accessories/resell-list", "POST", { itemId, price });
+        alert("Publicado en la reventa.");
+        loadShopItems();
+        loadResaleMarket();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function loadResaleMarket() {
+    const container = document.getElementById("resaleMarketContainer");
+    try {
+        const [marketData, shopData] = await Promise.all([
+            request("/api/accessories/resale-market"),
+            request("/api/accessories")
+        ]);
+
+        container.innerHTML = "";
+        if (!marketData.listings || marketData.listings.length === 0) {
+            container.textContent = "No hay ítems en reventa actualmente.";
+            return;
+        }
+
+        marketData.listings.forEach(listing => {
+            const item = shopData.items.find(i => String(i.id) === String(listing.itemId));
+            const card = document.createElement("div");
+            card.className = "shop-card";
+
+            const img = document.createElement("img");
+            img.src = item ? item.imageUrl : "https://via.placeholder.com/80";
+
+            const name = document.createElement("div");
+            name.style.fontWeight = "bold";
+            name.style.fontSize = "13px";
+            name.textContent = item ? item.name : ("Item " + listing.itemId);
+
+            const seller = document.createElement("div");
+            seller.style.fontSize = "10px";
+            seller.style.color = "#aaa";
+            seller.textContent = "Vendedor: " + listing.sellerUsername;
+
+            const price = document.createElement("div");
+            price.innerHTML = "<b>" + listing.price + " 🪙</b>";
+
+            const buyBtn = document.createElement("button");
+            buyBtn.className = "friend-button";
+            buyBtn.style.marginTop = "5px";
+            buyBtn.textContent = "🛒 Comprar";
+            buyBtn.onclick = async () => {
+                try {
+                    await request("/api/accessories/resell-buy", "POST", { listingId: listing.id });
+                    alert("¡Compra de reventa realizada!");
+                    updateAccount();
+                    loadShopItems();
+                    loadResaleMarket();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(seller);
+            card.appendChild(price);
+            card.appendChild(buyBtn);
+
+            container.appendChild(card);
+        });
+    } catch {
+        container.textContent = "Error al cargar mercado de reventa.";
+    }
+}
+
 async function buyAccessory(itemId) {
     try {
         const res = await request("/api/accessories/buy", "POST", { itemId });
         alert("¡Compra realizada!");
-        document.getElementById("userCoinsText").textContent = res.newBalance;
-        loadShopItems();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function sellAccessory(itemId) {
-    if (!confirm("¿Deseas revender este accesorio por el 50% de su valor original?")) return;
-    try {
-        const res = await request("/api/accessories/sell", "POST", { itemId });
-        alert("Vendiste el accesorio y recibiste " + res.refundAmount + " 🪙");
         document.getElementById("userCoinsText").textContent = res.newBalance;
         loadShopItems();
     } catch (error) {
@@ -1104,7 +1250,9 @@ async function unequipAccessory() {
 
 async function uploadAccessory() {
     const glbFile = document.getElementById("accessoryGlbFile").files[0];
+    const name = document.getElementById("accessoryName").value.trim();
     const isLimited = document.getElementById("accessoryIsLimited").value === "si";
+    const isOffsale = document.getElementById("accessoryIsOffsale").value === "si";
     const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
     const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
     const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
@@ -1120,7 +1268,9 @@ async function uploadAccessory() {
 
     const formData = new FormData();
     formData.append("glb", glbFile);
+    formData.append("name", name);
     formData.append("limited", isLimited);
+    formData.append("offsale", isOffsale);
     formData.append("maxPerUser", maxPerUser || 1);
     formData.append("maxGlobal", maxGlobal || "");
     formData.append("expiresInDays", expiresInDays || "");
@@ -1144,6 +1294,31 @@ async function uploadAccessory() {
     } catch (error) {
         msg.className = "error";
         msg.textContent = error.message;
+    }
+}
+
+async function adminEditAccessory() {
+    const itemId = document.getElementById("editItemId").value.trim();
+    const price = document.getElementById("editItemPrice").value;
+    const limited = document.getElementById("editItemLimited").value;
+    const offsale = document.getElementById("editItemOffsale").value;
+
+    if (!itemId) {
+        alert("Ingresa un ID de accesorio.");
+        return;
+    }
+
+    const payload = { itemId };
+    if (price !== "") payload.price = price;
+    if (limited !== "") payload.limited = limited;
+    if (offsale !== "") payload.offsale = offsale;
+
+    try {
+        await request("/api/admin/accessories/edit", "POST", payload);
+        alert("Accesorio actualizado correctamente.");
+        loadShopItems();
+    } catch (e) {
+        alert(e.message);
     }
 }
 
@@ -1224,15 +1399,53 @@ async function searchUsers() {
         data.users.forEach(user => {
             const div = document.createElement("div");
             div.className = "result";
-            div.innerHTML = `<strong>👤 ${escapeHTML(user.username)}</strong>`;
-            
+
+            const header = document.createElement("div");
+            header.className = "user-card-header";
+
+            const infoClick = document.createElement("div");
+            infoClick.className = "user-info-click";
+            infoClick.onclick = () => showPublicProfile(user);
+
+            const img = document.createElement("img");
+            img.className = "result-avatar";
+            img.src = user.avatar || "https://via.placeholder.com/45";
+
+            const details = document.createElement("div");
+            details.className = "user-details";
+            details.innerHTML = `<strong>👤 ${escapeHTML(user.username)}</strong><span class="user-bio-preview">${escapeHTML(user.bio || 'Sin biografía.')}</span>`;
+
+            infoClick.appendChild(img);
+            infoClick.appendChild(details);
+            header.appendChild(infoClick);
+            div.appendChild(header);
+
+            const btnGroup = document.createElement("div");
+            btnGroup.style.display = "flex";
+            btnGroup.style.gap = "8px";
+            btnGroup.style.marginTop = "8px";
+
+            const btnProfile = document.createElement("button");
+            btnProfile.className = "secondary-button";
+            btnProfile.style.marginTop = "0";
+            btnProfile.textContent = "👤 Ver Perfil";
+            btnProfile.onclick = () => showPublicProfile(user);
+
+            const btnFriend = document.createElement("button");
+            btnFriend.className = "friend-button";
+            btnFriend.textContent = "📩 Soli de Amigo";
+            btnFriend.onclick = () => sendFriendRequest(user.id);
+
             const btnTrade = document.createElement("button");
             btnTrade.className = "admin-button";
-            btnTrade.style.marginTop = "5px";
-            btnTrade.textContent = "🔄 Proponer Intercambio";
-            btnTrade.onclick = () => initiateTradePrompt(user.id, user.username);
-            
-            div.appendChild(btnTrade);
+            btnTrade.textContent = "🔄 Trade";
+            btnTrade.onclick = () => openTradeModal(user.id, user.username);
+
+            btnGroup.appendChild(btnProfile);
+            btnGroup.appendChild(btnFriend);
+            btnGroup.appendChild(btnTrade);
+
+            div.appendChild(btnGroup);
             results.appendChild(div);
         });
     } catch (error) {
@@ -1240,21 +1453,41 @@ async function searchUsers() {
     }
 }
 
-async function initiateTradePrompt(targetUserId, username) {
-    const myItemId = prompt("Escribe el ID del accesorio que OFRECES (deja en blanco si no):");
-    const myCoins = parseInt(prompt("Monedas que OFRECES:") || "0");
-    const targetItemId = prompt("Escribe el ID del accesorio que PIDES (deja en blanco si no):");
-    const targetCoins = parseInt(prompt("Monedas que PIDES:") || "0");
+async function sendFriendRequest(userId) {
+    try {
+        const res = await request("/api/friends/request", "POST", { userId });
+        alert(res.message || "Solicitud enviada.");
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function openTradeModal(targetId, username) {
+    currentTradeTargetId = targetId;
+    document.getElementById("tradeTargetTitle").textContent = "Trade with " + username;
+    document.getElementById("tradeModal").style.display = "flex";
+}
+
+function closeTradeModal() {
+    document.getElementById("tradeModal").style.display = "none";
+}
+
+async function sendTradeOffer() {
+    const offeredItemId = document.getElementById("tradeGiveItemId").value.trim();
+    const offeredCoins = parseInt(document.getElementById("tradeGiveCoins").value) || 0;
+    const requestedItemId = document.getElementById("tradeGetItemId").value.trim();
+    const requestedCoins = parseInt(document.getElementById("tradeGetCoins").value) || 0;
 
     try {
         await request("/api/trade/offer", "POST", {
-            targetUserId,
-            offeredItemId: myItemId || null,
-            offeredCoins: myCoins,
-            requestedItemId: targetItemId || null,
-            requestedCoins: targetCoins
+            targetUserId: currentTradeTargetId,
+            offeredItemId: offeredItemId || null,
+            offeredCoins,
+            requestedItemId: requestedItemId || null,
+            requestedCoins
         });
-        alert("Propuesta de intercambio enviada a " + username);
+        alert("¡Oferta de intercambio enviada!");
+        closeTradeModal();
     } catch (error) {
         alert(error.message);
     }
