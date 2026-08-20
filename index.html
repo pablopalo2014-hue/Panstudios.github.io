@@ -70,7 +70,6 @@ body {
     background: #ddd;
 }
 
-/* Moneda en la Topbar */
 .coin-display {
     background: #1a1a1a;
     color: #ffd700;
@@ -389,7 +388,6 @@ textarea:focus {
     line-height: 1.5;
 }
 
-/* Estilos de Avatar y Tienda */
 .avatar-modal-body {
     display: flex;
     gap: 20px;
@@ -414,7 +412,7 @@ model-viewer {
 
 .shop-items {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 10px;
     width: 100%;
 }
@@ -425,6 +423,9 @@ model-viewer {
     padding: 10px;
     border-radius: 6px;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .shop-card img {
@@ -455,20 +456,18 @@ model-viewer {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
-        <!-- Monedas -->
         <div class="coin-display" id="userCoinsDisplay" title="Monedas">
             <span id="userCoinsText">0</span> 🪙
         </div>
-        <!-- Botón de avatar a la derecha de la moneda -->
-        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar</button>
+        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
-        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver tu cuenta y editarla</button>
+        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Mi Cuenta</button>
     </div>
 </div>
 
 <section class="hero">
     <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
-    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construccion</h1>
+    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción</h1>
     <div class="hero-download-btn">
         <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
     </div>
@@ -479,12 +478,11 @@ model-viewer {
     </div>
 </section>
 
-<!-- MODAL PRINCIPAL -->
+<!-- MODAL PRINCIPAL CUENTA -->
 <div id="accountModal" class="modal" onclick="outsideClose(event)">
 <div class="modal-box">
 <button class="close" onclick="closeAccount()">×</button>
 
-<!-- LOGIN -->
 <div id="loginView">
     <h2>Iniciar sesión</h2>
     <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
@@ -494,7 +492,6 @@ model-viewer {
     <p id="loginMessage"></p>
 </div>
 
-<!-- REGISTER -->
 <div id="registerView" class="hidden">
     <h2>Crear cuenta</h2>
     <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
@@ -505,7 +502,6 @@ model-viewer {
     <p id="registerMessage"></p>
 </div>
 
-<!-- CUENTA -->
 <div id="accountView" class="hidden">
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
@@ -535,8 +531,7 @@ model-viewer {
     </div>
 
     <div id="adminPanel" class="admin-panel hidden">
-        <h2>🛠️ Panel de administración</h2>
-        <p>Herramientas administrativas de Game Blocks.</p>
+        <h2>🛠️ Panel de Administración</h2>
         
         <div class="section">
             <h3>✏️ Cambiar nombre</h3>
@@ -567,24 +562,26 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>📦 Subir Accesorio de Avatar</h3>
-            <label style="font-size: 13px; color: #aaa;">Importar .GLB desde archivos del PC:</label>
+            <h3>📦 Subir Accesorio Limited / Normal</h3>
+            <label style="font-size: 13px; color: #aaa;">Archivo .GLB local:</label>
             <input type="file" id="accessoryGlbFile" accept=".glb">
             
-            <label style="font-size: 13px; color: #aaa;">LIMITED:</label>
+            <label style="font-size: 13px; color: #aaa;">¿Es LIMITED?:</label>
             <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
                 <option value="no">no</option>
                 <option value="si">si</option>
             </select>
             
             <div id="limitedOptions" class="hidden">
-                <input type="number" id="accessoryMaxPerUser" placeholder="copias max por usuario" min="1">
+                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
+                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total (ej. 50)" min="1">
+                <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
             </div>
 
-            <label style="font-size: 13px; color: #aaa;">precio [cantidad de monedas]:</label>
+            <label style="font-size: 13px; color: #aaa;">Precio en Monedas:</label>
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
 
-            <label style="font-size: 13px; color: #aaa;">importar png desde enlace (para mas facilidad):</label>
+            <label style="font-size: 13px; color: #aaa;">Imagen Thumbnail (URL PNG):</label>
             <input type="text" id="accessoryPngUrl" placeholder="https://ejemplo.com/imagen.png">
 
             <button class="admin-button" onclick="uploadAccessory()">Subir Accesorio</button>
@@ -592,7 +589,7 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>🪙 Añadir Monedas a Usuario</h3>
+            <h3>🪙 Añadir Monedas</h3>
             <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
             <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
             <button class="admin-button" onclick="adminAddCoins()">Añadir Monedas</button>
@@ -600,20 +597,18 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>📢 Banner de Texto Informativo</h3>
-            <input type="text" id="bannerTextInput" placeholder="Texto del banner inferior">
-            <button class="admin-button" onclick="saveOwnerBanner()">Establecer Banner</button>
+            <h3>📢 Banner Informativo</h3>
+            <input type="text" id="bannerTextInput" placeholder="Texto del banner">
+            <button class="admin-button" onclick="saveOwnerBanner()">Guardar Banner</button>
             <p id="bannerMsg"></p>
         </div>
     </div>
 
     <div class="game-connect">
         <h3>🎮 Conectar con Game Blocks</h3>
-        <p class="code-info">Genera un código para conectar esta cuenta con el juego.</p>
         <button class="form-button" onclick="createGameCode()">🔗 Generar código</button>
         <div id="gameCodeContainer" class="hidden">
             <div id="gameCode" class="game-code">------</div>
-            <p class="code-info">Introduce este código en Game Blocks.<br>No compartas este código.</p>
         </div>
         <p id="gameCodeMessage"></p>
     </div>
@@ -624,7 +619,13 @@ model-viewer {
     </div>
 
     <div class="section">
-        <h3>👥 Solicitudes</h3>
+        <h3>🤝 Intercambios (Trades)</h3>
+        <button class="secondary-button" onclick="loadTrades()">🔄 Cargar ofertas recibidas</button>
+        <div id="tradesContainer"></div>
+    </div>
+
+    <div class="section">
+        <h3>👥 Solicitudes de Amistad</h3>
         <div id="requests">Cargando...</div>
     </div>
 
@@ -636,7 +637,6 @@ model-viewer {
     <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
 </div>
 
-<!-- VISTA DE PERFIL PÚBLICO -->
 <div id="publicProfileView" class="hidden">
     <button class="secondary-button" style="width: auto; margin-bottom: 15px;" onclick="showAccount()">⬅️ Volver a mi cuenta</button>
     <div class="profile-avatar-container">
@@ -658,7 +658,7 @@ model-viewer {
 </div>
 </div>
 
-<!-- MODAL VISUALIZADOR DE AVATAR Y TIENDA DE ACCESORIOS -->
+<!-- MODAL TIENDA Y AVATAR -->
 <div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
 <div class="modal-box" style="max-width: 750px;">
     <button class="close" onclick="closeAvatarModal()">×</button>
@@ -670,11 +670,11 @@ model-viewer {
                 <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" style="position: absolute; inset:0; z-index:1;"></model-viewer>
                 <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
             </div>
-            <small style="color:#888; margin-top:5px;">Visualizador estático (sin rotación)</small>
+            <small style="color:#888; margin-top:5px;">Visualizador 3D</small>
         </div>
 
         <div style="flex:1; min-width: 260px;">
-            <h3>🛒 Tienda de Accesorios</h3>
+            <h3>🛒 Tienda de Accesorios & Limiteds</h3>
             <div id="shopContainer" class="shop-items">Cargando catálogo...</div>
         </div>
     </div>
@@ -685,6 +685,15 @@ model-viewer {
 
 <script>
 const RENDER_API = "https://panstudios-github-io-1.onrender.com";
+
+// Envio automatico de paquete/ping cada 40s para mantener Render despierto
+setInterval(async () => {
+    try {
+        const res = await fetch(RENDER_API + "/api/ping");
+        const msg = await res.text();
+        console.log("Ping Anti-sleep Render:", msg);
+    } catch(e) {}
+}, 40000);
 
 async function request(endpoint, method = "GET", body = null) {
     const headers = { "Content-Type": "application/json" };
@@ -699,7 +708,7 @@ async function request(endpoint, method = "GET", body = null) {
     try {
         data = await response.json();
     } catch {
-        throw new Error("El servidor devolvió una respuesta inválida.");
+        throw new Error("Respuesta inválida del servidor.");
     }
 
     if (!response.ok) throw new Error(data.error || "Error del servidor.");
@@ -797,26 +806,17 @@ function saveExePath() {
     }
     localStorage.setItem("gameblocks_exe_path", path);
     msg.className = "success";
-    msg.textContent = "Ruta guardada en este navegador.";
+    msg.textContent = "Ruta guardada.";
 }
 
 function launchGame() {
     const path = localStorage.getItem("gameblocks_exe_path");
     if (!path) {
-        alert("Configura primero la ruta del ejecutable en tu cuenta.");
+        alert("Configura primero la ruta del ejecutable.");
         openAccount();
         return;
     }
     window.location.href = path.includes("://") ? path : "file:///" + path.replace(/\\/g, "/");
-}
-
-async function viewUserProfile(userId) {
-    try {
-        const user = await request("/api/users/profile/" + userId);
-        showPublicProfile(user);
-    } catch (error) {
-        alert(error.message);
-    }
 }
 
 async function register() {
@@ -917,9 +917,8 @@ async function updateAccount() {
 }
 
 async function editAvatar() {
-    const url = prompt("Introduce la URL de tu nueva imagen de perfil:");
+    const url = prompt("Introduce la URL de tu foto:");
     if (!url) return;
-
     try {
         await request("/api/profile/avatar", "POST", { avatar: url });
         document.getElementById("myAvatar").src = url;
@@ -931,11 +930,10 @@ async function editAvatar() {
 async function saveBio() {
     const bio = document.getElementById("myBio").value.trim();
     const msg = document.getElementById("bioMessage");
-
     try {
         await request("/api/profile/bio", "POST", { bio });
         msg.className = "success";
-        msg.textContent = "Biografía guardada correctamente.";
+        msg.textContent = "Biografía guardada.";
     } catch (error) {
         msg.className = "error";
         msg.textContent = error.message;
@@ -957,364 +955,18 @@ async function loadBadges() {
             element.textContent = badge.name || badge;
             container.appendChild(element);
         });
-    } catch (error) {
-        container.textContent = "No se pudieron cargar las insignias.";
+    } catch {
+        container.textContent = "Error al cargar insignias.";
     }
 }
 
 async function logout() {
-    try {
-        await request("/api/logout", "POST");
-    } catch {}
+    try { await request("/api/logout", "POST"); } catch {}
     localStorage.removeItem("gameblocks_token");
     closeAccount();
     updateAccount();
 }
 
-async function createGameCode() {
-    const container = document.getElementById("gameCodeContainer");
-    const codeElement = document.getElementById("gameCode");
-    const message = document.getElementById("gameCodeMessage");
-
-    container.classList.add("hidden");
-    message.textContent = "Generando código...";
-
-    try {
-        const data = await request("/api/game/create-code", "POST");
-        codeElement.textContent = data.code;
-        container.classList.remove("hidden");
-        message.className = "success";
-        message.textContent = "Código generado correctamente.";
-    } catch (error) {
-        message.className = "error";
-        message.textContent = error.message;
-    }
-}
-
-async function searchUsers() {
-    const query = document.getElementById("searchInput").value.trim();
-    const results = document.getElementById("searchResults");
-
-    if (!query) {
-        results.textContent = "Escribe algo en el buscador superior.";
-        return;
-    }
-
-    openAccount();
-    results.textContent = "Buscando...";
-
-    try {
-        const data = await request("/api/users/search?q=" + encodeURIComponent(query));
-        results.innerHTML = "";
-
-        if (data.users.length === 0) {
-            results.textContent = "No se encontraron usuarios.";
-            return;
-        }
-
-        data.users.forEach(user => {
-            const div = document.createElement("div");
-            div.className = "result";
-
-            const header = document.createElement("div");
-            header.className = "user-card-header";
-
-            const userClickable = document.createElement("div");
-            userClickable.className = "user-info-click";
-            userClickable.onclick = () => viewUserProfile(user.id);
-
-            const img = document.createElement("img");
-            img.className = "result-avatar";
-            img.src = user.avatar || "https://via.placeholder.com/110";
-
-            const details = document.createElement("div");
-            details.className = "user-details";
-
-            const name = document.createElement("strong");
-            name.textContent = user.username;
-
-            const bioPreview = document.createElement("span");
-            bioPreview.className = "user-bio-preview";
-            bioPreview.textContent = user.bio ? (user.bio.substring(0, 35) + "...") : "Sin biografía";
-
-            details.appendChild(name);
-            details.appendChild(bioPreview);
-            userClickable.appendChild(img);
-            userClickable.appendChild(details);
-
-            const button = document.createElement("button");
-            button.className = "friend-button";
-            button.textContent = "Añadir";
-            button.onclick = (e) => {
-                e.stopPropagation();
-                sendFriendRequest(user.id);
-            };
-
-            header.appendChild(userClickable);
-            header.appendChild(button);
-            div.appendChild(header);
-
-            const badgesDiv = document.createElement("div");
-            badgesDiv.className = "badges";
-            if (user.badges && user.badges.length > 0) {
-                user.badges.forEach(b => {
-                    const badgeSpan = document.createElement("span");
-                    badgeSpan.className = "badge";
-                    badgeSpan.textContent = b;
-                    badgesDiv.appendChild(badgeSpan);
-                });
-            }
-            div.appendChild(badgesDiv);
-
-            results.appendChild(div);
-        });
-
-    } catch (error) {
-        results.textContent = error.message;
-    }
-}
-
-async function sendFriendRequest(userId) {
-    try {
-        await request("/api/friends/request", "POST", { userId });
-        alert("Solicitud enviada.");
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function loadRequests() {
-    const container = document.getElementById("requests");
-    try {
-        const data = await request("/api/friends/requests");
-        container.innerHTML = "";
-        if (data.requests.length === 0) {
-            container.textContent = "No tienes solicitudes.";
-            return;
-        }
-
-        data.requests.forEach(requestData => {
-            const div = document.createElement("div");
-            div.className = "result";
-
-            const header = document.createElement("div");
-            header.className = "user-card-header";
-
-            const name = document.createElement("span");
-            name.textContent = "👤 " + requestData.username;
-
-            const buttons = document.createElement("div");
-            const accept = document.createElement("button");
-            accept.className = "friend-button";
-            accept.textContent = "Aceptar";
-            accept.onclick = async () => {
-                await request("/api/friends/accept", "POST", { requestId: requestData.id });
-                loadRequests();
-                loadFriends();
-            };
-
-            const reject = document.createElement("button");
-            reject.className = "danger-button";
-            reject.textContent = "Rechazar";
-            reject.onclick = async () => {
-                await request("/api/friends/reject", "POST", { requestId: requestData.id });
-                loadRequests();
-            };
-
-            buttons.appendChild(accept);
-            buttons.appendChild(reject);
-            header.appendChild(name);
-            header.appendChild(buttons);
-            div.appendChild(header);
-
-            container.appendChild(div);
-        });
-    } catch (error) {
-        container.textContent = error.message;
-    }
-}
-
-async function loadFriends() {
-    const container = document.getElementById("friends");
-    try {
-        const data = await request("/api/friends");
-        container.innerHTML = "";
-        if (data.friends.length === 0) {
-            container.textContent = "Todavía no tienes amigos.";
-            return;
-        }
-
-        data.friends.forEach(friend => {
-            const div = document.createElement("div");
-            div.className = "result";
-
-            const header = document.createElement("div");
-            header.className = "user-card-header";
-
-            const userClickable = document.createElement("div");
-            userClickable.className = "user-info-click";
-            userClickable.onclick = () => viewUserProfile(friend.id);
-
-            const img = document.createElement("img");
-            img.className = "result-avatar";
-            img.src = friend.avatar || "https://via.placeholder.com/110";
-
-            const details = document.createElement("div");
-            details.className = "user-details";
-
-            const name = document.createElement("strong");
-            name.textContent = "⭐ " + friend.username;
-
-            details.appendChild(name);
-            userClickable.appendChild(img);
-            userClickable.appendChild(details);
-
-            const remove = document.createElement("button");
-            remove.className = "danger-button";
-            remove.textContent = "Eliminar";
-            remove.onclick = (e) => {
-                e.stopPropagation();
-                removeFriend(friend.id);
-            };
-
-            header.appendChild(userClickable);
-            header.appendChild(remove);
-            div.appendChild(header);
-
-            container.appendChild(div);
-        });
-    } catch (error) {
-        container.textContent = error.message;
-    }
-}
-
-async function removeFriend(userId) {
-    if (!confirm("¿Eliminar este amigo?")) return;
-    try {
-        await request("/api/friends/remove", "POST", { userId });
-        loadFriends();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function adminChangeUsername() {
-    const username = document.getElementById("adminUsername").value.trim();
-    if (!username) {
-        alert("Escribe un nombre.");
-        return;
-    }
-    try {
-        await request("/api/admin/change-username", "POST", { username });
-        alert("Nombre cambiado.");
-        document.getElementById("adminUsername").value = "";
-        updateAccount();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function adminSearchUsers() {
-    const query = document.getElementById("adminSearch").value.trim();
-    const container = document.getElementById("adminUsers");
-    if (!query) {
-        container.textContent = "Escribe un nombre.";
-        return;
-    }
-
-    try {
-        const data = await request("/api/admin/users?q=" + encodeURIComponent(query));
-        container.innerHTML = "";
-
-        if (!data.users || data.users.length === 0) {
-            container.textContent = "No se encontraron cuentas.";
-            return;
-        }
-
-        data.users.forEach(user => {
-            const div = document.createElement("div");
-            div.className = "admin-user";
-            div.innerHTML = "<strong>👤 " + escapeHTML(user.username) + "</strong>";
-
-            const actions = document.createElement("div");
-            actions.className = "admin-actions";
-
-            const rename = document.createElement("button");
-            rename.className = "admin-button";
-            rename.textContent = "Cambiar nombre";
-            rename.onclick = () => adminRenameUser(user.id, user.username);
-
-            const deleteButton = document.createElement("button");
-            deleteButton.className = "danger-button";
-            deleteButton.textContent = "Borrar cuenta";
-            deleteButton.onclick = () => adminDeleteUser(user.id, user.username);
-
-            actions.appendChild(rename);
-            actions.appendChild(deleteButton);
-            div.appendChild(actions);
-            container.appendChild(div);
-        });
-    } catch (error) {
-        container.textContent = error.message;
-    }
-}
-
-async function adminRenameUser(userId, oldName) {
-    const newName = prompt("Nuevo nombre para " + oldName + ":");
-    if (!newName) return;
-
-    try {
-        await request("/api/admin/users/change-username", "POST", { userId, username: newName });
-        alert("Nombre cambiado.");
-        adminSearchUsers();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function adminDeleteUser(userId, username) {
-    if (!confirm("¿Seguro que quieres borrar la cuenta " + username + "?")) return;
-
-    try {
-        await request("/api/admin/users/delete", "POST", { userId });
-        alert("Cuenta eliminada.");
-        adminSearchUsers();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function addBadge() {
-    const username = document.getElementById("badgeUser").value.trim();
-    const badge = document.getElementById("badgeSelect").value;
-    const message = document.getElementById("badgeMessage");
-
-    try {
-        await request("/api/admin/badges/add", "POST", { username, badge });
-        message.className = "success";
-        message.textContent = "Insignia añadida correctamente.";
-    } catch (error) {
-        message.className = "error";
-        message.textContent = error.message;
-    }
-}
-
-async function removeBadge() {
-    const username = document.getElementById("badgeUser").value.trim();
-    const badge = document.getElementById("badgeSelect").value;
-    const message = document.getElementById("badgeMessage");
-
-    try {
-        await request("/api/admin/badges/remove", "POST", { username, badge });
-        message.className = "success";
-        message.textContent = "Insignia eliminada.";
-    } catch (error) {
-        message.className = "error";
-        message.textContent = error.message;
-    }
-}
-
-/* LÓGICA DE TIENDA Y ACCESORIOS DE AVATAR CON COMPRA Y EQUIPAR REESTRUCTURADA */
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
     try {
@@ -1342,32 +994,29 @@ async function loadShopItems() {
             const price = document.createElement("div");
             price.innerHTML = "<b>" + item.price + " 🪙</b>";
 
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.padding = "4px";
-            btn.style.marginTop = "5px";
-
-            // Lógica avanzada para saber si el usuario alcanzó el límite de compra
-            const ownedCount = myInventory.filter(id => String(id) === String(item.id)).length;
-            const maxAllowed = item.limited ? (item.maxPerUser || 1) : 1;
-            const hasReachedLimit = ownedCount >= maxAllowed;
+            const isOwned = myInventory.includes(item.id);
             const isEquipped = equippedId === item.id;
 
+            const btnAction = document.createElement("button");
+            btnAction.className = "form-button";
+            btnAction.style.padding = "4px";
+            btnAction.style.marginTop = "5px";
+
             if (isEquipped) {
-                btn.textContent = "Desequipar";
-                btn.style.background = "#ff4444";
-                btn.style.color = "#fff";
-                btn.onclick = () => unequipAccessory();
-            } else if (hasReachedLimit) {
-                btn.textContent = "Equipar";
-                btn.style.background = "#28a745";
-                btn.style.color = "#fff";
-                btn.onclick = () => equipAccessory(item.id, item.glbUrl);
+                btnAction.textContent = "Desequipar";
+                btnAction.style.background = "#ff4444";
+                btnAction.style.color = "#fff";
+                btnAction.onclick = () => unequipAccessory();
+            } else if (isOwned) {
+                btnAction.textContent = "Equipar";
+                btnAction.style.background = "#28a745";
+                btnAction.style.color = "#fff";
+                btnAction.onclick = () => equipAccessory(item.id, item.glbUrl);
             } else {
-                btn.textContent = "Comprar";
-                btn.style.background = "#fff";
-                btn.style.color = "#000";
-                btn.onclick = () => buyAccessory(item.id);
+                btnAction.textContent = "Comprar";
+                btnAction.style.background = "#fff";
+                btnAction.style.color = "#000";
+                btnAction.onclick = () => buyAccessory(item.id);
             }
 
             card.appendChild(img);
@@ -1376,44 +1025,67 @@ async function loadShopItems() {
             if (item.limited) {
                 const lim = document.createElement("small");
                 lim.style.color = "gold";
-                // Mostramos cuántos tiene si es un objeto que permite más de 1
-                const countText = maxAllowed > 1 ? ` (Tienes ${ownedCount}/${maxAllowed})` : '';
-                lim.textContent = "Limited" + countText;
+                let limText = "LIMITED";
+                if (item.maxGlobal) limText += " (" + item.totalSold + "/" + item.maxGlobal + " stock)";
+                lim.textContent = limText;
                 card.appendChild(lim);
             }
 
-            card.appendChild(btn);
+            if (item.expiresAt) {
+                const exp = document.createElement("small");
+                const remainingHours = Math.max(0, Math.round((item.expiresAt - Date.now()) / (1000 * 60 * 60)));
+                exp.style.color = remainingHours > 0 ? "#ff9900" : "#ff4444";
+                exp.textContent = remainingHours > 0 ? "Expira en " + remainingHours + "h" : "EXPIRADO";
+                card.appendChild(exp);
+            }
+
+            card.appendChild(btnAction);
+
+            // Botón de reventa si se posee el ítem
+            if (isOwned) {
+                const sellBtn = document.createElement("button");
+                sellBtn.className = "danger-button";
+                sellBtn.style.marginTop = "4px";
+                sellBtn.style.fontSize = "11px";
+                sellBtn.textContent = "🏷️ Revender (50%)";
+                sellBtn.onclick = () => sellAccessory(item.id);
+                card.appendChild(sellBtn);
+            }
+
             container.appendChild(card);
         });
-    } catch (error) {
+    } catch {
         container.textContent = "Error al cargar tienda.";
     }
 }
 
 async function buyAccessory(itemId) {
-    // Añadimos una confirmación para evitar compras accidentales
-    if (!confirm("¿Seguro que deseas comprar este accesorio?")) return;
-    
     try {
         const res = await request("/api/accessories/buy", "POST", { itemId });
-        alert(res.message || "¡Compra realizada con éxito!");
-        
-        // Actualizamos las monedas en tiempo real en la interfaz
+        alert("¡Compra realizada!");
         document.getElementById("userCoinsText").textContent = res.newBalance;
-        
-        // Recargamos la tienda para que el botón cambie de "Comprar" a "Equipar"
         loadShopItems();
     } catch (error) {
-        // Mostramos el mensaje exacto que configuramos en el backend
-        alert("Error en la compra: " + error.message);
+        alert(error.message);
+    }
+}
+
+async function sellAccessory(itemId) {
+    if (!confirm("¿Deseas revender este accesorio por el 50% de su valor original?")) return;
+    try {
+        const res = await request("/api/accessories/sell", "POST", { itemId });
+        alert("Vendiste el accesorio y recibiste " + res.refundAmount + " 🪙");
+        document.getElementById("userCoinsText").textContent = res.newBalance;
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
     }
 }
 
 async function equipAccessory(itemId, glbUrl) {
     try {
         await request("/api/accessories/equip", "POST", { itemId });
-        const accViewer = document.getElementById("accessoryViewer");
-        accViewer.src = glbUrl;
+        document.getElementById("accessoryViewer").src = glbUrl;
         loadShopItems();
     } catch (error) {
         alert(error.message);
@@ -1423,26 +1095,26 @@ async function equipAccessory(itemId, glbUrl) {
 async function unequipAccessory() {
     try {
         await request("/api/accessories/unequip", "POST");
-        const accViewer = document.getElementById("accessoryViewer");
-        accViewer.src = "";
+        document.getElementById("accessoryViewer").src = "";
         loadShopItems();
     } catch (error) {
         alert(error.message);
     }
 }
 
-/* SUBIR ACCESORIO GLB DESDE PC POR OWNER */
 async function uploadAccessory() {
     const glbFile = document.getElementById("accessoryGlbFile").files[0];
     const isLimited = document.getElementById("accessoryIsLimited").value === "si";
     const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
+    const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
+    const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
     const price = document.getElementById("accessoryPrice").value;
     const pngUrl = document.getElementById("accessoryPngUrl").value.trim();
     const msg = document.getElementById("accessoryUploadMsg");
 
     if (!glbFile || !price || !pngUrl) {
         msg.className = "error";
-        msg.textContent = "Completa los campos obligatorios (GLB, Precio, Imagen PNG).";
+        msg.textContent = "Completa GLB, Precio e Imagen PNG.";
         return;
     }
 
@@ -1450,11 +1122,13 @@ async function uploadAccessory() {
     formData.append("glb", glbFile);
     formData.append("limited", isLimited);
     formData.append("maxPerUser", maxPerUser || 1);
+    formData.append("maxGlobal", maxGlobal || "");
+    formData.append("expiresInDays", expiresInDays || "");
     formData.append("price", price);
     formData.append("imageUrl", pngUrl);
 
     try {
-        msg.textContent = "Subiendo accesorio...";
+        msg.textContent = "Subiendo...";
         const token = localStorage.getItem("gameblocks_token");
         const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
             method: "POST",
@@ -1465,7 +1139,7 @@ async function uploadAccessory() {
         if (!res.ok) throw new Error(data.error || "Error al subir.");
 
         msg.className = "success";
-        msg.textContent = "Accesorio subido correctamente.";
+        msg.textContent = "Subido con éxito.";
         loadShopItems();
     } catch (error) {
         msg.className = "error";
@@ -1473,17 +1147,10 @@ async function uploadAccessory() {
     }
 }
 
-/* AÑADIR MONEDAS POR ADMIN */
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value.trim();
     const amount = document.getElementById("coinAmount").value;
     const msg = document.getElementById("coinAdminMsg");
-
-    if (!username || !amount) {
-        msg.className = "error";
-        msg.textContent = "Introduce usuario y cantidad.";
-        return;
-    }
 
     try {
         await request("/api/admin/coins/add", "POST", { username, amount: parseInt(amount) });
@@ -1495,15 +1162,13 @@ async function adminAddCoins() {
     }
 }
 
-/* GUARDAR Y CARGAR BANNER DE TEXTO DE OWNER */
 async function saveOwnerBanner() {
     const text = document.getElementById("bannerTextInput").value.trim();
     const msg = document.getElementById("bannerMsg");
-
     try {
         await request("/api/admin/banner", "POST", { text });
         msg.className = "success";
-        msg.textContent = "Banner actualizado.";
+        msg.textContent = "Banner guardado.";
         loadBanner();
     } catch (error) {
         msg.className = "error";
@@ -1526,17 +1191,159 @@ async function loadBanner() {
     }
 }
 
-function escapeHTML(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+async function createGameCode() {
+    const container = document.getElementById("gameCodeContainer");
+    const codeElement = document.getElementById("gameCode");
+    const message = document.getElementById("gameCodeMessage");
+    try {
+        const data = await request("/api/game/create-code", "POST");
+        codeElement.textContent = data.code;
+        container.classList.remove("hidden");
+        message.className = "success";
+        message.textContent = "Código listo.";
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
 }
 
-document.addEventListener("keydown", event => {
-    if (event.key === "Enter" && document.activeElement.id === "searchInput") {
-        searchUsers();
+async function searchUsers() {
+    const query = document.getElementById("searchInput").value.trim();
+    const results = document.getElementById("searchResults");
+    if (!query) return;
+    openAccount();
+    results.textContent = "Buscando...";
+
+    try {
+        const data = await request("/api/users/search?q=" + encodeURIComponent(query));
+        results.innerHTML = "";
+        if (data.users.length === 0) {
+            results.textContent = "Sin resultados.";
+            return;
+        }
+        data.users.forEach(user => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `<strong>👤 ${escapeHTML(user.username)}</strong>`;
+            
+            const btnTrade = document.createElement("button");
+            btnTrade.className = "admin-button";
+            btnTrade.style.marginTop = "5px";
+            btnTrade.textContent = "🔄 Proponer Intercambio";
+            btnTrade.onclick = () => initiateTradePrompt(user.id, user.username);
+            
+            div.appendChild(btnTrade);
+            results.appendChild(div);
+        });
+    } catch (error) {
+        results.textContent = error.message;
     }
-});
+}
+
+async function initiateTradePrompt(targetUserId, username) {
+    const myItemId = prompt("Escribe el ID del accesorio que OFRECES (deja en blanco si no):");
+    const myCoins = parseInt(prompt("Monedas que OFRECES:") || "0");
+    const targetItemId = prompt("Escribe el ID del accesorio que PIDES (deja en blanco si no):");
+    const targetCoins = parseInt(prompt("Monedas que PIDES:") || "0");
+
+    try {
+        await request("/api/trade/offer", "POST", {
+            targetUserId,
+            offeredItemId: myItemId || null,
+            offeredCoins: myCoins,
+            requestedItemId: targetItemId || null,
+            requestedCoins: targetCoins
+        });
+        alert("Propuesta de intercambio enviada a " + username);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadTrades() {
+    const container = document.getElementById("tradesContainer");
+    try {
+        const data = await request("/api/trade/pending");
+        container.innerHTML = "";
+        if (!data.trades || data.trades.length === 0) {
+            container.textContent = "No tienes ofertas de intercambio pendientes.";
+            return;
+        }
+
+        data.trades.forEach(t => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
+                <div><b>Ofrece:</b> ${t.offeredCoins}🪙 ${t.offeredItemId ? '(Item: ' + t.offeredItemId + ')' : ''}</div>
+                <div><b>Pide:</b> ${t.requestedCoins}🪙 ${t.requestedItemId ? '(Item: ' + t.requestedItemId + ')' : ''}</div>
+            `;
+            const acceptBtn = document.createElement("button");
+            acceptBtn.className = "form-button";
+            acceptBtn.textContent = "Aceptar Intercambio";
+            acceptBtn.onclick = async () => {
+                try {
+                    await request("/api/trade/accept", "POST", { tradeId: t.id });
+                    alert("¡Intercambio completado!");
+                    updateAccount();
+                    loadTrades();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+            div.appendChild(acceptBtn);
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.textContent = error.message;
+    }
+}
+
+async function loadFriends() {
+    const container = document.getElementById("friends");
+    try {
+        const data = await request("/api/friends");
+        container.innerHTML = "";
+        if (data.friends.length === 0) {
+            container.textContent = "No tienes amigos aún.";
+            return;
+        }
+        data.friends.forEach(f => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.textContent = "⭐ " + f.username;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = e.message;
+    }
+}
+
+async function loadRequests() {
+    const container = document.getElementById("requests");
+    try {
+        const data = await request("/api/friends/requests");
+        container.innerHTML = "";
+        if (data.requests.length === 0) {
+            container.textContent = "Sin solicitudes.";
+            return;
+        }
+        data.requests.forEach(r => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.textContent = "📩 " + r.username;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = e.message;
+    }
+}
+
+function escapeHTML(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
 
 window.addEventListener("load", () => {
     updateAccount();
