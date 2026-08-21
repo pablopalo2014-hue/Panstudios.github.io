@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Game Blocks</title>
 
-<!-- Librería para Renderizar Modelos 3D GLB -->
+<!-- Librería para Renderizar y Girar Modelos 3D GLB -->
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
 <style>
@@ -436,6 +436,13 @@ model-viewer {
     margin-top: 2px;
 }
 
+.creator-link {
+    color: #7a4cff;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
 .sidebar-banner {
     margin-top: 15px;
     padding: 10px;
@@ -549,9 +556,28 @@ model-viewer {
 
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
 
+    <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
+        <h3>🎟️ Canjear Código promocional</h3>
+        <input type="text" id="codeRedeemInput" placeholder="Introduce tu código aquí (ej: PROMO100)">
+        <button class="form-button" style="background:#ffd700;" onclick="redeemCode()">Canjear Código</button>
+        <p id="codeRedeemMsg"></p>
+    </div>
+
     <div class="section">
         <h3>🎒 Mi Inventario</h3>
         <div id="myInventoryContainer" class="shop-items">Cargando inventario...</div>
+    </div>
+
+    <div class="section">
+        <h3>👕 Subir Camiseta (UGC)</h3>
+        <label style="font-size:12px; color:#aaa;">Nombre de la Camiseta:</label>
+        <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
+        <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
+        <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
+        <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
+        <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
+        <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
+        <p id="userTshirtMsg"></p>
     </div>
 
     <div class="section">
@@ -576,11 +602,44 @@ model-viewer {
 
     <div id="adminPanel" class="admin-panel hidden">
         <h2>🛠️ Panel de Administración</h2>
+
+        <div class="section">
+            <h3>🎟️ Crear Código Promocional</h3>
+            <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
+            <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
+            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
+            <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
+            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional, ignora limited/offsale)">
+            <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
+            <p id="adminCodeMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>👕 Subir Camiseta (Admin)</h3>
+            <input type="text" id="adminTshirtName" placeholder="Nombre">
+            <select id="adminTshirtIsLimited" onchange="toggleAdminTshirtLimited()">
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
+            </select>
+            <div id="adminTshirtLimitedOpts" class="hidden">
+                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario" min="1" value="1">
+                <input type="number" id="adminTshirtMaxGlobal" placeholder="Stock Global Total">
+                <input type="number" id="adminTshirtExpiresDays" placeholder="Días límite">
+            </div>
+            <select id="adminTshirtIsOffsale">
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
+            </select>
+            <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
+            <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
+            <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
+            <p id="adminTshirtMsg"></p>
+        </div>
         
         <div class="section">
             <h3>🏅 Gestionar Insignias de Usuario</h3>
             <input type="text" id="badgeTargetUser" placeholder="Nombre de usuario">
-            <input type="text" id="badgeNameInput" placeholder="Nombre de la insignia (ej. 🏆 Campeón)">
+            <input type="text" id="badgeNameInput" placeholder="Nombre de la insignia (ej. 🛡️admin)">
             <div style="display:flex; gap:10px; margin-top:5px;">
                 <button class="admin-button" style="width:100%;" onclick="adminAddBadge()">Añadir Insignia</button>
                 <button class="danger-button" style="width:100%;" onclick="adminRemoveBadge()">Quitar Insignia</button>
@@ -590,8 +649,8 @@ model-viewer {
 
         <div class="section">
             <h3>✏️ Cambiar Nombre de Usuario</h3>
-            <input id="adminTargetUsername" type="text" placeholder="Nombre de usuario a cambiar (Déjalo vacío para el tuyo)">
-            <input id="adminNewUsername" type="text" placeholder="Nuevo nombre (Cualquier carácter)">
+            <input id="adminTargetUsername" type="text" placeholder="Nombre de usuario a cambiar">
+            <input id="adminNewUsername" type="text" placeholder="Nuevo nombre">
             <button class="admin-button" style="width:100%;" onclick="adminChangeUsername()">Cambiar Nombre</button>
             <p id="adminRenameMsg"></p>
         </div>
@@ -604,57 +663,42 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>✏️ Editar Accesorio por ID</h3>
-            <input type="text" id="editItemId" placeholder="ID del accesorio">
+            <h3>✏️ Editar Accesorio / Camiseta por ID</h3>
+            <input type="text" id="editItemId" placeholder="ID del artículo">
             <input type="number" id="editItemPrice" placeholder="Nuevo Precio (opcional)">
-            <label style="font-size:12px; color:#aaa;">¿Limited?</label>
             <select id="editItemLimited">
-                <option value="">No cambiar</option>
+                <option value="">¿Limited?: No cambiar</option>
                 <option value="true">Sí</option>
                 <option value="false">No</option>
             </select>
-            <label style="font-size:12px; color:#aaa;">¿Offsale?</label>
             <select id="editItemOffsale">
-                <option value="">No cambiar</option>
+                <option value="">¿Offsale?: No cambiar</option>
                 <option value="true">Sí (Offsale)</option>
                 <option value="false">No (En Venta)</option>
             </select>
-            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios de Accesorio</button>
+            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios</button>
         </div>
 
         <div class="section">
-            <h3>📦 Subir Accesorio Limited / Normal</h3>
-            <label style="font-size: 13px; color: #aaa;">Nombre del Accesorio:</label>
+            <h3>📦 Subir Sombrero / Accesorio 3D</h3>
             <input type="text" id="accessoryName" placeholder="Nombre">
-
-            <label style="font-size: 13px; color: #aaa;">Archivo .GLB local:</label>
             <input type="file" id="accessoryGlbFile" accept=".glb">
-            
-            <label style="font-size: 13px; color: #aaa;">¿Es LIMITED?:</label>
             <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
-                <option value="no">no</option>
-                <option value="si">si</option>
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
             </select>
-
-            <label style="font-size: 13px; color: #aaa;">¿Está OFFSALE?:</label>
             <select id="accessoryIsOffsale">
-                <option value="no">no (En venta)</option>
-                <option value="si">si (Offsale)</option>
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
             </select>
-            
             <div id="limitedOptions" class="hidden">
                 <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
-                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total (ej. 50)" min="1">
+                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
                 <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
             </div>
-
-            <label style="font-size: 13px; color: #aaa;">Precio en Monedas:</label>
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
-
-            <label style="font-size: 13px; color: #aaa;">Imagen Thumbnail (URL PNG):</label>
-            <input type="text" id="accessoryPngUrl" placeholder="https://ejemplo.com/imagen.png">
-
-            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio</button>
+            <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
+            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
             <p id="accessoryUploadMsg"></p>
         </div>
 
@@ -737,15 +781,34 @@ model-viewer {
     <div class="avatar-modal-body">
         <div style="display:flex; flex-direction:column; align-items:center;">
             <div class="avatar-viewer-box">
-                <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" style="position: absolute; inset:0; z-index:1;"></model-viewer>
-                <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
+                <!-- Modelo 3D con rotación habilitada (camera-controls, auto-rotate) -->
+                <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" camera-controls auto-rotate style="position: absolute; inset:0; z-index:1;"></model-viewer>
+                <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" camera-controls auto-rotate style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
             </div>
-            <small style="color:#888; margin-top:5px;">Visualizador 3D</small>
+            <small style="color:#888; margin-top:5px;">💡 Haz clic y arrastra para girar el modelo 3D</small>
         </div>
 
         <div style="flex:1; min-width: 260px;">
-            <h3>🛒 Tienda de Accesorios</h3>
-            <div id="shopContainer" class="shop-items">Cargando catálogo...</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0;">🛒 Catálogo</h3>
+                
+                <!-- Desplegable para alternar categoría de catálogo -->
+                <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
+                    <option value="hat">Sombreros / Accesorios 3D</option>
+                    <option value="tshirt">Camisetas</option>
+                </select>
+            </div>
+
+            <!-- Filtro de Creado por Admins (Solo visible en camisetas) -->
+            <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
+                <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
+                <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
+                    <option value="all">Todas las Camisetas</option>
+                    <option value="adminOnly">Creado por Admins (Sí)</option>
+                </select>
+            </div>
+
+            <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
 
             <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
             <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
@@ -756,19 +819,19 @@ model-viewer {
 </div>
 </div>
 
-<!-- MODAL INTERFAZ DE TRADE (SOLO LIMITEDS OFFSALE) -->
+<!-- MODAL INTERFAZ DE TRADE -->
 <div id="tradeModal" class="modal">
     <div class="modal-box" style="max-width: 600px;">
         <button class="close" onclick="closeTradeModal()">×</button>
         <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
         <div class="trade-window">
             <div class="trade-section">
-                <div class="trade-section-title">Tu Item que darás (SOLO LIMITEDS OFFSALE)</div>
+                <div class="trade-section-title">Tu Item que darás (LIMITED OFFSALE)</div>
                 <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
                 <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
             </div>
             <div class="trade-section">
-                <div class="trade-section-title">Item que recibirás (SOLO LIMITEDS OFFSALE)</div>
+                <div class="trade-section-title">Item que recibirás (LIMITED OFFSALE)</div>
                 <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
                 <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
             </div>
@@ -850,6 +913,15 @@ function toggleLimitedInput() {
     }
 }
 
+function toggleAdminTshirtLimited() {
+    const val = document.getElementById("adminTshirtIsLimited").value;
+    if (val === "si") {
+        document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
+    } else {
+        document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
+    }
+}
+
 function showLogin() {
     document.getElementById("loginView").classList.remove("hidden");
     document.getElementById("registerView").classList.add("hidden");
@@ -904,6 +976,16 @@ function showPublicProfile(user) {
         });
     } else {
         badgesContainer.textContent = "Sin insignias.";
+    }
+}
+
+async function openPublicProfileById(userId) {
+    try {
+        const user = await request("/api/users/profile/" + userId);
+        openAccount();
+        showPublicProfile(user);
+    } catch (e) {
+        alert(e.message);
     }
 }
 
@@ -1010,6 +1092,10 @@ async function updateAccount() {
         document.getElementById("accountButton").classList.remove("hidden");
         document.getElementById("userCoinsText").textContent = user.coins || 0;
 
+        if (user.dailyClaimed) {
+            alert("🎁 ¡Has recibido tu recompensa diaria de 10 monedas!");
+        }
+
         showAccount();
 
         document.getElementById("welcome").textContent = "👤 " + user.username;
@@ -1021,7 +1107,12 @@ async function updateAccount() {
         loadRequests();
         loadBadges();
 
-        if (user.admin === true || user.owner === true) {
+        const hasAdminBadge = user.badges && user.badges.some(b => {
+            const name = typeof b === 'object' ? b.name : b;
+            return name === "🛡️admin" || name === "🛡️ admin" || name === "🛠️ Admin";
+        });
+
+        if (user.admin === true || user.owner === true || hasAdminBadge) {
             document.getElementById("adminPanel").classList.remove("hidden");
         } else {
             document.getElementById("adminPanel").classList.add("hidden");
@@ -1031,6 +1122,27 @@ async function updateAccount() {
             localStorage.removeItem("gameblocks_token");
             showLogin();
         }
+    }
+}
+
+async function redeemCode() {
+    const code = document.getElementById("codeRedeemInput").value.trim();
+    const msg = document.getElementById("codeRedeemMsg");
+    if (!code) {
+        msg.className = "error";
+        msg.textContent = "Ingresa un código.";
+        return;
+    }
+    try {
+        const data = await request("/api/codes/redeem", "POST", { code });
+        msg.className = "success";
+        msg.textContent = data.message;
+        document.getElementById("userCoinsText").textContent = data.newBalance;
+        document.getElementById("codeRedeemInput").value = "";
+        loadMyInventory();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
     }
 }
 
@@ -1112,6 +1224,32 @@ async function loadMyInventory() {
     }
 }
 
+async function userUploadTshirt() {
+    const name = document.getElementById("userTshirtName").value.trim();
+    const imageUrl = document.getElementById("userTshirtUrl").value.trim();
+    const price = document.getElementById("userTshirtCost").value;
+    const msg = document.getElementById("userTshirtMsg");
+
+    if (!name || !imageUrl || !price) {
+        msg.className = "error";
+        msg.textContent = "Completa todos los campos de la camiseta.";
+        return;
+    }
+
+    try {
+        await request("/api/tshirts/upload", "POST", { name, imageUrl, price });
+        msg.className = "success";
+        msg.textContent = "¡Camiseta subida con éxito al catálogo!";
+        document.getElementById("userTshirtName").value = "";
+        document.getElementById("userTshirtUrl").value = "";
+        document.getElementById("userTshirtCost").value = "";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
 async function editAvatar() {
     const url = prompt("Introduce la URL de tu foto:");
     if (!url) return;
@@ -1165,6 +1303,16 @@ async function logout() {
 
 async function loadShopItems() {
     const container = document.getElementById("shopContainer");
+    const categoryType = document.getElementById("catalogTypeSelect").value;
+    const tshirtAdminFilter = document.getElementById("tshirtAdminFilter").value;
+
+    const filterBox = document.getElementById("tshirtFilterContainer");
+    if (categoryType === "tshirt") {
+        filterBox.classList.remove("hidden");
+    } else {
+        filterBox.classList.add("hidden");
+    }
+
     try {
         const [data, me] = await Promise.all([
             request("/api/accessories"),
@@ -1173,14 +1321,25 @@ async function loadShopItems() {
 
         container.innerHTML = "";
         if (!data.items || data.items.length === 0) {
-            container.textContent = "No hay accesorios disponibles.";
+            container.textContent = "No hay artículos en el catálogo.";
+            return;
+        }
+
+        let filteredItems = data.items.filter(i => (i.type || "hat") === categoryType);
+
+        if (categoryType === "tshirt" && tshirtAdminFilter === "adminOnly") {
+            filteredItems = filteredItems.filter(i => i.createdByAdmin === true);
+        }
+
+        if (filteredItems.length === 0) {
+            container.textContent = "No hay artículos en esta categoría o filtro.";
             return;
         }
 
         const myInventory = me ? (me.inventory || []) : [];
         const equippedId = me ? me.equippedAccessory : null;
 
-        data.items.forEach(item => {
+        filteredItems.forEach(item => {
             const card = document.createElement("div");
             card.className = "shop-card";
 
@@ -1190,14 +1349,32 @@ async function loadShopItems() {
             const name = document.createElement("div");
             name.style.fontWeight = "bold";
             name.style.fontSize = "13px";
-            name.textContent = item.name || "Accesorio";
+            name.textContent = item.name || "Artículo";
 
             const idLabel = document.createElement("div");
             idLabel.className = "item-id-label";
             idLabel.textContent = "ID: " + item.id;
 
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(idLabel);
+
+            if (categoryType === "tshirt") {
+                const creatorLabel = document.createElement("div");
+                creatorLabel.style.fontSize = "11px";
+                creatorLabel.style.color = "#aaa";
+                
+                if (item.creatorUsername && item.creatorId) {
+                    creatorLabel.innerHTML = `Creador: <span class="creator-link" onclick="openPublicProfileById('${item.creatorId}')">${escapeHTML(item.creatorUsername)}</span>`;
+                } else {
+                    creatorLabel.textContent = "Creador: Admin";
+                }
+                card.appendChild(creatorLabel);
+            }
+
             const price = document.createElement("div");
-            price.innerHTML = "<b>" + item.price + " 🪙</b>";
+            price.innerHTML = "<b>" + (item.price === 0 ? "GRATIS" : item.price + " 🪙") + "</b>";
+            card.appendChild(price);
 
             const isOwned = myInventory.includes(item.id);
             const isEquipped = equippedId === item.id;
@@ -1223,11 +1400,6 @@ async function loadShopItems() {
                 btnAction.style.color = "#000";
                 btnAction.onclick = () => buyAccessory(item.id);
             }
-
-            card.appendChild(img);
-            card.appendChild(name);
-            card.appendChild(idLabel);
-            card.appendChild(price);
 
             if (item.limited) {
                 const lim = document.createElement("small");
@@ -1261,7 +1433,7 @@ async function loadShopItems() {
             container.appendChild(card);
         });
     } catch {
-        container.textContent = "Error al cargar tienda.";
+        container.textContent = "Error al cargar el catálogo.";
     }
 }
 
@@ -1358,7 +1530,9 @@ async function buyAccessory(itemId) {
 async function equipAccessory(itemId, glbUrl) {
     try {
         await request("/api/accessories/equip", "POST", { itemId });
-        document.getElementById("accessoryViewer").src = glbUrl;
+        if (glbUrl) {
+            document.getElementById("accessoryViewer").src = glbUrl;
+        }
         loadMyInventory();
         loadShopItems();
     } catch (error) {
@@ -1374,6 +1548,67 @@ async function unequipAccessory() {
         loadShopItems();
     } catch (error) {
         alert(error.message);
+    }
+}
+
+async function adminCreateCode() {
+    const code = document.getElementById("adminCodeName").value.trim();
+    const coins = document.getElementById("adminCodeCoins").value;
+    const maxUses = document.getElementById("adminCodeMaxUses").value;
+    const expiresInDays = document.getElementById("adminCodeExpiresDays").value;
+    const rewardItemId = document.getElementById("adminCodeRewardItem").value.trim();
+    const msg = document.getElementById("adminCodeMsg");
+
+    if (!code) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el nombre del código.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/codes/create", "POST", {
+            code, coins, maxUses, expiresInDays, rewardItemId
+        });
+        msg.className = "success";
+        msg.textContent = "¡Código promocional creado correctamente!";
+        document.getElementById("adminCodeName").value = "";
+        document.getElementById("adminCodeCoins").value = "";
+        document.getElementById("adminCodeMaxUses").value = "";
+        document.getElementById("adminCodeExpiresDays").value = "";
+        document.getElementById("adminCodeRewardItem").value = "";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminUploadTshirt() {
+    const name = document.getElementById("adminTshirtName").value.trim();
+    const limited = document.getElementById("adminTshirtIsLimited").value === "si";
+    const maxPerUser = document.getElementById("adminTshirtMaxUser").value;
+    const maxGlobal = document.getElementById("adminTshirtMaxGlobal").value;
+    const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
+    const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
+    const imageUrl = document.getElementById("adminTshirtImgUrl").value.trim();
+    const price = document.getElementById("adminTshirtPrice").value;
+    const msg = document.getElementById("adminTshirtMsg");
+
+    if (!name || !imageUrl || price === "") {
+        msg.className = "error";
+        msg.textContent = "Nombre, Imagen y Coste son requeridos.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/tshirts/upload", "POST", {
+            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays
+        });
+        msg.className = "success";
+        msg.textContent = "Camiseta subida por Admin con éxito.";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
     }
 }
 
@@ -1677,6 +1912,17 @@ async function sendFriendRequest(userId) {
     }
 }
 
+async function acceptFriendRequest(requestId) {
+    try {
+        const res = await request("/api/friends/accept", "POST", { requestId });
+        alert(res.message || "Solicitud aceptada.");
+        loadRequests();
+        loadFriends();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
 async function openTradeModal(targetId, username, targetInventory) {
     currentTradeTargetId = targetId;
     document.getElementById("tradeTargetTitle").textContent = "Trade con " + username;
@@ -1811,7 +2057,20 @@ async function loadRequests() {
         data.requests.forEach(r => {
             const div = document.createElement("div");
             div.className = "result";
-            div.textContent = "📩 " + r.username;
+            div.style.flexDirection = "row";
+            div.style.justifyContent = "space-between";
+            div.style.alignItems = "center";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = "📩 " + r.username;
+
+            const acceptBtn = document.createElement("button");
+            acceptBtn.className = "friend-button";
+            acceptBtn.textContent = "✅ Aceptar";
+            acceptBtn.onclick = () => acceptFriendRequest(r.id);
+
+            div.appendChild(nameSpan);
+            div.appendChild(acceptBtn);
             container.appendChild(div);
         });
     } catch (e) {
