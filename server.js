@@ -11,10 +11,7 @@ const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-const REPO_OWNER = process.env.REPO_OWNER || "tu-usuario-github";
-const REPO_NAME = process.env.REPO_NAME || "tu-repositorio";
-const FILE_PATH = "database.json";
-let fileSha = "";
+const GIST_ID = process.env.GIST_ID; 
 
 app.use(cors());
 app.use(express.json());
@@ -52,61 +49,62 @@ function sanitizeText(str) {
     })[m]);
 }
 
+// Persistencia mediante GitHub Gist Privado
 async function loadDataFromGit() {
-    if (!process.env.GITHUB_TOKEN) {
-        console.log("⚠️ GITHUB_TOKEN no configurado. Funcionando en memoria.");
+    if (!process.env.GITHUB_TOKEN || !GIST_ID) {
+        console.log("⚠️ GITHUB_TOKEN o GIST_ID no configurados en el entorno. Funcionando en memoria local.");
         return;
     }
     try {
-        const res = await octokit.repos.getContent({
-            owner: REPO_OWNER,
-            repo: REPO_NAME,
-            path: FILE_PATH
-        });
-        fileSha = res.data.sha;
-        const content = Buffer.from(res.data.content, 'base64').toString('utf-8');
-        const parsed = JSON.parse(content);
-        
-        users = (parsed.users || []).map(u => ({
-            ...u,
-            inventory: u.inventory || [],
-            badges: u.badges || [],
-            coins: typeof u.coins === 'number' ? u.coins : 100,
-            equippedAccessory: u.equippedAccessory || null,
-            banned: u.banned || false,
-            banReason: u.banReason || ""
-        }));
-        friendships = parsed.friendships || [];
-        accessories = parsed.accessories || [];
-        resaleListings = parsed.resaleListings || [];
-        tradeOffers = parsed.tradeOffers || [];
-        bannerText = parsed.bannerText || "";
-        console.log("✅ Datos persistidos cargados correctamente desde Git.");
+        const res = await octokit.gists.get({ gist_id: GIST_ID });
+        const file = res.data.files["database.json"];
+        if (file && file.content) {
+            const parsed = JSON.parse(file.content);
+            users = (parsed.users || []).map(u => ({
+                ...u,
+                inventory: u.inventory || [],
+                badges: u.badges || [],
+                coins: typeof u.coins === 'number' ? u.coins : 100,
+                equippedAccessory: u.equippedAccessory || null,
+                banned: u.banned || false
+            }));
+            friendships = parsed.friendships || [];
+            friendRequests = parsed.friendRequests || [];
+            accessories = parsed.accessories || [];
+            resaleListings = parsed.resaleListings || [];
+            tradeOffers = parsed.tradeOffers || [];
+            bannerText = parsed.bannerText || "";
+            console.log("✅ Datos cargados correctamente desde el Gist privado.");
+        }
     } catch (err) {
-        console.log("⚠️ No se pudo cargar base de datos previa de Git.", err.message);
+        console.log("⚠️ Error al cargar la base de datos desde el Gist:", err.message);
     }
 }
 
 async function saveDataToGit() {
-    if (!process.env.GITHUB_TOKEN) return;
+    if (!process.env.GITHUB_TOKEN || !GIST_ID) return;
     try {
-        const dataToSave = JSON.stringify({ users, friendships, accessories, resaleListings, tradeOffers, bannerText }, null, 2);
-        const contentEncoded = Buffer.from(dataToSave).toString('base64');
+        const dataToSave = JSON.stringify({
+            users,
+            friendships,
+            friendRequests,
+            accessories,
+            resaleListings,
+            tradeOffers,
+            bannerText
+        }, null, 2);
 
-        const params = {
-            owner: REPO_OWNER,
-            repo: REPO_NAME,
-            path: FILE_PATH,
-            message: "bot: actualización de datos",
-            content: contentEncoded
-        };
-
-        if (fileSha) params.sha = fileSha;
-
-        const res = await octokit.repos.createOrUpdateFileContents(params);
-        fileSha = res.data.content.sha;
+        await octokit.gists.update({
+            gist_id: GIST_ID,
+            files: {
+                "database.json": {
+                    content: dataToSave
+                }
+            }
+        });
+        console.log("✅ Cambios guardados en el Gist.");
     } catch (err) {
-        console.error("❌ Error al persistir cambios en Git:", err.message);
+        console.error("❌ Error al guardar datos en el Gist:", err.message);
     }
 }
 
@@ -152,15 +150,14 @@ app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
-    const trimmedUsername = username.trim();
-    
-    // Regla estricta al crear cuenta: solo letras, números y _
-    const validUsernameRegex = /^[a-zA-Z0-9_]+$/;
-    if (!validUsernameRegex.test(trimmedUsername)) {
-        return res.status(400).json({ error: "El usuario solo puede contener letras, números y guiones bajos (_)." });
+    const cleanUsername = username.trim();
+
+    // Restricción: solo letras, números y guión bajo (_)
+    const validRegex = /^[a-zA-Z0-9_]+$/;
+    if (!validRegex.test(cleanUsername)) {
+        return res.status(400).json({ error: "El usuario solo puede tener letras, números y _" });
     }
 
-    const cleanUsername = sanitizeText(trimmedUsername);
     const existing = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
     if (existing) return res.status(400).json({ error: "El usuario ya existe." });
 
@@ -179,8 +176,7 @@ app.post('/api/register', async (req, res) => {
         equippedAccessory: null,
         admin: isOwner,
         owner: isOwner,
-        banned: false,
-        banReason: ""
+        banned: false
     };
 
     users.push(newUser);
@@ -200,36 +196,27 @@ app.post('/api/login', async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password).catch(() => user.password === password);
     if (!isPasswordValid) return res.status(400).json({ error: "Credenciales incorrectas." });
 
+    if (user.banned) {
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
+        return res.status(403).json({ banned: true, token, error: "Has sido baneado de Game Blocks." });
+    }
+
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
     res.json({ success: true, token });
 });
 
 app.get('/api/me', authenticateToken, (req, res) => {
     if (req.user.banned) {
-        return res.json({ 
-            banned: true, 
-            message: "Tu cuenta ha sido suspendida permanente o temporalmente.", 
-            reason: req.user.banReason || "Violación de las normas de la comunidad." 
-        });
+        return res.status(403).json({ banned: true, error: "Has sido baneado de Game Blocks." });
     }
     const { password, ...safeUserData } = req.user;
     res.json(safeUserData);
 });
 
-app.post('/api/account/delete', authenticateToken, async (req, res) => {
-    const index = users.findIndex(u => String(u.id) === String(req.user.id));
-    if (index !== -1) {
-        users.splice(index, 1);
-        resaleListings = resaleListings.filter(l => String(l.sellerId) !== String(req.user.id));
-        tradeOffers = tradeOffers.filter(t => String(t.senderId) !== String(req.user.id) && String(t.targetUserId) !== String(req.user.id));
-        await saveDataToGit();
-    }
-    res.json({ success: true });
-});
-
 app.post('/api/logout', (req, res) => res.json({ success: true }));
 
 app.post('/api/profile/avatar', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     if (!req.body.avatar) return res.status(400).json({ error: "Avatar requerido." });
     req.user.avatar = req.body.avatar;
     await saveDataToGit();
@@ -237,6 +224,7 @@ app.post('/api/profile/avatar', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/profile/bio', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     req.user.bio = sanitizeText(req.body.bio || "");
     await saveDataToGit();
     res.json({ success: true, bio: req.user.bio });
@@ -246,28 +234,29 @@ app.get('/api/badges/me', authenticateToken, (req, res) => {
     res.json({ badges: req.user.badges || [] });
 });
 
-app.get('/api/me/inventory', authenticateToken, (req, res) => {
-    const myItems = (req.user.inventory || []).map(id => accessories.find(a => String(a.id) === String(id))).filter(Boolean);
-    res.json({ inventory: myItems, equippedAccessory: req.user.equippedAccessory });
-});
-
 app.get('/api/users/search', (req, res) => {
     const q = (req.query.q || "").toLowerCase();
     const matches = users
-        .filter(u => u.username.toLowerCase().includes(q))
-        .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges || [] }));
+        .filter(u => u.username.toLowerCase().includes(q) && !u.banned)
+        .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges || [], inventory: u.inventory || [] }));
     res.json({ users: matches });
 });
 
-app.get('/api/users/:id/limiteds-offsale', authenticateToken, (req, res) => {
-    const target = users.find(u => String(u.id) === String(req.params.id));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+// ACCIONES DE USUARIO BANEADO
+app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
+    if (!req.user.banned) {
+        return res.status(400).json({ error: "Solo los usuarios baneados pueden borrar su cuenta con esta opción." });
+    }
 
-    const limitedsOffsale = (target.inventory || [])
-        .map(id => accessories.find(a => String(a.id) === String(id)))
-        .filter(a => a && a.limited && a.offsale);
+    const deleteId = req.user.id;
+    users = users.filter(u => String(u.id) !== String(deleteId));
+    friendships = friendships.filter(f => String(f.user1) !== String(deleteId) && String(f.user2) !== String(deleteId));
+    friendRequests = friendRequests.filter(r => String(r.senderId) !== String(deleteId) && String(r.receiverId) !== String(deleteId));
+    tradeOffers = tradeOffers.filter(t => String(t.senderId) !== String(deleteId) && String(t.targetUserId) !== String(deleteId));
+    resaleListings = resaleListings.filter(l => String(l.sellerId) !== String(deleteId));
 
-    res.json({ items: limitedsOffsale });
+    await saveDataToGit();
+    res.json({ success: true, message: "Tu cuenta ha sido eliminada permanentemente." });
 });
 
 // AMIGOS & CÓDIGOS DE JUEGO
@@ -315,6 +304,7 @@ app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
 });
 
 app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const itemId = req.body.itemId || req.body.id;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
@@ -351,6 +341,7 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const { itemId } = req.body;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
@@ -372,6 +363,7 @@ app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
 });
 
 app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const itemId = req.body.itemId || req.body.id;
     if (!req.user.inventory.includes(itemId)) return res.status(403).json({ error: "No posees este accesorio." });
     req.user.equippedAccessory = itemId;
@@ -380,6 +372,7 @@ app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req
 });
 
 app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     req.user.equippedAccessory = null;
     await saveDataToGit();
     res.json({ success: true });
@@ -387,15 +380,19 @@ app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async 
 
 // INTERCAMBIOS (TRADES - SOLO LIMITEDS OFFSALE)
 app.post('/api/trade/offer', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
     const { targetUserId, offeredItemId, offeredCoins, requestedItemId, requestedCoins } = req.body;
     const target = users.find(u => String(u.id) === String(targetUserId));
 
     if (!target) return res.status(404).json({ error: "Usuario destino no encontrado." });
+    if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes tradear contigo mismo." });
 
     if (offeredItemId) {
         const itemOff = accessories.find(a => String(a.id) === String(offeredItemId));
-        if (!itemOff || !itemOff.limited || !itemOff.offsale) {
-            return res.status(400).json({ error: "Solo se pueden intercambiar artículos marcados como Limiteds Offsale." });
+        if (!itemOff) return res.status(404).json({ error: "Artículo ofrecido no existe." });
+        if (!itemOff.limited || !itemOff.offsale) {
+            return res.status(400).json({ error: "Solo se pueden intercambiar artículos que sean LIMITEDS y estén OFFSALE." });
         }
         if (!req.user.inventory.includes(offeredItemId)) {
             return res.status(400).json({ error: "No posees el ítem ofrecido." });
@@ -404,15 +401,19 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
 
     if (requestedItemId) {
         const itemReq = accessories.find(a => String(a.id) === String(requestedItemId));
-        if (!itemReq || !itemReq.limited || !itemReq.offsale) {
-            return res.status(400).json({ error: "Solo puedes solicitar artículos marcados como Limiteds Offsale." });
+        if (!itemReq) return res.status(404).json({ error: "Artículo solicitado no existe." });
+        if (!itemReq.limited || !itemReq.offsale) {
+            return res.status(400).json({ error: "Solo puedes solicitar artículos que sean LIMITEDS y estén OFFSALE." });
         }
         if (!target.inventory.includes(requestedItemId)) {
             return res.status(400).json({ error: "El usuario destino no posee el ítem solicitado." });
         }
     }
 
-    if (offeredCoins && (req.user.coins || 0) < offeredCoins) {
+    const offerCoinsParsed = parseInt(offeredCoins) || 0;
+    const reqCoinsParsed = parseInt(requestedCoins) || 0;
+
+    if (offerCoinsParsed > 0 && (req.user.coins || 0) < offerCoinsParsed) {
         return res.status(400).json({ error: "No tienes suficientes monedas para ofrecer." });
     }
 
@@ -422,9 +423,9 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
         senderUsername: req.user.username,
         targetUserId: target.id,
         offeredItemId: offeredItemId || null,
-        offeredCoins: parseInt(offeredCoins) || 0,
+        offeredCoins: offerCoinsParsed,
         requestedItemId: requestedItemId || null,
-        requestedCoins: parseInt(requestedCoins) || 0
+        requestedCoins: reqCoinsParsed
     };
 
     tradeOffers.push(trade);
@@ -438,6 +439,8 @@ app.get('/api/trade/pending', authenticateToken, (req, res) => {
 });
 
 app.post('/api/trade/accept', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
     const { tradeId } = req.body;
     const index = tradeOffers.findIndex(t => String(t.id) === String(tradeId) && String(t.targetUserId) === String(req.user.id));
 
@@ -480,12 +483,14 @@ app.post('/api/trade/accept', authenticateToken, async (req, res) => {
 
 // MERCADO DE REVENTA PARA LIMITEDS OFFSALE
 app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
     const { itemId, price } = req.body;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-    if (!item.limited) return res.status(400).json({ error: "Solo los artículos Limiteds se pueden revender entre usuarios." });
-    if (!item.offsale) return res.status(400).json({ error: "El artículo debe estar Offsale para ponerlo a la venta en reventa." });
+    if (!item.limited) return res.status(400).json({ error: "Solo los artículos Limiteds se pueden revender." });
+    if (!item.offsale) return res.status(400).json({ error: "El artículo debe estar Offsale para ponerlo en reventa." });
 
     const index = req.user.inventory.indexOf(itemId);
     if (index === -1) return res.status(400).json({ error: "No posees este accesorio." });
@@ -516,6 +521,8 @@ app.get('/api/accessories/resale-market', (req, res) => {
 });
 
 app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
     const { listingId } = req.body;
     const listIndex = resaleListings.findIndex(l => String(l.id) === String(listingId));
     if (listIndex === -1) return res.status(404).json({ error: "Oferta de reventa no disponible." });
@@ -536,35 +543,36 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
 });
 
 // PANEL ADMIN
-app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, async (req, res) => {
-    const { targetUsername, newUsername } = req.body;
-    if (!newUsername) return res.status(400).json({ error: "El nuevo nombre no puede estar vacío." });
+app.post('/api/admin/users/rename', authenticateToken, requireAdmin, async (req, res) => {
+    const { targetUsername, newName } = req.body;
+    if (!newName || !newName.trim()) return res.status(400).json({ error: "Ingresa el nuevo nombre." });
 
-    // Si no se especifica usuario destino, se cambia a sí mismo
-    const target = targetUsername 
-        ? users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase())
-        : req.user;
+    let target = req.user;
+    if (targetUsername && targetUsername.trim() !== "") {
+        target = users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase());
+        if (!target) return res.status(404).json({ error: "Usuario objetivo no encontrado." });
+    }
 
-    if (!target) return res.status(404).json({ error: "Usuario a modificar no encontrado." });
+    const cleanNewName = newName.trim();
+    // Si eres admin PUEDES PONER LO QUE QUIERAS (Sin validación regex)
+    const existing = users.find(u => u.id !== target.id && u.username.toLowerCase() === cleanNewName.toLowerCase());
+    if (existing) return res.status(400).json({ error: "El usuario ya existe." });
 
-    // Como es Admin, NO se aplica la restricción de letras/números/_ y puede poner cualquier carácter
-    target.username = sanitizeText(newUsername.trim());
+    target.username = cleanNewName;
     await saveDataToGit();
-    res.json({ success: true, updatedUsername: target.username });
+    res.json({ success: true, newUsername: target.username });
 });
 
 app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, res) => {
-    const { targetUsername, reason } = req.body;
-    if (!targetUsername) return res.status(400).json({ error: "Ingresa el nombre del usuario a banear." });
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: "Nombre de usuario requerido." });
 
-    const target = users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase());
+    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
-    if (target.owner) return res.status(400).json({ error: "No puedes banear al Owner del sistema." });
+    if (target.owner) return res.status(400).json({ error: "No se puede banear al Owner." });
 
     target.banned = true;
-    target.banReason = sanitizeText(reason || "Sancionado por un administrador.");
-
     await saveDataToGit();
     res.json({ success: true, message: `Usuario ${target.username} baneado con éxito.` });
 });
@@ -630,5 +638,5 @@ app.get('/api/banner', (req, res) => res.json({ text: bannerText }));
 
 app.listen(PORT, async () => {
     await loadDataFromGit();
-    console.log(`🎮 Servidor Game Blocks activo en puerto ${PORT}`);
+    console.log(`🎮 Servidor Game Blocks activo en el puerto ${PORT}`);
 });
