@@ -236,13 +236,12 @@ textarea:focus {
 }
 
 .danger-button {
-    background: #e53935;
+    background: #641b1b;
     color: white;
     border: none;
-    padding: 12px 18px;
+    padding: 8px 12px;
     border-radius: 5px;
     cursor: pointer;
-    font-weight: bold;
 }
 
 .friend-button {
@@ -258,10 +257,9 @@ textarea:focus {
     background: #7a4cff;
     color: white;
     border: none;
-    padding: 10px 15px;
+    padding: 8px 12px;
     border-radius: 5px;
     cursor: pointer;
-    font-weight: bold;
 }
 
 .result {
@@ -447,6 +445,7 @@ model-viewer {
     text-align: center;
 }
 
+/* Modal Trades Roblox Style */
 .trade-window {
     display: flex;
     flex-direction: column;
@@ -471,6 +470,16 @@ model-viewer {
     margin-bottom: 10px;
     font-weight: bold;
     text-transform: uppercase;
+}
+
+.trade-value-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 15px;
+    border-top: 1px solid #333;
+    padding-top: 10px;
 }
 </style>
 </head>
@@ -511,14 +520,6 @@ model-viewer {
 <div class="modal-box">
 <button class="close" onclick="closeAccount()">×</button>
 
-<!-- VISTA DE BANEO -->
-<div id="bannedView" class="hidden" style="text-align: center; padding: 10px;">
-    <h2 style="color: #ff5555; font-size: 26px;">⛔ TE HAN BANEADO</h2>
-    <p style="color: #ccc; margin: 15px 0;">Has sido sancionado y ya no puedes acceder a la plataforma.</p>
-    <button class="danger-button" style="width: 100%;" onclick="deleteBannedAccount()">🗑️ Borrar Cuenta</button>
-</div>
-
-<!-- VISTA LOGIN -->
 <div id="loginView">
     <h2>Iniciar sesión</h2>
     <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
@@ -528,10 +529,8 @@ model-viewer {
     <p id="loginMessage"></p>
 </div>
 
-<!-- VISTA REGISTRO -->
 <div id="registerView" class="hidden">
     <h2>Crear cuenta</h2>
-    <small style="color:#aaa;">Solo se permiten letras, números y _</small>
     <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
     <input id="registerPassword" type="password" placeholder="Contraseña">
     <input id="registerPassword2" type="password" placeholder="Repetir contraseña">
@@ -540,7 +539,6 @@ model-viewer {
     <p id="registerMessage"></p>
 </div>
 
-<!-- VISTA MI CUENTA -->
 <div id="accountView" class="hidden">
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
@@ -548,11 +546,6 @@ model-viewer {
     </div>
 
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
-
-    <div class="section">
-        <h3>🎒 Mi Inventario</h3>
-        <div id="myInventoryContainer" class="shop-items">Cargando inventario...</div>
-    </div>
 
     <div class="section">
         <h3>⚙️ Configuración del Juego</h3>
@@ -578,18 +571,9 @@ model-viewer {
         <h2>🛠️ Panel de Administración</h2>
         
         <div class="section">
-            <h3>✏️ Cambiar Nombre de Usuario</h3>
-            <input id="adminTargetUsername" type="text" placeholder="Nombre de usuario a cambiar (Déjalo vacío para el tuyo)">
-            <input id="adminNewUsername" type="text" placeholder="Nuevo nombre (Cualquier carácter)">
-            <button class="admin-button" style="width:100%;" onclick="adminChangeUsername()">Cambiar Nombre</button>
-            <p id="adminRenameMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3>🔨 Banear Usuario</h3>
-            <input id="adminBanUsername" type="text" placeholder="Nombre del usuario a banear">
-            <button class="danger-button" style="width: 100%;" onclick="adminBanUser()">Banear Usuario</button>
-            <p id="adminBanMsg"></p>
+            <h3>✏️ Cambiar nombre</h3>
+            <input id="adminUsername" type="text" placeholder="Nuevo nombre" maxlength="40">
+            <button class="admin-button" onclick="adminChangeUsername()">Cambiar mi nombre</button>
         </div>
 
         <div class="section">
@@ -608,7 +592,7 @@ model-viewer {
                 <option value="true">Sí (Offsale)</option>
                 <option value="false">No (En Venta)</option>
             </select>
-            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios de Accesorio</button>
+            <button class="admin-button" onclick="adminEditAccessory()">Guardar Cambios de Accesorio</button>
         </div>
 
         <div class="section">
@@ -643,7 +627,7 @@ model-viewer {
             <label style="font-size: 13px; color: #aaa;">Imagen Thumbnail (URL PNG):</label>
             <input type="text" id="accessoryPngUrl" placeholder="https://ejemplo.com/imagen.png">
 
-            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio</button>
+            <button class="admin-button" onclick="uploadAccessory()">Subir Accesorio</button>
             <p id="accessoryUploadMsg"></p>
         </div>
 
@@ -651,14 +635,14 @@ model-viewer {
             <h3>🪙 Añadir Monedas</h3>
             <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
             <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
-            <button class="admin-button" style="width:100%;" onclick="adminAddCoins()">Añadir Monedas</button>
+            <button class="admin-button" onclick="adminAddCoins()">Añadir Monedas</button>
             <p id="coinAdminMsg"></p>
         </div>
 
         <div class="section">
             <h3>📢 Banner Informativo</h3>
             <input type="text" id="bannerTextInput" placeholder="Texto del banner">
-            <button class="admin-button" style="width:100%;" onclick="saveOwnerBanner()">Guardar Banner</button>
+            <button class="admin-button" onclick="saveOwnerBanner()">Guardar Banner</button>
             <p id="bannerMsg"></p>
         </div>
     </div>
@@ -745,23 +729,26 @@ model-viewer {
 </div>
 </div>
 
-<!-- MODAL INTERFAZ DE TRADE (SOLO LIMITEDS OFFSALE) -->
+<!-- MODAL INTERFAZ DE TRADE (ESTILO ROBLOX) -->
 <div id="tradeModal" class="modal">
     <div class="modal-box" style="max-width: 600px;">
         <button class="close" onclick="closeTradeModal()">×</button>
-        <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
+        <h2 id="tradeTargetTitle" style="margin:0;">Trade with User</h2>
         <div class="trade-window">
             <div class="trade-section">
-                <div class="trade-section-title">Tu Item que darás (SOLO LIMITEDS OFFSALE)</div>
-                <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
-                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
+                <div class="trade-section-title">Items you will give (Solo Limiteds)</div>
+                <input type="text" id="tradeGiveItemId" placeholder="ID del artículo Limited que ofreces">
+                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0">
             </div>
             <div class="trade-section">
-                <div class="trade-section-title">Item que recibirás (SOLO LIMITEDS OFFSALE)</div>
-                <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
-                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
+                <div class="trade-section-title">Items you will receive (Solo Limiteds)</div>
+                <input type="text" id="tradeGetItemId" placeholder="ID del artículo Limited que pides">
+                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0">
             </div>
-            <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
+            <div class="trade-value-footer">
+                <span>Oferta de Intercambio</span>
+                <button class="admin-button" style="padding: 10px 20px;" onclick="sendTradeOffer()">Enviar Oferta</button>
+            </div>
         </div>
     </div>
 </div>
@@ -793,12 +780,7 @@ async function request(endpoint, method = "GET", body = null) {
         throw new Error("Respuesta inválida del servidor.");
     }
 
-    if (!response.ok) {
-        if (data.banned) {
-            showBannedView();
-        }
-        throw new Error(data.error || "Error del servidor.");
-    }
+    if (!response.ok) throw new Error(data.error || "Error del servidor.");
     return data;
 }
 
@@ -843,7 +825,6 @@ function showLogin() {
     document.getElementById("loginView").classList.remove("hidden");
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
     document.getElementById("publicProfileView").classList.add("hidden");
 }
 
@@ -851,7 +832,6 @@ function showRegister() {
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("registerView").classList.remove("hidden");
     document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
     document.getElementById("publicProfileView").classList.add("hidden");
 }
 
@@ -859,15 +839,6 @@ function showAccount() {
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.remove("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
-    document.getElementById("publicProfileView").classList.add("hidden");
-}
-
-function showBannedView() {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("registerView").classList.add("hidden");
-    document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.remove("hidden");
     document.getElementById("publicProfileView").classList.add("hidden");
 }
 
@@ -875,7 +846,6 @@ function showPublicProfile(user) {
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
     document.getElementById("publicProfileView").classList.remove("hidden");
 
     document.getElementById("publicAvatar").src = user.avatar || "https://via.placeholder.com/110";
@@ -930,14 +900,6 @@ async function register() {
         message.textContent = "Completa todos los campos.";
         return;
     }
-
-    const validRegex = /^[a-zA-Z0-9_]+$/;
-    if (!validRegex.test(username)) {
-        message.className = "error";
-        message.textContent = "El usuario solo puede tener letras, números y _";
-        return;
-    }
-
     if (password !== password2) {
         message.className = "error";
         message.textContent = "Las contraseñas no coinciden.";
@@ -1005,7 +967,6 @@ async function updateAccount() {
         if (user.avatar) document.getElementById("myAvatar").src = user.avatar;
         if (user.bio) document.getElementById("myBio").value = user.bio;
 
-        loadMyInventory();
         loadFriends();
         loadRequests();
         loadBadges();
@@ -1015,89 +976,13 @@ async function updateAccount() {
         } else {
             document.getElementById("adminPanel").classList.add("hidden");
         }
-    } catch (err) {
-        if (!err.message.includes("baneado")) {
-            localStorage.removeItem("gameblocks_token");
-            showLogin();
-        }
-    }
-}
-
-async function deleteBannedAccount() {
-    if (!confirm("¿Estás seguro de que deseas borrar tu cuenta definitivamente?")) return;
-    try {
-        await request("/api/account/delete-banned", "POST");
-        alert("Cuenta eliminada con éxito.");
-        logout();
-    } catch (err) {
-        alert(err.message);
-    }
-}
-
-async function loadMyInventory() {
-    const container = document.getElementById("myInventoryContainer");
-    try {
-        const [me, shopData] = await Promise.all([
-            request("/api/me"),
-            request("/api/accessories")
-        ]);
-
-        container.innerHTML = "";
-        const myItems = shopData.items.filter(i => (me.inventory || []).includes(i.id));
-
-        if (myItems.length === 0) {
-            container.textContent = "No tienes artículos en tu inventario.";
-            return;
-        }
-
-        myItems.forEach(item => {
-            const card = document.createElement("div");
-            card.className = "shop-card";
-
-            const img = document.createElement("img");
-            img.src = item.imageUrl || "https://via.placeholder.com/80";
-
-            const name = document.createElement("div");
-            name.style.fontWeight = "bold";
-            name.style.fontSize = "13px";
-            name.textContent = item.name;
-
-            const isEquipped = me.equippedAccessory === item.id;
-            const actionBtn = document.createElement("button");
-            actionBtn.className = "form-button";
-            actionBtn.style.padding = "4px";
-            actionBtn.style.marginTop = "5px";
-
-            if (isEquipped) {
-                actionBtn.textContent = "Desequipar";
-                actionBtn.style.background = "#ff4444";
-                actionBtn.style.color = "#fff";
-                actionBtn.onclick = () => unequipAccessory();
-            } else {
-                actionBtn.textContent = "Equipar";
-                actionBtn.style.background = "#28a745";
-                actionBtn.style.color = "#fff";
-                actionBtn.onclick = () => equipAccessory(item.id, item.glbUrl);
-            }
-
-            card.appendChild(img);
-            card.appendChild(name);
-            card.appendChild(actionBtn);
-
-            if (item.limited && item.offsale) {
-                const resellBtn = document.createElement("button");
-                resellBtn.className = "admin-button";
-                resellBtn.style.marginTop = "4px";
-                resellBtn.style.fontSize = "11px";
-                resellBtn.textContent = "🏷️ Revender";
-                resellBtn.onclick = () => listResaleItem(item.id);
-                card.appendChild(resellBtn);
-            }
-
-            container.appendChild(card);
-        });
     } catch {
-        container.textContent = "Error al cargar tu inventario.";
+        localStorage.removeItem("gameblocks_token");
+        document.getElementById("heroSlogan").classList.add("hidden");
+        document.getElementById("loginBtn").classList.remove("hidden");
+        document.getElementById("accountButton").classList.add("hidden");
+        document.getElementById("userCoinsText").textContent = "0";
+        showLogin();
     }
 }
 
@@ -1237,6 +1122,7 @@ async function loadShopItems() {
 
             card.appendChild(btnAction);
 
+            // Reventa para Limiteds Offsale
             if (isOwned && item.limited && item.offsale) {
                 const resellBtn = document.createElement("button");
                 resellBtn.className = "admin-button";
@@ -1260,7 +1146,6 @@ async function listResaleItem(itemId) {
     try {
         await request("/api/accessories/resell-list", "POST", { itemId, price });
         alert("Publicado en la reventa.");
-        loadMyInventory();
         loadShopItems();
         loadResaleMarket();
     } catch (e) {
@@ -1337,7 +1222,6 @@ async function buyAccessory(itemId) {
         const res = await request("/api/accessories/buy", "POST", { itemId });
         alert("¡Compra realizada!");
         document.getElementById("userCoinsText").textContent = res.newBalance;
-        loadMyInventory();
         loadShopItems();
     } catch (error) {
         alert(error.message);
@@ -1348,7 +1232,6 @@ async function equipAccessory(itemId, glbUrl) {
     try {
         await request("/api/accessories/equip", "POST", { itemId });
         document.getElementById("accessoryViewer").src = glbUrl;
-        loadMyInventory();
         loadShopItems();
     } catch (error) {
         alert(error.message);
@@ -1359,7 +1242,6 @@ async function unequipAccessory() {
     try {
         await request("/api/accessories/unequip", "POST");
         document.getElementById("accessoryViewer").src = "";
-        loadMyInventory();
         loadShopItems();
     } catch (error) {
         alert(error.message);
@@ -1415,48 +1297,6 @@ async function uploadAccessory() {
     }
 }
 
-async function adminChangeUsername() {
-    const targetUsername = document.getElementById("adminTargetUsername").value.trim();
-    const newName = document.getElementById("adminNewUsername").value.trim();
-    const msg = document.getElementById("adminRenameMsg");
-
-    if (!newName) {
-        msg.className = "error";
-        msg.textContent = "Ingresa el nuevo nombre.";
-        return;
-    }
-
-    try {
-        await request("/api/admin/users/rename", "POST", { targetUsername, newName });
-        msg.className = "success";
-        msg.textContent = "Nombre cambiado correctamente.";
-        updateAccount();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function adminBanUser() {
-    const username = document.getElementById("adminBanUsername").value.trim();
-    const msg = document.getElementById("adminBanMsg");
-
-    if (!username) {
-        msg.className = "error";
-        msg.textContent = "Ingresa el nombre del usuario.";
-        return;
-    }
-
-    try {
-        await request("/api/admin/users/ban", "POST", { username });
-        msg.className = "success";
-        msg.textContent = "Usuario baneado correctamente.";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
 async function adminEditAccessory() {
     const itemId = document.getElementById("editItemId").value.trim();
     const price = document.getElementById("editItemPrice").value;
@@ -1477,6 +1317,18 @@ async function adminEditAccessory() {
         await request("/api/admin/accessories/edit", "POST", payload);
         alert("Accesorio actualizado correctamente.");
         loadShopItems();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function adminChangeUsername() {
+    const newUsername = document.getElementById("adminUsername").value.trim();
+    if (!newUsername) return alert("Ingresa un nuevo nombre de usuario.");
+    try {
+        await request("/api/admin/username", "POST", { newUsername });
+        alert("Nombre de usuario actualizado con éxito.");
+        updateAccount();
     } catch (e) {
         alert(e.message);
     }
@@ -1599,7 +1451,7 @@ async function searchUsers() {
             const btnTrade = document.createElement("button");
             btnTrade.className = "admin-button";
             btnTrade.textContent = "🔄 Trade";
-            btnTrade.onclick = () => openTradeModal(user.id, user.username, user.inventory || []);
+            btnTrade.onclick = () => openTradeModal(user.id, user.username);
 
             btnGroup.appendChild(btnProfile);
             btnGroup.appendChild(btnFriend);
@@ -1622,44 +1474,10 @@ async function sendFriendRequest(userId) {
     }
 }
 
-async function openTradeModal(targetId, username, targetInventory) {
+function openTradeModal(targetId, username) {
     currentTradeTargetId = targetId;
-    document.getElementById("tradeTargetTitle").textContent = "Trade con " + username;
-
-    try {
-        const [me, shopData] = await Promise.all([
-            request("/api/me"),
-            request("/api/accessories")
-        ]);
-
-        const giveSelect = document.getElementById("tradeGiveSelect");
-        const getSelect = document.getElementById("tradeGetSelect");
-
-        giveSelect.innerHTML = '<option value="">-- Ninguno --</option>';
-        getSelect.innerHTML = '<option value="">-- Ninguno --</option>';
-
-        // Mis items que son LIMITEDS y OFFSALE
-        const myLimitedsOffsale = shopData.items.filter(i => (me.inventory || []).includes(i.id) && i.limited && i.offsale);
-        myLimitedsOffsale.forEach(item => {
-            const opt = document.createElement("option");
-            opt.value = item.id;
-            opt.textContent = `${item.name} (ID: ${item.id})`;
-            giveSelect.appendChild(opt);
-        });
-
-        // Items del objetivo que son LIMITEDS y OFFSALE
-        const targetLimitedsOffsale = shopData.items.filter(i => targetInventory.includes(i.id) && i.limited && i.offsale);
-        targetLimitedsOffsale.forEach(item => {
-            const opt = document.createElement("option");
-            opt.value = item.id;
-            opt.textContent = `${item.name} (ID: ${item.id})`;
-            getSelect.appendChild(opt);
-        });
-
-        document.getElementById("tradeModal").style.display = "flex";
-    } catch (e) {
-        alert(e.message);
-    }
+    document.getElementById("tradeTargetTitle").textContent = "Trade with " + username;
+    document.getElementById("tradeModal").style.display = "flex";
 }
 
 function closeTradeModal() {
@@ -1667,9 +1485,9 @@ function closeTradeModal() {
 }
 
 async function sendTradeOffer() {
-    const offeredItemId = document.getElementById("tradeGiveSelect").value;
+    const offeredItemId = document.getElementById("tradeGiveItemId").value.trim();
     const offeredCoins = parseInt(document.getElementById("tradeGiveCoins").value) || 0;
-    const requestedItemId = document.getElementById("tradeGetSelect").value;
+    const requestedItemId = document.getElementById("tradeGetItemId").value.trim();
     const requestedCoins = parseInt(document.getElementById("tradeGetCoins").value) || 0;
 
     try {
@@ -1758,7 +1576,47 @@ async function loadRequests() {
         data.requests.forEach(r => {
             const div = document.createElement("div");
             div.className = "result";
-            div.textContent = "📩 " + r.username;
+            div.style.display = "flex";
+            div.style.flexDirection = "row";
+            div.style.justifyContent = "space-between";
+            div.style.alignItems = "center";
+
+            const userText = document.createElement("span");
+            userText.textContent = "📩 " + r.username;
+
+            const btnContainer = document.createElement("div");
+            btnContainer.style.display = "flex";
+            btnContainer.style.gap = "6px";
+
+            const acceptBtn = document.createElement("button");
+            acceptBtn.className = "friend-button";
+            acceptBtn.textContent = "Aceptar";
+            acceptBtn.onclick = async () => {
+                try {
+                    await request("/api/friends/accept", "POST", { requestId: r.id });
+                    loadRequests();
+                    loadFriends();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+
+            const rejectBtn = document.createElement("button");
+            rejectBtn.className = "danger-button";
+            rejectBtn.textContent = "Rechazar";
+            rejectBtn.onclick = async () => {
+                try {
+                    await request("/api/friends/reject", "POST", { requestId: r.id });
+                    loadRequests();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+
+            btnContainer.appendChild(acceptBtn);
+            btnContainer.appendChild(rejectBtn);
+            div.appendChild(userText);
+            div.appendChild(btnContainer);
             container.appendChild(div);
         });
     } catch (e) {
