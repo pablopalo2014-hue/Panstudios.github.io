@@ -72,11 +72,14 @@ async function loadDataFromGit() {
             inventory: u.inventory || [],
             badges: u.badges || [],
             coins: typeof u.coins === 'number' ? u.coins : 100,
-            equippedAccessory: u.equippedAccessory || null
+            equippedAccessory: u.equippedAccessory || null,
+            banned: u.banned || false,
+            banReason: u.banReason || ""
         }));
         friendships = parsed.friendships || [];
         accessories = parsed.accessories || [];
         resaleListings = parsed.resaleListings || [];
+        tradeOffers = parsed.tradeOffers || [];
         bannerText = parsed.bannerText || "";
         console.log("✅ Datos persistidos cargados correctamente desde Git.");
     } catch (err) {
@@ -87,7 +90,7 @@ async function loadDataFromGit() {
 async function saveDataToGit() {
     if (!process.env.GITHUB_TOKEN) return;
     try {
-        const dataToSave = JSON.stringify({ users, friendships, accessories, resaleListings, bannerText }, null, 2);
+        const dataToSave = JSON.stringify({ users, friendships, accessories, resaleListings, tradeOffers, bannerText }, null, 2);
         const contentEncoded = Buffer.from(dataToSave).toString('base64');
 
         const params = {
@@ -149,7 +152,15 @@ app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
-    const cleanUsername = sanitizeText(username.trim());
+    const trimmedUsername = username.trim();
+    
+    // Regla estricta al crear cuenta: solo letras, números y _
+    const validUsernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!validUsernameRegex.test(trimmedUsername)) {
+        return res.status(400).json({ error: "El usuario solo puede contener letras, números y guiones bajos (_)." });
+    }
+
+    const cleanUsername = sanitizeText(trimmedUsername);
     const existing = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
     if (existing) return res.status(400).json({ error: "El usuario ya existe." });
 
@@ -167,7 +178,9 @@ app.post('/api/register', async (req, res) => {
         inventory: [],
         equippedAccessory: null,
         admin: isOwner,
-        owner: isOwner
+        owner: isOwner,
+        banned: false,
+        banReason: ""
     };
 
     users.push(newUser);
@@ -192,8 +205,26 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/me', authenticateToken, (req, res) => {
+    if (req.user.banned) {
+        return res.json({ 
+            banned: true, 
+            message: "Tu cuenta ha sido suspendida permanente o temporalmente.", 
+            reason: req.user.banReason || "Violación de las normas de la comunidad." 
+        });
+    }
     const { password, ...safeUserData } = req.user;
     res.json(safeUserData);
+});
+
+app.post('/api/account/delete', authenticateToken, async (req, res) => {
+    const index = users.findIndex(u => String(u.id) === String(req.user.id));
+    if (index !== -1) {
+        users.splice(index, 1);
+        resaleListings = resaleListings.filter(l => String(l.sellerId) !== String(req.user.id));
+        tradeOffers = tradeOffers.filter(t => String(t.senderId) !== String(req.user.id) && String(t.targetUserId) !== String(req.user.id));
+        await saveDataToGit();
+    }
+    res.json({ success: true });
 });
 
 app.post('/api/logout', (req, res) => res.json({ success: true }));
@@ -215,12 +246,28 @@ app.get('/api/badges/me', authenticateToken, (req, res) => {
     res.json({ badges: req.user.badges || [] });
 });
 
+app.get('/api/me/inventory', authenticateToken, (req, res) => {
+    const myItems = (req.user.inventory || []).map(id => accessories.find(a => String(a.id) === String(id))).filter(Boolean);
+    res.json({ inventory: myItems, equippedAccessory: req.user.equippedAccessory });
+});
+
 app.get('/api/users/search', (req, res) => {
     const q = (req.query.q || "").toLowerCase();
     const matches = users
         .filter(u => u.username.toLowerCase().includes(q))
         .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges || [] }));
     res.json({ users: matches });
+});
+
+app.get('/api/users/:id/limiteds-offsale', authenticateToken, (req, res) => {
+    const target = users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    const limitedsOffsale = (target.inventory || [])
+        .map(id => accessories.find(a => String(a.id) === String(id)))
+        .filter(a => a && a.limited && a.offsale);
+
+    res.json({ items: limitedsOffsale });
 });
 
 // AMIGOS & CÓDIGOS DE JUEGO
@@ -338,8 +385,8 @@ app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async 
     res.json({ success: true });
 });
 
-// INTERCAMBIOS (TRADES - SOLO LIMITEDS)
-app.post('/api/trade/offer', authenticateToken, (req, res) => {
+// INTERCAMBIOS (TRADES - SOLO LIMITEDS OFFSALE)
+app.post('/api/trade/offer', authenticateToken, async (req, res) => {
     const { targetUserId, offeredItemId, offeredCoins, requestedItemId, requestedCoins } = req.body;
     const target = users.find(u => String(u.id) === String(targetUserId));
 
@@ -347,8 +394,8 @@ app.post('/api/trade/offer', authenticateToken, (req, res) => {
 
     if (offeredItemId) {
         const itemOff = accessories.find(a => String(a.id) === String(offeredItemId));
-        if (!itemOff || !itemOff.limited) {
-            return res.status(400).json({ error: "Solo se pueden intercambiar artículos marcados como Limiteds." });
+        if (!itemOff || !itemOff.limited || !itemOff.offsale) {
+            return res.status(400).json({ error: "Solo se pueden intercambiar artículos marcados como Limiteds Offsale." });
         }
         if (!req.user.inventory.includes(offeredItemId)) {
             return res.status(400).json({ error: "No posees el ítem ofrecido." });
@@ -357,8 +404,8 @@ app.post('/api/trade/offer', authenticateToken, (req, res) => {
 
     if (requestedItemId) {
         const itemReq = accessories.find(a => String(a.id) === String(requestedItemId));
-        if (!itemReq || !itemReq.limited) {
-            return res.status(400).json({ error: "Solo puedes solicitar artículos marcados como Limiteds." });
+        if (!itemReq || !itemReq.limited || !itemReq.offsale) {
+            return res.status(400).json({ error: "Solo puedes solicitar artículos marcados como Limiteds Offsale." });
         }
         if (!target.inventory.includes(requestedItemId)) {
             return res.status(400).json({ error: "El usuario destino no posee el ítem solicitado." });
@@ -381,6 +428,7 @@ app.post('/api/trade/offer', authenticateToken, (req, res) => {
     };
 
     tradeOffers.push(trade);
+    await saveDataToGit();
     res.json({ success: true, trade });
 });
 
@@ -488,6 +536,39 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
 });
 
 // PANEL ADMIN
+app.post('/api/admin/users/change-username', authenticateToken, requireAdmin, async (req, res) => {
+    const { targetUsername, newUsername } = req.body;
+    if (!newUsername) return res.status(400).json({ error: "El nuevo nombre no puede estar vacío." });
+
+    // Si no se especifica usuario destino, se cambia a sí mismo
+    const target = targetUsername 
+        ? users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase())
+        : req.user;
+
+    if (!target) return res.status(404).json({ error: "Usuario a modificar no encontrado." });
+
+    // Como es Admin, NO se aplica la restricción de letras/números/_ y puede poner cualquier carácter
+    target.username = sanitizeText(newUsername.trim());
+    await saveDataToGit();
+    res.json({ success: true, updatedUsername: target.username });
+});
+
+app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, res) => {
+    const { targetUsername, reason } = req.body;
+    if (!targetUsername) return res.status(400).json({ error: "Ingresa el nombre del usuario a banear." });
+
+    const target = users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase());
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    if (target.owner) return res.status(400).json({ error: "No puedes banear al Owner del sistema." });
+
+    target.banned = true;
+    target.banReason = sanitizeText(reason || "Sancionado por un administrador.");
+
+    await saveDataToGit();
+    res.json({ success: true, message: `Usuario ${target.username} baneado con éxito.` });
+});
+
 app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req, res) => {
     upload.single('glb')(req, res, async (err) => {
         if (err || !req.file) return res.status(400).json({ error: "Archivo GLB requerido." });
