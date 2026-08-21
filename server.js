@@ -36,6 +36,7 @@ let gameCodes = {};
 let accessories = [];    
 let tradeOffers = [];    
 let resaleListings = []; 
+let promoCodes = [];     
 let bannerText = "";     
 
 function sanitizeText(str) {
@@ -67,13 +68,18 @@ async function loadDataFromGit() {
                 badges: u.badges || [],
                 coins: typeof u.coins === 'number' ? u.coins : 100,
                 equippedAccessory: u.equippedAccessory || null,
-                banned: u.banned || false
+                banned: u.banned || false,
+                lastDailyReward: u.lastDailyReward || 0
             }));
             friendships = parsed.friendships || [];
             friendRequests = parsed.friendRequests || [];
-            accessories = parsed.accessories || [];
+            accessories = (parsed.accessories || []).map(a => ({
+                ...a,
+                type: a.type || "hat"
+            }));
             resaleListings = parsed.resaleListings || [];
             tradeOffers = parsed.tradeOffers || [];
+            promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
             console.log("✅ Datos cargados correctamente desde el Gist privado (database.json).");
         }
@@ -92,6 +98,7 @@ async function saveDataToGit() {
             accessories,
             resaleListings,
             tradeOffers,
+            promoCodes,
             bannerText
         }, null, 2);
 
@@ -109,7 +116,6 @@ async function saveDataToGit() {
     }
 }
 
-// Sincronización automática con Gist cada 1 minuto (60,000 ms)
 setInterval(async () => {
     await saveDataToGit();
 }, 60000);
@@ -135,8 +141,15 @@ function authenticateToken(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-    if (!req.user || (!req.user.admin && !req.user.owner)) {
-        return res.status(403).json({ error: "Requiere permisos de administrador u Owner." });
+    if (!req.user) return res.status(403).json({ error: "Acceso denegado." });
+    
+    const hasAdminBadge = req.user.badges && req.user.badges.some(b => {
+        const name = typeof b === 'object' ? b.name : b;
+        return name === "🛡️admin" || name === "🛡️ admin" || name === "🛠️ Admin";
+    });
+
+    if (!req.user.admin && !req.user.owner && !hasAdminBadge) {
+        return res.status(403).json({ error: "Requiere permisos de administrador, Owner o la insignia 🛡️admin." });
     }
     next();
 }
@@ -174,13 +187,14 @@ app.post('/api/register', async (req, res) => {
         password: hashedPassword,
         avatar: "https://via.placeholder.com/110",
         bio: "",
-        badges: isOwner ? ["🛠️ Admin", "🎮 Owner"] : [],
+        badges: isOwner ? ["🛠️ Admin", "🎮 Owner", "🛡️admin"] : [],
         coins: 100,
         inventory: [],
         equippedAccessory: null,
         admin: isOwner,
         owner: isOwner,
-        banned: false
+        banned: false,
+        lastDailyReward: Date.now()
     };
 
     users.push(newUser);
@@ -209,12 +223,25 @@ app.post('/api/login', async (req, res) => {
     res.json({ success: true, token });
 });
 
-app.get('/api/me', authenticateToken, (req, res) => {
+app.get('/api/me', authenticateToken, async (req, res) => {
     if (req.user.banned) {
         return res.status(403).json({ banned: true, error: "Has sido baneado de Game Blocks." });
     }
+
+    // Recompensa diaria de 10 monedas (cada 24 horas)
+    const NOW = Date.now();
+    const DAY_MS = 86400000;
+    let dailyClaimed = false;
+
+    if (!req.user.lastDailyReward || (NOW - req.user.lastDailyReward) >= DAY_MS) {
+        req.user.coins = (req.user.coins || 0) + 10;
+        req.user.lastDailyReward = NOW;
+        dailyClaimed = true;
+        await saveDataToGit();
+    }
+
     const { password, ...safeUserData } = req.user;
-    res.json(safeUserData);
+    res.json({ ...safeUserData, dailyClaimed });
 });
 
 app.post('/api/logout', (req, res) => res.json({ success: true }));
@@ -246,6 +273,65 @@ app.get('/api/users/search', (req, res) => {
     res.json({ users: matches });
 });
 
+app.get('/api/users/profile/:id', (req, res) => {
+    const target = users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    res.json({
+        id: target.id,
+        username: target.username,
+        avatar: target.avatar,
+        bio: target.bio,
+        badges: target.badges || [],
+        inventory: target.inventory || []
+    });
+});
+
+// CANJEAR CÓDIGOS
+app.post('/api/codes/redeem', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: "Ingresa un código." });
+
+    const cleanCode = code.trim().toUpperCase();
+    const promo = promoCodes.find(c => c.code.toUpperCase() === cleanCode);
+
+    if (!promo) return res.status(404).json({ error: "Código inválido o inexistente." });
+
+    if (promo.expiresAt && Date.now() > promo.expiresAt) {
+        return res.status(400).json({ error: "El código ha expirado." });
+    }
+
+    if (promo.maxUses !== null && promo.currentUses >= promo.maxUses) {
+        return res.status(400).json({ error: "El código ha alcanzado el límite máximo de usos." });
+    }
+
+    if (!promo.usedBy) promo.usedBy = [];
+    if (promo.usedBy.includes(req.user.id)) {
+        return res.status(400).json({ error: "Ya has canjeado este código anteriormente." });
+    }
+
+    promo.currentUses = (promo.currentUses || 0) + 1;
+    promo.usedBy.push(req.user.id);
+
+    req.user.coins = (req.user.coins || 0) + (promo.coins || 0);
+
+    let rewardItemName = null;
+    if (promo.rewardItemId) {
+        const rewardItem = accessories.find(a => String(a.id) === String(promo.rewardItemId));
+        if (rewardItem) {
+            req.user.inventory.push(rewardItem.id);
+            rewardItemName = rewardItem.name;
+        }
+    }
+
+    await saveDataToGit();
+
+    let msg = `¡Código canjeado! Ganaste ${promo.coins} monedas.`;
+    if (rewardItemName) msg += ` Además obtuviste el objeto: ${rewardItemName}.`;
+
+    res.json({ success: true, message: msg, newBalance: req.user.coins });
+});
+
 // ACCIONES DE USUARIO BANEADO
 app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
     if (!req.user.banned) {
@@ -267,8 +353,30 @@ app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
     if (String(userId) === String(req.user.id)) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
+    
+    const exists = friendRequests.some(r => String(r.senderId) === String(req.user.id) && String(r.receiverId) === String(userId));
+    if (exists) return res.status(400).json({ error: "Ya enviaste una solicitud a este usuario." });
+
     friendRequests.push({ id: Date.now().toString(), senderId: req.user.id, receiverId: userId });
     res.json({ success: true, message: "Solicitud enviada." });
+});
+
+app.post('/api/friends/accept', authenticateToken, async (req, res) => {
+    const { requestId } = req.body;
+    const reqIndex = friendRequests.findIndex(r => String(r.id) === String(requestId) && String(r.receiverId) === String(req.user.id));
+
+    if (reqIndex === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
+
+    const requestObj = friendRequests[reqIndex];
+    friendships.push({
+        id: Date.now().toString(),
+        user1: requestObj.senderId,
+        user2: requestObj.receiverId
+    });
+
+    friendRequests.splice(reqIndex, 1);
+    await saveDataToGit();
+    res.json({ success: true, message: "Solicitud de amistad aceptada." });
 });
 
 app.get('/api/friends/requests', authenticateToken, (req, res) => {
@@ -295,16 +403,49 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
     res.json({ success: true, code });
 });
 
-// TIENDA, LIMITEDS, REVENTA E INTERCAMBIOS
+// TIENDA, LIMITEDS, REVENTA, CAMISETAS E INTERCAMBIOS
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     const enrichedItems = accessories.map(item => {
         let totalSold = 0;
         users.forEach(u => {
             totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
         });
-        return { ...item, totalSold };
+        return { ...item, totalSold, type: item.type || "hat" };
     });
     res.json({ items: enrichedItems });
+});
+
+// SUBIR CAMISETA POR USUARIO UGC
+app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
+    const { name, imageUrl, price } = req.body;
+    if (!name || !imageUrl || price === undefined) {
+        return res.status(400).json({ error: "Completa el nombre, imagen y precio." });
+    }
+
+    const cost = parseInt(price);
+    if (isNaN(cost) || cost < 1) {
+        return res.status(400).json({ error: "El precio debe ser de al menos 1 moneda." });
+    }
+
+    const newTshirt = {
+        id: Date.now().toString(),
+        name: sanitizeText(name),
+        type: "tshirt",
+        imageUrl: imageUrl.trim(),
+        glbUrl: null,
+        price: cost,
+        limited: false,
+        offsale: false,
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: false
+    };
+
+    accessories.push(newTshirt);
+    await saveDataToGit();
+    res.json({ success: true, tshirt: newTshirt });
 });
 
 app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
@@ -312,7 +453,7 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     const itemId = req.body.itemId || req.body.id;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
-    if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (item.offsale) return res.status(400).json({ error: "Este artículo está Offsale." });
 
     if (item.expiresAt && Date.now() > item.expiresAt) {
@@ -340,6 +481,14 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     req.user.coins -= item.price;
     req.user.inventory.push(item.id);
 
+    // Si fue creado por un usuario UGC, le transferimos las monedas al creador
+    if (!item.createdByAdmin && item.creatorId && String(item.creatorId) !== String(req.user.id)) {
+        const creator = users.find(u => String(u.id) === String(item.creatorId));
+        if (creator) {
+            creator.coins = (creator.coins || 0) + item.price;
+        }
+    }
+
     await saveDataToGit();
     res.json({ success: true, newBalance: req.user.coins, inventory: req.user.inventory });
 });
@@ -349,7 +498,7 @@ app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
     const { itemId } = req.body;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
-    if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
 
     const index = req.user.inventory.indexOf(itemId);
     if (index === -1) return res.status(400).json({ error: "No posees este accesorio." });
@@ -382,7 +531,7 @@ app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async 
     res.json({ success: true });
 });
 
-// INTERCAMBIOS (TRADES - SOLO LIMITEDS OFFSALE)
+// INTERCAMBIOS (TRADES)
 app.post('/api/trade/offer', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
@@ -396,7 +545,7 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
         const itemOff = accessories.find(a => String(a.id) === String(offeredItemId));
         if (!itemOff) return res.status(404).json({ error: "Artículo ofrecido no existe." });
         if (!itemOff.limited || !itemOff.offsale) {
-            return res.status(400).json({ error: "Solo se pueden intercambiar artículos que sean LIMITEDS y estén OFFSALE." });
+            return res.status(400).json({ error: "Solo se pueden intercambiar artículos LIMITEDS y OFFSALE." });
         }
         if (!req.user.inventory.includes(offeredItemId)) {
             return res.status(400).json({ error: "No posees el ítem ofrecido." });
@@ -407,7 +556,7 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
         const itemReq = accessories.find(a => String(a.id) === String(requestedItemId));
         if (!itemReq) return res.status(404).json({ error: "Artículo solicitado no existe." });
         if (!itemReq.limited || !itemReq.offsale) {
-            return res.status(400).json({ error: "Solo puedes solicitar artículos que sean LIMITEDS y estén OFFSALE." });
+            return res.status(400).json({ error: "Solo puedes solicitar artículos LIMITEDS y OFFSALE." });
         }
         if (!target.inventory.includes(requestedItemId)) {
             return res.status(400).json({ error: "El usuario destino no posee el ítem solicitado." });
@@ -485,7 +634,7 @@ app.post('/api/trade/accept', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
-// MERCADO DE REVENTA PARA LIMITEDS OFFSALE
+// MERCADO DE REVENTA
 app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
@@ -547,6 +696,66 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
 });
 
 // PANEL ADMIN
+app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req, res) => {
+    const { code, coins, maxUses, expiresInDays, rewardItemId } = req.body;
+    if (!code || !code.trim()) return res.status(400).json({ error: "El código es obligatorio." });
+
+    const cleanCode = code.trim().toUpperCase();
+    if (promoCodes.some(c => c.code.toUpperCase() === cleanCode)) {
+        return res.status(400).json({ error: "El código ya existe." });
+    }
+
+    const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
+
+    const newCode = {
+        id: Date.now().toString(),
+        code: cleanCode,
+        coins: parseInt(coins) || 0,
+        maxUses: maxUses ? parseInt(maxUses) : null,
+        currentUses: 0,
+        expiresAt,
+        rewardItemId: rewardItemId ? String(rewardItemId).trim() : null,
+        usedBy: []
+    };
+
+    promoCodes.push(newCode);
+    await saveDataToGit();
+    res.json({ success: true, code: newCode });
+});
+
+app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
+    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays } = req.body;
+    if (!name || !imageUrl || price === undefined) {
+        return res.status(400).json({ error: "Nombre, imagen y coste son requeridos." });
+    }
+
+    const cost = parseInt(price);
+    if (isNaN(cost) || cost < 0) return res.status(400).json({ error: "Precio inválido." });
+
+    const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
+
+    const newTshirt = {
+        id: Date.now().toString(),
+        name: sanitizeText(name),
+        type: "tshirt",
+        imageUrl: imageUrl.trim(),
+        glbUrl: null,
+        price: cost,
+        limited: limited === 'true' || limited === true,
+        offsale: offsale === 'true' || offsale === true,
+        maxPerUser: parseInt(maxPerUser) || 1,
+        maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
+        expiresAt,
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: true
+    };
+
+    accessories.push(newTshirt);
+    await saveDataToGit();
+    res.json({ success: true, tshirt: newTshirt });
+});
+
 app.post('/api/admin/users/rename', authenticateToken, requireAdmin, async (req, res) => {
     const { targetUsername, newName } = req.body;
     if (!newName || !newName.trim()) return res.status(400).json({ error: "Ingresa el nuevo nombre." });
@@ -580,7 +789,6 @@ app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, re
     res.json({ success: true, message: `Usuario ${target.username} baneado con éxito.` });
 });
 
-// AÑADIR E INSIGNIAS DE USUARIO
 app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, badgeName } = req.body;
     if (!username || !badgeName) return res.status(400).json({ error: "Usuario e insignia requeridos." });
@@ -628,14 +836,18 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
         const newAccessory = {
             id: Date.now().toString(),
             name: sanitizeText(name || "Accesorio"),
+            type: "hat",
             glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
             imageUrl: imageUrl.trim(),
             limited: limited === 'true' || limited === true,
             offsale: offsale === 'true' || offsale === true,
             maxPerUser: parseInt(maxPerUser) || 1,
             maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
-            expiresAt: expiresAt,
-            price: parseInt(price) || 0
+            expiresAt,
+            price: parseInt(price) || 0,
+            creatorId: req.user.id,
+            creatorUsername: req.user.username,
+            createdByAdmin: true
         };
 
         accessories.push(newAccessory);
