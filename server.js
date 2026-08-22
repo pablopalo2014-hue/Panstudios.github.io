@@ -17,6 +17,13 @@ const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 app.use(cors());
 app.use(express.json());
 
+// --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -129,7 +136,6 @@ async function saveDataToGit() {
     };
     const dataToSave = JSON.stringify(dataObj, null, 2);
 
-    // Guardar SIEMPRE en archivo local para garantizar que no se pierdan datos al apagar el servidor
     try {
         fs.writeFileSync(LOCAL_DB_PATH, dataToSave, 'utf8');
     } catch (e) {
@@ -642,7 +648,7 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
 
     tradeOffers.push(trade);
     await saveDataToGit();
-    res.json({ success: true, trade });
+    res.json({ success: true, message: "Oferta de intercambio enviada." });
 });
 
 app.get('/api/trade/pending', authenticateToken, (req, res) => {
@@ -651,78 +657,79 @@ app.get('/api/trade/pending', authenticateToken, (req, res) => {
 });
 
 app.post('/api/trade/accept', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
     const { tradeId } = req.body;
-    const index = tradeOffers.findIndex(t => String(t.id) === String(tradeId) && String(t.targetUserId) === String(req.user.id));
+    const tradeIndex = tradeOffers.findIndex(t => String(t.id) === String(tradeId) && String(t.targetUserId) === String(req.user.id));
+    if (tradeIndex === -1) return res.status(404).json({ error: "Oferta de intercambio no encontrada." });
 
-    if (index === -1) return res.status(404).json({ error: "Oferta de intercambio no encontrada." });
-
-    const trade = tradeOffers[index];
+    const trade = tradeOffers[tradeIndex];
     const sender = users.find(u => String(u.id) === String(trade.senderId));
+    if (!sender) return res.status(404).json({ error: "El usuario que envió la oferta ya no existe." });
 
-    if (!sender) return res.status(404).json({ error: "El usuario emisor ya no existe." });
-
-    if ((sender.coins || 0) < trade.offeredCoins || (req.user.coins || 0) < trade.requestedCoins) {
-        return res.status(400).json({ error: "Uno de los usuarios ya no tiene suficientes monedas." });
+    if (trade.offeredCoins > 0 && (sender.coins || 0) < trade.offeredCoins) {
+        return res.status(400).json({ error: "El emisor ya no tiene suficientes monedas." });
     }
     if (trade.offeredItemId && !sender.inventory.includes(trade.offeredItemId)) {
-        return res.status(400).json({ error: "El emisor ya no posee el ítem ofrecido." });
+        return res.status(400).json({ error: "El emisor ya no posee el objeto ofrecido." });
+    }
+
+    if (trade.requestedCoins > 0 && (req.user.coins || 0) < trade.requestedCoins) {
+        return res.status(400).json({ error: "No tienes suficientes monedas para aceptar el intercambio." });
     }
     if (trade.requestedItemId && !req.user.inventory.includes(trade.requestedItemId)) {
-        return res.status(400).json({ error: "Ya no posees el ítem solicitado." });
+        return res.status(400).json({ error: "Ya no posees el objeto solicitado." });
     }
 
-    sender.coins -= trade.offeredCoins;
-    req.user.coins += trade.offeredCoins;
-
-    req.user.coins -= trade.requestedCoins;
-    sender.coins += trade.requestedCoins;
+    if (trade.offeredCoins > 0) {
+        sender.coins -= trade.offeredCoins;
+        req.user.coins = (req.user.coins || 0) + trade.offeredCoins;
+    }
+    if (trade.requestedCoins > 0) {
+        req.user.coins -= trade.requestedCoins;
+        sender.coins = (sender.coins || 0) + trade.requestedCoins;
+    }
 
     if (trade.offeredItemId) {
-        sender.inventory.splice(sender.inventory.indexOf(trade.offeredItemId), 1);
+        const idx = sender.inventory.indexOf(trade.offeredItemId);
+        if (idx !== -1) sender.inventory.splice(idx, 1);
         req.user.inventory.push(trade.offeredItemId);
     }
+
     if (trade.requestedItemId) {
-        req.user.inventory.splice(req.user.inventory.indexOf(trade.requestedItemId), 1);
+        const idx = req.user.inventory.indexOf(trade.requestedItemId);
+        if (idx !== -1) req.user.inventory.splice(idx, 1);
         sender.inventory.push(trade.requestedItemId);
     }
 
-    tradeOffers.splice(index, 1);
+    tradeOffers.splice(tradeIndex, 1);
     await saveDataToGit();
-    res.json({ success: true });
+    res.json({ success: true, message: "Intercambio completado." });
 });
 
-// MERCADO DE REVENTA
+// REVENTA / MERCADO
 app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
     const { itemId, price } = req.body;
+    const numericPrice = parseInt(price);
+    if (isNaN(numericPrice) || numericPrice < 1) {
+        return res.status(400).json({ error: "Precio inválido." });
+    }
+
     const item = accessories.find(a => String(a.id) === String(itemId));
-
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-    if (!item.limited) return res.status(400).json({ error: "Solo los artículos Limiteds se pueden revender." });
-    if (!item.offsale) return res.status(400).json({ error: "El artículo debe estar Offsale para ponerlo en reventa." });
+    if (!item.limited || !item.offsale) {
+        return res.status(400).json({ error: "Solo puedes poner en reventa artículos LIMITEDS y OFFSALE." });
+    }
 
-    const index = req.user.inventory.indexOf(itemId);
-    if (index === -1) return res.status(400).json({ error: "No posees este accesorio." });
-
-    const listingPrice = parseInt(price);
-    if (isNaN(listingPrice) || listingPrice <= 0) return res.status(400).json({ error: "Precio inválido." });
-
-    req.user.inventory.splice(index, 1);
-    if (String(req.user.equippedAccessory) === String(itemId)) {
-        req.user.equippedAccessory = null;
-        req.user.profileBgColor = null;
-        req.user.profileSoundUrl = null;
+    if (!req.user.inventory.includes(itemId)) {
+        return res.status(400).json({ error: "No posees este artículo en tu inventario." });
     }
 
     const listing = {
         id: Date.now().toString(),
-        itemId: item.id,
         sellerId: req.user.id,
         sellerUsername: req.user.username,
-        price: listingPrice
+        itemId: item.id,
+        price: numericPrice
     };
 
     resaleListings.push(listing);
@@ -736,46 +743,54 @@ app.get('/api/accessories/resale-market', (req, res) => {
 
 app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
     const { listingId } = req.body;
-    const listIndex = resaleListings.findIndex(l => String(l.id) === String(listingId));
-    if (listIndex === -1) return res.status(404).json({ error: "Oferta de reventa no disponible." });
+    const listingIndex = resaleListings.findIndex(l => String(l.id) === String(listingId));
 
-    const listing = resaleListings[listIndex];
-    if (String(listing.sellerId) === String(req.user.id)) return res.status(400).json({ error: "No puedes comprar tu propia oferta." });
-    if ((req.user.coins || 0) < listing.price) return res.status(400).json({ error: "Monedas insuficientes." });
+    if (listingIndex === -1) return res.status(404).json({ error: "Publicación de reventa no encontrada." });
+
+    const listing = resaleListings[listingIndex];
+    if (String(listing.sellerId) === String(req.user.id)) {
+        return res.status(400).json({ error: "No puedes comprar tu propia publicación." });
+    }
 
     const seller = users.find(u => String(u.id) === String(listing.sellerId));
+    if (!seller || !seller.inventory.includes(listing.itemId)) {
+        resaleListings.splice(listingIndex, 1);
+        await saveDataToGit();
+        return res.status(400).json({ error: "El vendedor ya no posee el artículo." });
+    }
+
+    if ((req.user.coins || 0) < listing.price) {
+        return res.status(400).json({ error: "Monedas insuficientes." });
+    }
 
     req.user.coins -= listing.price;
-    if (seller) seller.coins = (seller.coins || 0) + listing.price;
+    seller.coins = (seller.coins || 0) + listing.price;
+
+    const idx = seller.inventory.indexOf(listing.itemId);
+    if (idx !== -1) seller.inventory.splice(idx, 1);
     req.user.inventory.push(listing.itemId);
 
-    resaleListings.splice(listIndex, 1);
+    resaleListings.splice(listingIndex, 1);
     await saveDataToGit();
-    res.json({ success: true, newBalance: req.user.coins });
+    res.json({ success: true, message: "¡Compra de reventa realizada!" });
 });
 
-// PANEL ADMIN
+// PANEL DE ADMINISTRACIÓN
 app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req, res) => {
     const { code, coins, maxUses, expiresInDays, rewardItemId } = req.body;
-    if (!code || !code.trim()) return res.status(400).json({ error: "El código es obligatorio." });
-
-    const cleanCode = code.trim().toUpperCase();
-    if (promoCodes.some(c => c.code.toUpperCase() === cleanCode)) {
-        return res.status(400).json({ error: "El código ya existe." });
-    }
+    if (!code) return res.status(400).json({ error: "Nombre del código requerido." });
 
     const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
 
     const newCode = {
         id: Date.now().toString(),
-        code: cleanCode,
+        code: code.trim().toUpperCase(),
         coins: parseInt(coins) || 0,
         maxUses: maxUses ? parseInt(maxUses) : null,
         currentUses: 0,
         expiresAt,
-        rewardItemId: rewardItemId ? String(rewardItemId).trim() : null,
+        rewardItemId: rewardItemId || null,
         usedBy: []
     };
 
@@ -787,11 +802,8 @@ app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req,
 app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
     const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl } = req.body;
     if (!name || !imageUrl || price === undefined) {
-        return res.status(400).json({ error: "Nombre, imagen y coste son requeridos." });
+        return res.status(400).json({ error: "Nombre, imagen y precio requeridos." });
     }
-
-    const cost = parseInt(price);
-    if (isNaN(cost) || cost < 0) return res.status(400).json({ error: "Precio inválido." });
 
     const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
 
@@ -801,14 +813,14 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
         type: "tshirt",
         imageUrl: imageUrl.trim(),
         glbUrl: null,
-        bgColor: bgColor ? bgColor.trim() : null,
-        soundUrl: soundUrl ? soundUrl.trim() : null,
-        price: cost,
-        limited: limited === 'true' || limited === true,
-        offsale: offsale === 'true' || offsale === true,
-        maxPerUser: parseInt(maxPerUser) || 1,
+        price: parseInt(price) || 0,
+        limited: Boolean(limited),
+        offsale: Boolean(offsale),
+        maxPerUser: maxPerUser ? parseInt(maxPerUser) : null,
         maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
         expiresAt,
+        bgColor: bgColor ? bgColor.trim() : null,
+        soundUrl: soundUrl ? soundUrl.trim() : null,
         creatorId: req.user.id,
         creatorUsername: req.user.username,
         createdByAdmin: true
@@ -819,37 +831,42 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
     res.json({ success: true, tshirt: newTshirt });
 });
 
-app.post('/api/admin/users/rename', authenticateToken, requireAdmin, async (req, res) => {
-    const { targetUsername, newName } = req.body;
-    if (!newName || !newName.trim()) return res.status(400).json({ error: "Ingresa el nuevo nombre." });
+app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, upload.single('glb'), async (req, res) => {
+    try {
+        const { name, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl, price, imageUrl } = req.body;
+        
+        if (!req.file || !price || !imageUrl) {
+            return res.status(400).json({ error: "Completa el archivo GLB, Precio e Imagen PNG." });
+        }
 
-    let target = req.user;
-    if (targetUsername && targetUsername.trim() !== "") {
-        target = users.find(u => u.username.toLowerCase() === targetUsername.trim().toLowerCase());
-        if (!target) return res.status(404).json({ error: "Usuario objetivo no encontrado." });
+        const glbUrl = '/uploads/' + req.file.filename;
+        const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
+
+        const newAccessory = {
+            id: Date.now().toString(),
+            name: sanitizeText(name || "Accesorio 3D"),
+            type: "hat",
+            imageUrl: imageUrl.trim(),
+            glbUrl,
+            price: parseInt(price) || 0,
+            limited: limited === 'true' || limited === true,
+            offsale: offsale === 'true' || offsale === true,
+            maxPerUser: maxPerUser ? parseInt(maxPerUser) : 1,
+            maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
+            expiresAt,
+            bgColor: bgColor ? bgColor.trim() : null,
+            soundUrl: soundUrl ? soundUrl.trim() : null,
+            creatorId: req.user.id,
+            creatorUsername: req.user.username,
+            createdByAdmin: true
+        };
+
+        accessories.push(newAccessory);
+        await saveDataToGit();
+        res.json({ success: true, accessory: newAccessory });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    const cleanNewName = newName.trim();
-    const existing = users.find(u => u.id !== target.id && u.username.toLowerCase() === cleanNewName.toLowerCase());
-    if (existing) return res.status(400).json({ error: "El usuario ya existe." });
-
-    target.username = cleanNewName;
-    await saveDataToGit();
-    res.json({ success: true, newUsername: target.username });
-});
-
-app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, res) => {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: "Nombre de usuario requerido." });
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    if (target.owner) return res.status(400).json({ error: "No se puede banear al Owner." });
-
-    target.banned = true;
-    await saveDataToGit();
-    res.json({ success: true, message: `Usuario ${target.username} baneado con éxito.` });
 });
 
 app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, res) => {
@@ -860,15 +877,12 @@ app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, r
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
     if (!target.badges) target.badges = [];
-    const cleanBadge = badgeName.trim();
-
-    const exists = target.badges.some(b => (typeof b === 'object' ? b.name : b) === cleanBadge);
-    if (!exists) {
-        target.badges.push(cleanBadge);
+    if (!target.badges.includes(badgeName.trim())) {
+        target.badges.push(badgeName.trim());
     }
 
     await saveDataToGit();
-    res.json({ success: true, badges: target.badges });
+    res.json({ success: true, message: "Insignia añadida." });
 });
 
 app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req, res) => {
@@ -879,59 +893,53 @@ app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
     if (target.badges) {
-        const cleanBadge = badgeName.trim();
-        target.badges = target.badges.filter(b => (typeof b === 'object' ? b.name : b) !== cleanBadge);
+        target.badges = target.badges.filter(b => (typeof b === 'object' ? b.name : b) !== badgeName.trim());
     }
 
     await saveDataToGit();
-    res.json({ success: true, badges: target.badges });
+    res.json({ success: true, message: "Insignia quitada." });
 });
 
-app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req, res) => {
-    upload.single('glb')(req, res, async (err) => {
-        if (err || !req.file) return res.status(400).json({ error: "Archivo GLB requerido." });
+app.post('/api/admin/users/rename', authenticateToken, requireAdmin, async (req, res) => {
+    const { targetUsername, newName } = req.body;
+    if (!newName) return res.status(400).json({ error: "Nuevo nombre requerido." });
 
-        const { imageUrl, name, limited, offsale, maxPerUser, maxGlobal, expiresInDays, price, bgColor, soundUrl } = req.body;
-        if (!imageUrl || !price) return res.status(400).json({ error: "Campos obligatorios incompletos." });
+    const target = users.find(u => u.username.toLowerCase() === (targetUsername || "").trim().toLowerCase());
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
 
-        const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
+    const cleanNewName = newName.trim();
+    const existing = users.find(u => u.username.toLowerCase() === cleanNewName.toLowerCase() && String(u.id) !== String(target.id));
+    if (existing) return res.status(400).json({ error: "Ese nombre ya está en uso." });
 
-        const newAccessory = {
-            id: Date.now().toString(),
-            name: sanitizeText(name || "Accesorio"),
-            type: "hat",
-            glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
-            imageUrl: imageUrl.trim(),
-            bgColor: bgColor ? bgColor.trim() : null,
-            soundUrl: soundUrl ? soundUrl.trim() : null,
-            limited: limited === 'true' || limited === true,
-            offsale: offsale === 'true' || offsale === true,
-            maxPerUser: parseInt(maxPerUser) || 1,
-            maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
-            expiresAt,
-            price: parseInt(price) || 0,
-            creatorId: req.user.id,
-            creatorUsername: req.user.username,
-            createdByAdmin: true
-        };
+    target.username = cleanNewName;
+    await saveDataToGit();
+    res.json({ success: true, message: "Nombre actualizado." });
+});
 
-        accessories.push(newAccessory);
-        await saveDataToGit();
-        res.json({ success: true, accessory: newAccessory });
-    });
+app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, res) => {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: "Nombre de usuario requerido." });
+
+    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    target.banned = true;
+    await saveDataToGit();
+    res.json({ success: true, message: "Usuario baneado." });
 });
 
 app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (req, res) => {
     const { itemId, price, limited, offsale, bgColor, soundUrl } = req.body;
-    const item = accessories.find(a => String(a.id) === String(itemId));
+    if (!itemId) return res.status(400).json({ error: "ID del accesorio requerido." });
 
+    const item = accessories.find(a => String(a.id) === String(itemId));
     if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
 
     if (price !== undefined && price !== "") item.price = parseInt(price);
-    if (limited !== undefined) item.limited = (limited === 'true' || limited === true);
-    if (offsale !== undefined) item.offsale = (offsale === 'true' || offsale === true);
-    if (bgColor !== undefined) item.bgColor = bgColor.trim();
-    if (soundUrl !== undefined) item.soundUrl = soundUrl.trim();
+    if (limited !== undefined && limited !== "") item.limited = (limited === 'true' || limited === true);
+    if (offsale !== undefined && offsale !== "") item.offsale = (offsale === 'true' || offsale === true);
+    if (bgColor !== undefined && bgColor !== "") item.bgColor = bgColor;
+    if (soundUrl !== undefined && soundUrl !== "") item.soundUrl = soundUrl;
 
     await saveDataToGit();
     res.json({ success: true, item });
@@ -939,22 +947,28 @@ app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (
 
 app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, res) => {
     const { username, amount } = req.body;
-    const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (!username || !amount) return res.status(400).json({ error: "Usuario y cantidad requeridos." });
+
+    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-    target.coins = (target.coins || 0) + parseInt(amount || 0);
+
+    target.coins = (target.coins || 0) + parseInt(amount);
     await saveDataToGit();
     res.json({ success: true, newBalance: target.coins });
 });
 
 app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) => {
-    bannerText = sanitizeText(req.body.text || "");
+    bannerText = req.body.text || "";
     await saveDataToGit();
-    res.json({ success: true, text: bannerText });
+    res.json({ success: true, bannerText });
 });
 
-app.get('/api/banner', (req, res) => res.json({ text: bannerText }));
+app.get('/api/banner', (req, res) => {
+    res.json({ text: bannerText });
+});
 
+// INICIAR SERVIDOR
 app.listen(PORT, async () => {
     await loadDataFromGit();
-    console.log(`🎮 Servidor Game Blocks activo en el puerto ${PORT}`);
+    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
 });
