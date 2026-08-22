@@ -10,8 +10,9 @@ const { Octokit } = require('@octokit/rest');
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+const octokit = process.env.GITHUB_TOKEN ? new Octokit({ auth: process.env.GITHUB_TOKEN }) : null;
 const GIST_ID = process.env.GIST_ID; 
+const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 
 app.use(cors());
 app.use(express.json());
@@ -50,10 +51,32 @@ function sanitizeText(str) {
     })[m]);
 }
 
-// Persistencia mediante GitHub Gist Privado (database.json)
+// Cargar datos locales de respaldo
+function loadLocalData() {
+    if (fs.existsSync(LOCAL_DB_PATH)) {
+        try {
+            const content = fs.readFileSync(LOCAL_DB_PATH, 'utf8');
+            const parsed = JSON.parse(content);
+            users = parsed.users || [];
+            friendships = parsed.friendships || [];
+            friendRequests = parsed.friendRequests || [];
+            accessories = parsed.accessories || [];
+            resaleListings = parsed.resaleListings || [];
+            tradeOffers = parsed.tradeOffers || [];
+            promoCodes = parsed.promoCodes || [];
+            bannerText = parsed.bannerText || "";
+            console.log("✅ Datos cargados localmente desde database.json");
+        } catch (err) {
+            console.error("⚠️ Error al leer database.json local:", err.message);
+        }
+    }
+}
+
+// Persistencia mediante GitHub Gist o respaldo en database.json local
 async function loadDataFromGit() {
-    if (!process.env.GITHUB_TOKEN || !GIST_ID) {
-        console.log("⚠️ GITHUB_TOKEN o GIST_ID no configurados en el entorno. Funcionando en memoria local.");
+    if (!octokit || !GIST_ID) {
+        console.log("⚠️ GITHUB_TOKEN o GIST_ID no configurados. Usando almacenamiento en archivo local.");
+        loadLocalData();
         return;
     }
     try {
@@ -68,6 +91,8 @@ async function loadDataFromGit() {
                 badges: u.badges || [],
                 coins: typeof u.coins === 'number' ? u.coins : 100,
                 equippedAccessory: u.equippedAccessory || null,
+                profileBgColor: u.profileBgColor || null,
+                profileSoundUrl: u.profileSoundUrl || null,
                 banned: u.banned || false,
                 lastDailyReward: u.lastDailyReward || 0
             }));
@@ -81,38 +106,45 @@ async function loadDataFromGit() {
             tradeOffers = parsed.tradeOffers || [];
             promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
-            console.log("✅ Datos cargados correctamente desde el Gist privado (database.json).");
+            console.log("✅ Datos cargados correctamente desde el Gist privado.");
+        } else {
+            loadLocalData();
         }
     } catch (err) {
-        console.log("⚠️ Error al cargar la base de datos desde el Gist:", err.message);
+        console.log("⚠️ Error al cargar desde Gist, usando copia local:", err.message);
+        loadLocalData();
     }
 }
 
 async function saveDataToGit() {
-    if (!process.env.GITHUB_TOKEN || !GIST_ID) return;
-    try {
-        const dataToSave = JSON.stringify({
-            users,
-            friendships,
-            friendRequests,
-            accessories,
-            resaleListings,
-            tradeOffers,
-            promoCodes,
-            bannerText
-        }, null, 2);
+    const dataObj = {
+        users,
+        friendships,
+        friendRequests,
+        accessories,
+        resaleListings,
+        tradeOffers,
+        promoCodes,
+        bannerText
+    };
+    const dataToSave = JSON.stringify(dataObj, null, 2);
 
+    // Guardar SIEMPRE en archivo local para garantizar que no se pierdan datos al apagar el servidor
+    try {
+        fs.writeFileSync(LOCAL_DB_PATH, dataToSave, 'utf8');
+    } catch (e) {
+        console.error("❌ Error al guardar copia local:", e.message);
+    }
+
+    if (!octokit || !GIST_ID) return;
+    try {
         await octokit.gists.update({
             gist_id: GIST_ID,
-            files: {
-                "database.json": {
-                    content: dataToSave
-                }
-            }
+            files: { "database.json": { content: dataToSave } }
         });
-        console.log("✅ Cambios de la base de datos guardados en database.json (Gist).");
+        console.log("✅ Cambios sincronizados con Gist.");
     } catch (err) {
-        console.error("❌ Error al guardar datos en el Gist:", err.message);
+        console.error("❌ Error al guardar en Gist:", err.message);
     }
 }
 
@@ -191,6 +223,8 @@ app.post('/api/register', async (req, res) => {
         coins: 100,
         inventory: [],
         equippedAccessory: null,
+        profileBgColor: null,
+        profileSoundUrl: null,
         admin: isOwner,
         owner: isOwner,
         banned: false,
@@ -228,7 +262,6 @@ app.get('/api/me', authenticateToken, async (req, res) => {
         return res.status(403).json({ banned: true, error: "Has sido baneado de Game Blocks." });
     }
 
-    // Recompensa diaria de 10 monedas (cada 24 horas)
     const NOW = Date.now();
     const DAY_MS = 86400000;
     let dailyClaimed = false;
@@ -276,13 +309,21 @@ app.get('/api/users/search', (req, res) => {
 app.get('/api/users/profile/:id', (req, res) => {
     const target = users.find(u => String(u.id) === String(req.params.id));
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    const userInventory = (target.inventory || []).map(itemId => {
+        const item = accessories.find(a => String(a.id) === String(itemId));
+        return item ? { id: item.id, name: item.name, imageUrl: item.imageUrl, type: item.type } : { id: itemId, name: "Objeto #" + itemId, imageUrl: "https://via.placeholder.com/80" };
+    });
+
     res.json({
         id: target.id,
         username: target.username,
         avatar: target.avatar,
         bio: target.bio,
         badges: target.badges || [],
-        inventory: target.inventory || []
+        inventory: userInventory,
+        profileBgColor: target.profileBgColor || null,
+        profileSoundUrl: target.profileSoundUrl || null
     });
 });
 
@@ -419,7 +460,7 @@ app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
 app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
-    const { name, imageUrl, price } = req.body;
+    const { name, imageUrl, price, bgColor, soundUrl } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Completa el nombre, imagen y precio." });
     }
@@ -435,6 +476,8 @@ app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
         type: "tshirt",
         imageUrl: imageUrl.trim(),
         glbUrl: null,
+        bgColor: bgColor ? bgColor.trim() : null,
+        soundUrl: soundUrl ? soundUrl.trim() : null,
         price: cost,
         limited: false,
         offsale: false,
@@ -481,7 +524,6 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     req.user.coins -= item.price;
     req.user.inventory.push(item.id);
 
-    // Si fue creado por un usuario UGC, le transferimos las monedas al creador
     if (!item.createdByAdmin && item.creatorId && String(item.creatorId) !== String(req.user.id)) {
         const creator = users.find(u => String(u.id) === String(item.creatorId));
         if (creator) {
@@ -509,6 +551,8 @@ app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
 
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
+        req.user.profileBgColor = null;
+        req.user.profileSoundUrl = null;
     }
 
     await saveDataToGit();
@@ -519,14 +563,29 @@ app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const itemId = req.body.itemId || req.body.id;
     if (!req.user.inventory.includes(itemId)) return res.status(403).json({ error: "No posees este accesorio." });
+    
     req.user.equippedAccessory = itemId;
+    const item = accessories.find(a => String(a.id) === String(itemId));
+    
+    if (item) {
+        req.user.profileBgColor = item.bgColor || null;
+        req.user.profileSoundUrl = item.soundUrl || null;
+    }
+
     await saveDataToGit();
-    res.json({ success: true, equipped: itemId });
+    res.json({ 
+        success: true, 
+        equipped: itemId, 
+        profileBgColor: req.user.profileBgColor, 
+        profileSoundUrl: req.user.profileSoundUrl 
+    });
 });
 
 app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     req.user.equippedAccessory = null;
+    req.user.profileBgColor = null;
+    req.user.profileSoundUrl = null;
     await saveDataToGit();
     res.json({ success: true });
 });
@@ -654,6 +713,8 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
     req.user.inventory.splice(index, 1);
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
+        req.user.profileBgColor = null;
+        req.user.profileSoundUrl = null;
     }
 
     const listing = {
@@ -724,7 +785,7 @@ app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req,
 });
 
 app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
-    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays } = req.body;
+    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Nombre, imagen y coste son requeridos." });
     }
@@ -740,6 +801,8 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
         type: "tshirt",
         imageUrl: imageUrl.trim(),
         glbUrl: null,
+        bgColor: bgColor ? bgColor.trim() : null,
+        soundUrl: soundUrl ? soundUrl.trim() : null,
         price: cost,
         limited: limited === 'true' || limited === true,
         offsale: offsale === 'true' || offsale === true,
@@ -828,7 +891,7 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
     upload.single('glb')(req, res, async (err) => {
         if (err || !req.file) return res.status(400).json({ error: "Archivo GLB requerido." });
 
-        const { imageUrl, name, limited, offsale, maxPerUser, maxGlobal, expiresInDays, price } = req.body;
+        const { imageUrl, name, limited, offsale, maxPerUser, maxGlobal, expiresInDays, price, bgColor, soundUrl } = req.body;
         if (!imageUrl || !price) return res.status(400).json({ error: "Campos obligatorios incompletos." });
 
         const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
@@ -839,6 +902,8 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
             type: "hat",
             glbUrl: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
             imageUrl: imageUrl.trim(),
+            bgColor: bgColor ? bgColor.trim() : null,
+            soundUrl: soundUrl ? soundUrl.trim() : null,
             limited: limited === 'true' || limited === true,
             offsale: offsale === 'true' || offsale === true,
             maxPerUser: parseInt(maxPerUser) || 1,
@@ -857,7 +922,7 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, (req,
 });
 
 app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (req, res) => {
-    const { itemId, price, limited, offsale } = req.body;
+    const { itemId, price, limited, offsale, bgColor, soundUrl } = req.body;
     const item = accessories.find(a => String(a.id) === String(itemId));
 
     if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
@@ -865,6 +930,8 @@ app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (
     if (price !== undefined && price !== "") item.price = parseInt(price);
     if (limited !== undefined) item.limited = (limited === 'true' || limited === true);
     if (offsale !== undefined) item.offsale = (offsale === 'true' || offsale === true);
+    if (bgColor !== undefined) item.bgColor = bgColor.trim();
+    if (soundUrl !== undefined) item.soundUrl = soundUrl.trim();
 
     await saveDataToGit();
     res.json({ success: true, item });
