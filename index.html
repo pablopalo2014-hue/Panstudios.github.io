@@ -173,6 +173,7 @@ body {
     border-radius: 10px;
     padding: 25px;
     box-shadow: 0 0 30px #000;
+    transition: background-color 0.3s ease;
 }
 
 .close {
@@ -515,7 +516,7 @@ model-viewer {
 
 <!-- MODAL PRINCIPAL CUENTA -->
 <div id="accountModal" class="modal" onclick="outsideClose(event)">
-<div class="modal-box">
+<div class="modal-box" id="accountModalBox">
 <button class="close" onclick="closeAccount()">×</button>
 
 <!-- VISTA DE BANEO -->
@@ -574,6 +575,10 @@ model-viewer {
         <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
         <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
         <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
+        <label style="font-size:12px; color:#aaa;">Color de fondo de perfil al equipar (Opcional ej: #ff0000):</label>
+        <input type="color" id="userTshirtBgColor" value="#111111">
+        <label style="font-size:12px; color:#aaa;">URL de sonido al visitar perfil (Opcional ej: .mp3):</label>
+        <input type="text" id="userTshirtSoundUrl" placeholder="https://ejemplo.com/sonido.mp3">
         <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
         <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
         <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
@@ -631,6 +636,9 @@ model-viewer {
                 <option value="si">¿Offsale?: Sí</option>
             </select>
             <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
+            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil (Opcional):</label>
+            <input type="color" id="adminTshirtBgColor" value="#111111">
+            <input type="text" id="adminTshirtSoundUrl" placeholder="URL Audio Perfil (Opcional .mp3)">
             <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
             <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
             <p id="adminTshirtMsg"></p>
@@ -676,6 +684,9 @@ model-viewer {
                 <option value="true">Sí (Offsale)</option>
                 <option value="false">No (En Venta)</option>
             </select>
+            <label style="font-size:12px; color:#aaa;">Nuevo Color Fondo Perfil (ej: #ff0000):</label>
+            <input type="color" id="editItemBgColor" value="#111111">
+            <input type="text" id="editItemSoundUrl" placeholder="Nueva URL Audio Perfil (.mp3)">
             <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios</button>
         </div>
 
@@ -696,6 +707,10 @@ model-viewer {
                 <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
                 <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
             </div>
+            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil al Equipar:</label>
+            <input type="color" id="accessoryBgColor" value="#111111">
+            <label style="font-size:12px; color:#aaa;">URL Audio Perfil al Equipar (.mp3):</label>
+            <input type="text" id="accessorySoundUrl" placeholder="https://ejemplo.com/audio.mp3">
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
             <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
             <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
@@ -765,7 +780,12 @@ model-viewer {
 
     <div class="section">
         <h3>📝 Biografía</h3>
-        <p id="publicBio" style="background: #050505; padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+        <p id="publicBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+    </div>
+
+    <div class="section">
+        <h3>🎒 Inventario</h3>
+        <div id="publicInventory" class="shop-items">Cargando inventario...</div>
     </div>
 </div>
 
@@ -781,7 +801,6 @@ model-viewer {
     <div class="avatar-modal-body">
         <div style="display:flex; flex-direction:column; align-items:center;">
             <div class="avatar-viewer-box">
-                <!-- Modelo 3D con rotación habilitada (camera-controls, auto-rotate) -->
                 <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" camera-controls auto-rotate style="position: absolute; inset:0; z-index:1;"></model-viewer>
                 <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" camera-controls auto-rotate style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
             </div>
@@ -792,14 +811,12 @@ model-viewer {
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <h3 style="margin:0;">🛒 Catálogo</h3>
                 
-                <!-- Desplegable para alternar categoría de catálogo -->
                 <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
                     <option value="hat">Sombreros / Accesorios 3D</option>
                     <option value="tshirt">Camisetas</option>
                 </select>
             </div>
 
-            <!-- Filtro de Creado por Admins (Solo visible en camisetas) -->
             <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
                 <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
                 <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
@@ -841,15 +858,9 @@ model-viewer {
 </div>
 
 <script>
-const RENDER_API = "https://panstudios-github-io-1.onrender.com";
+const RENDER_API = "";
 let currentTradeTargetId = null;
-
-setInterval(async () => {
-    try {
-        const res = await fetch(RENDER_API + "/api/ping");
-        await res.text();
-    } catch(e) {}
-}, 40000);
+let profileAudio = null;
 
 async function request(endpoint, method = "GET", body = null) {
     const headers = { "Content-Type": "application/json" };
@@ -876,6 +887,27 @@ async function request(endpoint, method = "GET", body = null) {
     return data;
 }
 
+function applyProfileStyling(bgColor, soundUrl) {
+    const box = document.getElementById("accountModalBox");
+    if (bgColor) {
+        box.style.backgroundColor = bgColor;
+    } else {
+        box.style.backgroundColor = "#111";
+    }
+
+    if (profileAudio) {
+        profileAudio.pause();
+        profileAudio = null;
+    }
+
+    if (soundUrl) {
+        try {
+            profileAudio = new Audio(soundUrl);
+            profileAudio.play().catch(() => {});
+        } catch (e) {}
+    }
+}
+
 function openAccount() {
     document.getElementById("accountModal").style.display = "flex";
     updateAccount();
@@ -883,6 +915,7 @@ function openAccount() {
 
 function closeAccount() {
     document.getElementById("accountModal").style.display = "none";
+    applyProfileStyling(null, null);
 }
 
 function outsideClose(event) {
@@ -965,6 +998,8 @@ function showPublicProfile(user) {
     document.getElementById("publicUsername").textContent = "👤 " + user.username;
     document.getElementById("publicBio").textContent = user.bio || "Sin biografía.";
 
+    applyProfileStyling(user.profileBgColor, user.profileSoundUrl);
+
     const badgesContainer = document.getElementById("publicBadges");
     badgesContainer.innerHTML = "";
     if (user.badges && user.badges.length > 0) {
@@ -976,6 +1011,22 @@ function showPublicProfile(user) {
         });
     } else {
         badgesContainer.textContent = "Sin insignias.";
+    }
+
+    const invContainer = document.getElementById("publicInventory");
+    invContainer.innerHTML = "";
+    if (user.inventory && user.inventory.length > 0) {
+        user.inventory.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            card.innerHTML = `
+                <img src="${item.imageUrl || 'https://via.placeholder.com/80'}" alt="${escapeHTML(item.name)}">
+                <div style="font-weight:bold; font-size:12px; margin-top:5px;">${escapeHTML(item.name)}</div>
+            `;
+            invContainer.appendChild(card);
+        });
+    } else {
+        invContainer.textContent = "Sin artículos en el inventario.";
     }
 }
 
@@ -1097,6 +1148,7 @@ async function updateAccount() {
         }
 
         showAccount();
+        applyProfileStyling(user.profileBgColor, null);
 
         document.getElementById("welcome").textContent = "👤 " + user.username;
         if (user.avatar) document.getElementById("myAvatar").src = user.avatar;
@@ -1228,6 +1280,8 @@ async function userUploadTshirt() {
     const name = document.getElementById("userTshirtName").value.trim();
     const imageUrl = document.getElementById("userTshirtUrl").value.trim();
     const price = document.getElementById("userTshirtCost").value;
+    const bgColor = document.getElementById("userTshirtBgColor").value;
+    const soundUrl = document.getElementById("userTshirtSoundUrl").value.trim();
     const msg = document.getElementById("userTshirtMsg");
 
     if (!name || !imageUrl || !price) {
@@ -1237,12 +1291,13 @@ async function userUploadTshirt() {
     }
 
     try {
-        await request("/api/tshirts/upload", "POST", { name, imageUrl, price });
+        await request("/api/tshirts/upload", "POST", { name, imageUrl, price, bgColor, soundUrl });
         msg.className = "success";
         msg.textContent = "¡Camiseta subida con éxito al catálogo!";
         document.getElementById("userTshirtName").value = "";
         document.getElementById("userTshirtUrl").value = "";
         document.getElementById("userTshirtCost").value = "";
+        document.getElementById("userTshirtSoundUrl").value = "";
         loadShopItems();
     } catch (e) {
         msg.className = "error";
@@ -1529,10 +1584,11 @@ async function buyAccessory(itemId) {
 
 async function equipAccessory(itemId, glbUrl) {
     try {
-        await request("/api/accessories/equip", "POST", { itemId });
+        const res = await request("/api/accessories/equip", "POST", { itemId });
         if (glbUrl) {
             document.getElementById("accessoryViewer").src = glbUrl;
         }
+        applyProfileStyling(res.profileBgColor, res.profileSoundUrl);
         loadMyInventory();
         loadShopItems();
     } catch (error) {
@@ -1544,6 +1600,7 @@ async function unequipAccessory() {
     try {
         await request("/api/accessories/unequip", "POST");
         document.getElementById("accessoryViewer").src = "";
+        applyProfileStyling(null, null);
         loadMyInventory();
         loadShopItems();
     } catch (error) {
@@ -1590,6 +1647,8 @@ async function adminUploadTshirt() {
     const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
     const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
     const imageUrl = document.getElementById("adminTshirtImgUrl").value.trim();
+    const bgColor = document.getElementById("adminTshirtBgColor").value;
+    const soundUrl = document.getElementById("adminTshirtSoundUrl").value.trim();
     const price = document.getElementById("adminTshirtPrice").value;
     const msg = document.getElementById("adminTshirtMsg");
 
@@ -1601,7 +1660,7 @@ async function adminUploadTshirt() {
 
     try {
         await request("/api/admin/tshirts/upload", "POST", {
-            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays
+            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl
         });
         msg.className = "success";
         msg.textContent = "Camiseta subida por Admin con éxito.";
@@ -1620,6 +1679,8 @@ async function uploadAccessory() {
     const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
     const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
     const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
+    const bgColor = document.getElementById("accessoryBgColor").value;
+    const soundUrl = document.getElementById("accessorySoundUrl").value.trim();
     const price = document.getElementById("accessoryPrice").value;
     const pngUrl = document.getElementById("accessoryPngUrl").value.trim();
     const msg = document.getElementById("accessoryUploadMsg");
@@ -1638,6 +1699,8 @@ async function uploadAccessory() {
     formData.append("maxPerUser", maxPerUser || 1);
     formData.append("maxGlobal", maxGlobal || "");
     formData.append("expiresInDays", expiresInDays || "");
+    formData.append("bgColor", bgColor || "");
+    formData.append("soundUrl", soundUrl || "");
     formData.append("price", price);
     formData.append("imageUrl", pngUrl);
 
@@ -1752,6 +1815,8 @@ async function adminEditAccessory() {
     const price = document.getElementById("editItemPrice").value;
     const limited = document.getElementById("editItemLimited").value;
     const offsale = document.getElementById("editItemOffsale").value;
+    const bgColor = document.getElementById("editItemBgColor").value;
+    const soundUrl = document.getElementById("editItemSoundUrl").value.trim();
 
     if (!itemId) {
         alert("Ingresa un ID de accesorio.");
@@ -1762,6 +1827,8 @@ async function adminEditAccessory() {
     if (price !== "") payload.price = price;
     if (limited !== "") payload.limited = limited;
     if (offsale !== "") payload.offsale = offsale;
+    if (bgColor !== "") payload.bgColor = bgColor;
+    if (soundUrl !== "") payload.soundUrl = soundUrl;
 
     try {
         await request("/api/admin/accessories/edit", "POST", payload);
@@ -1855,7 +1922,7 @@ async function searchUsers() {
 
             const infoClick = document.createElement("div");
             infoClick.className = "user-info-click";
-            infoClick.onclick = () => showPublicProfile(user);
+            infoClick.onclick = () => openPublicProfileById(user.id);
 
             const img = document.createElement("img");
             img.className = "result-avatar";
@@ -1879,7 +1946,7 @@ async function searchUsers() {
             btnProfile.className = "secondary-button";
             btnProfile.style.marginTop = "0";
             btnProfile.textContent = "👤 Ver Perfil";
-            btnProfile.onclick = () => showPublicProfile(user);
+            btnProfile.onclick = () => openPublicProfileById(user.id);
 
             const btnFriend = document.createElement("button");
             btnFriend.className = "friend-button";
@@ -2037,7 +2104,9 @@ async function loadFriends() {
         data.friends.forEach(f => {
             const div = document.createElement("div");
             div.className = "result";
+            div.style.cursor = "pointer";
             div.textContent = "⭐ " + f.username;
+            div.onclick = () => openPublicProfileById(f.id);
             container.appendChild(div);
         });
     } catch (e) {
