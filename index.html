@@ -547,10 +547,10 @@ model-viewer {
     </div>
     <div class="topbar-right">
         <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="openCurrencyModal()">
-            🪙 Tus monedas: <span id="userCoinsText">0</span>
+            🪙 <span id="userCoinsText">0</span>
         </div>
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
-            💲 Tu dinero: <span id="userDollarsText">0</span>
+            💲 <span id="userDollarsText">0</span>
         </div>
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
@@ -840,35 +840,6 @@ model-viewer {
     <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
 </div>
 
-<div id="publicProfileView" class="hidden">
-    <button class="secondary-button" style="width: auto; margin-bottom: 15px;" onclick="showAccount()">⬅️ Volver a mi cuenta</button>
-    <div class="profile-avatar-container">
-        <img id="publicAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
-    </div>
-    <h2 id="publicUsername" style="text-align: center; margin-top: 0;">Usuario</h2>
-    
-    <div class="section">
-        <h3>🏅 Insignias</h3>
-        <div id="publicBadges" class="badges">Ninguna.</div>
-    </div>
-
-    <div class="section profile-custom-menu">
-        <h3 style="margin-top:0;">👤 Perfil</h3>
-        <div class="profile-custom-row"><span>Nombre</span><strong id="publicNameValue">-</strong></div>
-        <div class="profile-custom-row"><span>🎨 Fondo</span><strong id="publicBgValue">Predeterminado</strong></div>
-        <div class="profile-custom-row"><span>🔊 Sonido</span><strong id="publicSoundValue">Ninguno</strong></div>
-        <div style="margin-top:12px;">
-            <b>📝 Bio</b>
-            <p id="publicBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
-        </div>
-    </div>
-
-    <div class="section">
-        <h3>🎒 Inventario</h3>
-        <div id="publicInventory" class="shop-items">Cargando inventario...</div>
-    </div>
-</div>
-
 </div>
 </div>
 
@@ -933,6 +904,33 @@ model-viewer {
                 <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
             </div>
             <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
+        </div>
+    </div>
+</div>
+
+<!-- TARJETA CUSTOM DE PERFIL DE USUARIO (búsqueda / amigos / creador) -->
+<!-- Esto NO entra al perfil privado del usuario: es una tarjeta aparte, de solo lectura -->
+<div id="userProfileCardModal" class="modal" onclick="outsideCloseUserCard(event)">
+    <div class="modal-box" style="max-width: 480px;">
+        <button class="close" onclick="closeUserProfileCard()">×</button>
+        <div class="profile-avatar-container">
+            <img id="cardAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+            <h2 id="cardUsername" style="margin:0; text-align:center;">Usuario</h2>
+        </div>
+
+        <div class="section">
+            <h3 style="margin-top:0;">🏅 Insignias</h3>
+            <div id="cardBadges" class="badges">Ninguna.</div>
+        </div>
+
+        <div class="section">
+            <b>📝 Bio</b>
+            <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+        </div>
+
+        <div class="section">
+            <h3>🎒 Inventario</h3>
+            <div id="cardInventory" class="shop-items">Cargando inventario...</div>
         </div>
     </div>
 </div>
@@ -1116,7 +1114,6 @@ function showLogin() {
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.add("hidden");
     document.getElementById("bannedView").classList.add("hidden");
-    document.getElementById("publicProfileView").classList.add("hidden");
 }
 
 function showRegister() {
@@ -1124,7 +1121,6 @@ function showRegister() {
     document.getElementById("registerView").classList.remove("hidden");
     document.getElementById("accountView").classList.add("hidden");
     document.getElementById("bannedView").classList.add("hidden");
-    document.getElementById("publicProfileView").classList.add("hidden");
 }
 
 function showAccount() {
@@ -1132,7 +1128,6 @@ function showAccount() {
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.remove("hidden");
     document.getElementById("bannedView").classList.add("hidden");
-    document.getElementById("publicProfileView").classList.add("hidden");
 }
 
 function showBannedView() {
@@ -1140,64 +1135,58 @@ function showBannedView() {
     document.getElementById("registerView").classList.add("hidden");
     document.getElementById("accountView").classList.add("hidden");
     document.getElementById("bannedView").classList.remove("hidden");
-    document.getElementById("publicProfileView").classList.add("hidden");
 }
 
-function showPublicProfile(user) {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("registerView").classList.add("hidden");
-    document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
-    document.getElementById("publicProfileView").classList.remove("hidden");
-
-    document.getElementById("publicAvatar").src = user.avatar || "https://via.placeholder.com/110";
-    document.getElementById("publicUsername").textContent = "👤 " + user.username;
-    document.getElementById("publicNameValue").textContent = user.username;
-    document.getElementById("publicBio").textContent = user.bio || "Sin biografía.";
-    document.getElementById("publicBgValue").textContent = user.profileBgColor || "Predeterminado";
-    document.getElementById("publicBgValue").style.color = user.profileBgColor || "#fff";
-    document.getElementById("publicSoundValue").textContent = user.profileSoundUrl ? "Configurado" : "Ninguno";
-
-    applyProfileStyling(user.profileBgColor, user.profileSoundUrl);
-
-    const badgesContainer = document.getElementById("publicBadges");
-    badgesContainer.innerHTML = "";
-    if (user.badges && user.badges.length > 0) {
-        user.badges.forEach(badge => {
-            const el = document.createElement("div");
-            el.className = "badge";
-            el.textContent = typeof badge === 'object' ? badge.name : badge;
-            badgesContainer.appendChild(el);
-        });
-    } else {
-        badgesContainer.textContent = "Sin insignias.";
-    }
-
-    const invContainer = document.getElementById("publicInventory");
-    invContainer.innerHTML = "";
-    if (user.inventory && user.inventory.length > 0) {
-        user.inventory.forEach(item => {
-            const card = document.createElement("div");
-            card.className = "shop-card";
-            card.innerHTML = `
-                <img src="${item.imageUrl || 'https://via.placeholder.com/80'}" alt="${escapeHTML(item.name)}">
-                <div style="font-weight:bold; font-size:12px; margin-top:5px;">${escapeHTML(item.name)}</div>
-            `;
-            invContainer.appendChild(card);
-        });
-    } else {
-        invContainer.textContent = "Sin artículos en el inventario.";
-    }
-}
-
-async function openPublicProfileById(userId) {
+// TARJETA CUSTOM DE PERFIL (no entra al perfil privado del usuario, es solo lectura)
+async function openUserProfileCard(userId) {
     try {
         const user = await request("/api/users/profile/" + userId);
-        openAccount();
-        showPublicProfile(user);
+
+        document.getElementById("cardAvatar").src = user.avatar || "https://via.placeholder.com/110";
+        document.getElementById("cardUsername").textContent = "👤 " + user.username;
+        document.getElementById("cardBio").textContent = user.bio || "Sin biografía.";
+
+        const badgesContainer = document.getElementById("cardBadges");
+        badgesContainer.innerHTML = "";
+        if (user.badges && user.badges.length > 0) {
+            user.badges.forEach(badge => {
+                const el = document.createElement("div");
+                el.className = "badge";
+                el.textContent = typeof badge === 'object' ? badge.name : badge;
+                badgesContainer.appendChild(el);
+            });
+        } else {
+            badgesContainer.textContent = "Sin insignias.";
+        }
+
+        const invContainer = document.getElementById("cardInventory");
+        invContainer.innerHTML = "";
+        if (user.inventory && user.inventory.length > 0) {
+            user.inventory.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "shop-card";
+                card.innerHTML = `
+                    <img src="${item.imageUrl || 'https://via.placeholder.com/80'}" alt="${escapeHTML(item.name)}">
+                    <div style="font-weight:bold; font-size:12px; margin-top:5px;">${escapeHTML(item.name)}</div>
+                `;
+                invContainer.appendChild(card);
+            });
+        } else {
+            invContainer.textContent = "Sin artículos en el inventario.";
+        }
+
+        document.getElementById("userProfileCardModal").style.display = "flex";
     } catch (e) {
         alert(e.message);
     }
+}
+
+function closeUserProfileCard() {
+    document.getElementById("userProfileCardModal").style.display = "none";
+}
+
+function outsideCloseUserCard(event) {
+    if (event.target.id === "userProfileCardModal") closeUserProfileCard();
 }
 
 function saveExePath() {
@@ -1310,7 +1299,7 @@ async function updateAccount() {
         }
 
         showAccount();
-        applyProfileStyling(user.profileBgColor, null);
+        applyProfileStyling(user.profileBgColor, user.profileSoundUrl);
 
         document.getElementById("welcome").textContent = "👤 " + user.username;
         if (user.avatar) document.getElementById("myAvatar").src = user.avatar;
@@ -1580,7 +1569,7 @@ async function loadShopItems() {
                 creatorLabel.style.color = "#aaa";
                 
                 if (item.creatorUsername && item.creatorId) {
-                    creatorLabel.innerHTML = `Creador: <span class="creator-link" onclick="openPublicProfileById('${item.creatorId}')">${escapeHTML(item.creatorUsername)}</span>`;
+                    creatorLabel.innerHTML = `Creador: <span class="creator-link" onclick="openUserProfileCard('${item.creatorId}')">${escapeHTML(item.creatorUsername)}</span>`;
                 } else {
                     creatorLabel.textContent = "Creador: Admin";
                 }
@@ -1588,35 +1577,46 @@ async function loadShopItems() {
             }
 
             const price = document.createElement("div");
-            price.innerHTML = "<b>" + (item.price === 0 ? "GRATIS" : item.price + " 🪙") + "</b>";
+            if (item.offsale) {
+                price.innerHTML = "<b style=\"color:#ff5555;\">🚫 OFFSALE</b>";
+            } else {
+                price.innerHTML = "<b>" + (item.price === 0 ? "GRATIS" : item.price + " 🪙") + "</b>";
+            }
             card.appendChild(price);
 
             const isOwned = myInventory.includes(item.id);
             const isEquipped = equippedId === item.id;
 
-            const btnAction = document.createElement("button");
-            btnAction.className = "form-button";
-            btnAction.style.padding = "4px";
-            btnAction.style.marginTop = "5px";
+            let btnAction = null;
 
             if (isEquipped) {
+                btnAction = document.createElement("button");
                 btnAction.textContent = "Desequipar";
                 btnAction.style.background = "#ff4444";
                 btnAction.style.color = "#fff";
                 btnAction.onclick = () => unequipAccessory();
             } else if (isOwned) {
+                btnAction = document.createElement("button");
                 btnAction.textContent = "Equipar";
                 btnAction.style.background = "#28a745";
                 btnAction.style.color = "#fff";
                 btnAction.onclick = () => equipAccessory(item.id, item.glbUrl);
-            } else {
+            } else if (!item.offsale) {
+                // Si es OFFSALE y no lo posees, no se muestra botón de compra
+                btnAction = document.createElement("button");
                 btnAction.textContent = "Comprar";
                 btnAction.style.background = "#007bff";
                 btnAction.style.color = "#fff";
                 btnAction.onclick = () => buyAccessory(item.id);
             }
 
-            card.appendChild(btnAction);
+            if (btnAction) {
+                btnAction.className = "form-button";
+                btnAction.style.padding = "4px";
+                btnAction.style.marginTop = "5px";
+                card.appendChild(btnAction);
+            }
+
             container.appendChild(card);
         });
     } catch (e) {
@@ -1639,7 +1639,6 @@ async function buyAccessory(itemId) {
 async function equipAccessory(itemId, glbUrl = null) {
     try {
         const data = await request("/api/accessories/equip", "POST", { itemId });
-        alert("Accesorio equipado.");
         if (glbUrl) {
             document.getElementById("accessoryViewer").src = glbUrl;
         }
@@ -1740,7 +1739,7 @@ async function searchUsers() {
             card.className = "result";
             card.innerHTML = `
                 <div class="user-card-header">
-                    <div class="user-info-click" onclick="openPublicProfileById('${u.id}')">
+                    <div class="user-info-click" onclick="openUserProfileCard('${u.id}')">
                         <img class="result-avatar" src="${u.avatar || 'https://via.placeholder.com/45'}">
                         <div class="user-details">
                             <b>${escapeHTML(u.username)}</b>
@@ -1824,7 +1823,7 @@ async function loadFriends() {
             card.style.justifyContent = "space-between";
             card.style.alignItems = "center";
             card.innerHTML = `
-                <div class="user-info-click" onclick="openPublicProfileById('${f.id}')">
+                <div class="user-info-click" onclick="openUserProfileCard('${f.id}')">
                     <img class="result-avatar" src="${f.avatar || 'https://via.placeholder.com/45'}">
                     <b>${escapeHTML(f.username)}</b>
                 </div>
