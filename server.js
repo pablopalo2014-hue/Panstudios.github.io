@@ -1041,7 +1041,6 @@ app.get('/api/banner', (req, res) => {
 });
 
 // Guardado local inmediato al apagar el proceso.
-// Esto protege las cuentas y la tienda incluso si el proceso se reinicia antes del intervalo de 60 segundos.
 function saveLocalDataSync() {
     try {
         const dataObj = {
