@@ -2322,4 +2322,2328 @@ window.addEventListener("load", () => {
 });
 </script>
 </body>
+</html><!DOCTYPE html>
+<html lang="es">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Blocks</title>
+
+<!-- Librería para Renderizar y Girar Modelos 3D GLB -->
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+.topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 65px;
+    background: #111;
+    border-bottom: 2px solid #292929;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+}
+
+.topbar-left,
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.top-search {
+    width: 200px;
+    padding: 8px 12px;
+    margin: 0;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+}
+
+.top-button {
+    background: #fff;
+    color: #000;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 5px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.top-button:hover {
+    background: #ddd;
+}
+
+.coin-display {
+    background: #1a1a1a;
+    color: #ffd700;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.coin-display:hover {
+    background: #2a2a2a;
+    border-color: #ffd700;
+    transform: scale(1.05);
+}
+
+.dollar-display {
+    background: #1a1a1a;
+    color: #55dd77;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.dollar-display:hover {
+    background: #2a2a2a;
+    border-color: #55dd77;
+    transform: scale(1.05);
+}
+.currency-packages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+.currency-package {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+}
+.currency-package strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+.profile-custom-menu {
+    background: rgba(0,0,0,.35);
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+}
+.profile-custom-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid #292929;
+}
+.profile-custom-row:last-child { border-bottom: 0; }
+
+
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 90px 20px 40px;
+}
+
+.logo {
+    width: 300px;
+    max-width: 80%;
+    margin-bottom: 20px;
+}
+
+.slogan {
+    font-size: 42px;
+    margin: 15px 0 30px;
+    font-weight: bold;
+}
+
+.hero-download-btn {
+    margin-bottom: 30px;
+}
+
+.buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    max-width: 900px;
+}
+
+.button {
+    padding: 14px 22px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+}
+
+.download-button {
+    background: #fff;
+    color: #000;
+}
+
+.discord-button {
+    background: #5865F2;
+    color: #fff;
+}
+
+.login-action-button {
+    background: #151515;
+    color: #fff;
+    border: 1px solid #444;
+}
+ 
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.modal-box {
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 0 30px #000;
+    transition: background-color 0.3s ease;
+}
+
+.close {
+    float: right;
+    background: transparent;
+    color: #aaa;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #fff;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 13px;
+    margin: 7px 0 12px;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+    font-family: inherit;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #fff;
+}
+
+.form-button {
+    width: 100%;
+    padding: 13px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.secondary-button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: #191919;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.danger-button {
+    background: #e53935;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.friend-button {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.admin-button {
+    background: #7a4cff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.result {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.user-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.user-info-click {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.user-info-click:hover {
+    opacity: 0.8;
+}
+
+.result-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #444;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-bio-preview {
+    font-size: 13px;
+    color: #aaa;
+    margin-top: 3px;
+}
+
+.section {
+    margin-top: 25px;
+}
+
+.error {
+    color: #ff5555;
+}
+
+.success {
+    color: #55dd77;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.badge {
+    background: #202020;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+.profile-avatar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #444;
+    background: #000;
+}
+
+.admin-panel {
+    margin-top: 25px;
+    padding: 18px;
+    background: #080808;
+    border: 1px solid #633cff;
+    border-radius: 8px;
+}
+
+.game-connect {
+    margin-top: 25px;
+    padding: 15px;
+    background: #080808;
+    border: 1px solid #333;
+    border-radius: 7px;
+    text-align: center;
+}
+
+.game-code {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin: 15px 0;
+}
+
+.avatar-modal-body {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.avatar-viewer-box {
+    width: 250px;
+    height: 300px;
+    background: #050505;
+    border: 1px solid #333;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+model-viewer {
+    width: 100%;
+    height: 100%;
+}
+
+.shop-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.shop-card {
+    background: #181818;
+    border: 1px solid #333;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.shop-card img {
+    width: 100%;
+    height: 70px;
+    object-fit: contain;
+}
+
+.item-id-label {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.creator-link {
+    color: #7a4cff;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.sidebar-banner {
+    margin-top: 15px;
+    padding: 10px;
+    background: #1a1100;
+    border: 1px solid #ffd700;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #ffd700;
+    text-align: center;
+}
+
+.trade-window {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #151515;
+    border: 1px solid #333;
+    padding: 18px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.trade-section {
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.trade-section-title {
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+    <div class="topbar-left">
+        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
+        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
+        <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
+    </div>
+    <div class="topbar-right">
+        <div class="coin-display" id="userCoinsDisplay" title="Monedas" onclick="openCurrencyModal()">
+            <span id="userCoinsText">0</span> 🪙
+        </div>
+        <div class="dollar-display" id="userDollarsDisplay" title="💲" onclick="openCurrencyModal()">
+            <span id="userDollarsText">0</span> 💲
+        </div>
+        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
+        <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Mi Cuenta</button>
+    </div>
+</div>
+
+<section class="hero">
+    <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
+    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción</h1>
+    <div class="hero-download-btn">
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+    </div>
+    <div class="buttons">
+        <a class="button discord-button" href="https://discord.gg/Up24N45SK3" target="_blank">💬 Discord</a>
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">⬇️ Descargar</a>
+        <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
+    </div>
+</section>
+
+<!-- MODAL COMPRA DE MONEDAS -->
+<div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
+    <div class="modal-box" style="max-width: 720px;">
+        <button class="close" onclick="closeCurrencyModal()">×</button>
+        <h2>💲 Comprar monedas</h2>
+        <p style="color:#aaa;">Usa tus 💲 para obtener monedas de Game Blocks.</p>
+        <div id="currencyBalance" class="result" style="text-align:center;">
+            <b>Saldo:</b> <span id="currencyDollarsModal">0</span> 💲
+        </div>
+        <div id="currencyPackages" class="currency-packages">Cargando paquetes...</div>
+        <p id="currencyPurchaseMsg"></p>
+    </div>
+</div>
+
+<!-- MODAL PRINCIPAL CUENTA -->
+<div id="accountModal" class="modal" onclick="outsideClose(event)">
+<div class="modal-box" id="accountModalBox">
+<button class="close" onclick="closeAccount()">×</button>
+
+<!-- VISTA DE BANEO -->
+<div id="bannedView" class="hidden" style="text-align: center; padding: 10px;">
+    <h2 style="color: #ff5555; font-size: 26px;">⛔ TE HAN BANEADO</h2>
+    <p style="color: #ccc; margin: 15px 0;">Has sido sancionado y ya no puedes acceder a la plataforma.</p>
+    <button class="danger-button" style="width: 100%;" onclick="deleteBannedAccount()">🗑️ Borrar Cuenta</button>
+</div>
+
+<!-- VISTA LOGIN -->
+<div id="loginView">
+    <h2>Iniciar sesión</h2>
+    <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
+    <input id="loginPassword" type="password" placeholder="Contraseña">
+    <button class="form-button" onclick="login()">Iniciar sesión</button>
+    <button class="secondary-button" onclick="showRegister()">Crear cuenta</button>
+    <p id="loginMessage"></p>
+</div>
+
+<!-- VISTA REGISTRO -->
+<div id="registerView" class="hidden">
+    <h2>Crear cuenta</h2>
+    <small style="color:#aaa;">Solo se permiten letras, números y _</small>
+    <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
+    <input id="registerPassword" type="password" placeholder="Contraseña">
+    <input id="registerPassword2" type="password" placeholder="Repetir contraseña">
+    <button class="form-button" onclick="register()">Crear cuenta</button>
+    <button class="secondary-button" onclick="showLogin()">Ya tengo una cuenta</button>
+    <p id="registerMessage"></p>
+</div>
+
+<!-- VISTA MI CUENTA -->
+<div id="accountView" class="hidden">
+    <div class="profile-avatar-container">
+        <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
+    </div>
+
+    <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
+
+    <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
+        <h3>🎟️ Canjear Código promocional</h3>
+        <input type="text" id="codeRedeemInput" placeholder="Introduce tu código aquí (ej: PROMO100)">
+        <button class="form-button" style="background:#ffd700;" onclick="redeemCode()">Canjear Código</button>
+        <p id="codeRedeemMsg"></p>
+    </div>
+
+    <div class="section">
+        <h3>🎒 Mi Inventario</h3>
+        <div id="myInventoryContainer" class="shop-items">Cargando inventario...</div>
+    </div>
+
+    <div class="section">
+        <h3>👕 Subir Camiseta (UGC)</h3>
+        <small style="color:#888;">Las camisetas UGC no pueden modificar el fondo ni el sonido del perfil.</small>
+        <label style="font-size:12px; color:#aaa;">Nombre de la Camiseta:</label>
+        <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
+        <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
+        <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
+        <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
+        <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
+        <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
+        <p id="userTshirtMsg"></p>
+    </div>
+
+    <div class="section">
+        <h3>⚙️ Configuración del Juego</h3>
+        <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
+        <input id="exePath" type="text" placeholder="C:\Juegos\GameBlocks\GameBlocks.exe o gameblocks://">
+        <button class="secondary-button" style="width: auto;" onclick="saveExePath()">Guardar configuración</button>
+        <p id="exeMessage"></p>
+    </div>
+
+    <div class="section">
+        <h3>🏅 Insignias</h3>
+        <div id="myBadges" class="badges">Cargando...</div>
+    </div>
+
+    <div class="section">
+        <h3>📝 Biografía</h3>
+        <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
+        <button class="secondary-button" style="width: auto;" onclick="saveBio()">Guardar biografía</button>
+        <p id="bioMessage"></p>
+    </div>
+
+    <div id="adminPanel" class="admin-panel hidden">
+        <h2>🛠️ Panel de Administración</h2>
+
+        <div class="section">
+            <h3>🎟️ Crear Código Promocional</h3>
+            <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
+            <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
+            <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
+            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
+            <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
+            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional, ignora limited/offsale)">
+            <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
+            <p id="adminCodeMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>👕 Subir Camiseta (Admin)</h3>
+            <input type="text" id="adminTshirtName" placeholder="Nombre">
+            <select id="adminTshirtIsLimited" onchange="toggleAdminTshirtLimited()">
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
+            </select>
+            <div id="adminTshirtLimitedOpts" class="hidden">
+                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario" min="1" value="1">
+                <input type="number" id="adminTshirtMaxGlobal" placeholder="Stock Global Total">
+                <input type="number" id="adminTshirtExpiresDays" placeholder="Días límite">
+            </div>
+            <select id="adminTshirtIsOffsale">
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
+            </select>
+            <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
+            <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
+            <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
+            <p id="adminTshirtMsg"></p>
+        </div>
+        
+        <div class="section">
+            <h3>🏅 Gestionar Insignias de Usuario</h3>
+            <input type="text" id="badgeTargetUser" placeholder="Nombre de usuario">
+            <input type="text" id="badgeNameInput" placeholder="Nombre de la insignia (ej. 🛡️admin)">
+            <div style="display:flex; gap:10px; margin-top:5px;">
+                <button class="admin-button" style="width:100%;" onclick="adminAddBadge()">Añadir Insignia</button>
+                <button class="danger-button" style="width:100%;" onclick="adminRemoveBadge()">Quitar Insignia</button>
+            </div>
+            <p id="badgeAdminMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>✏️ Cambiar Nombre de Usuario</h3>
+            <input id="adminTargetUsername" type="text" placeholder="Nombre de usuario a cambiar">
+            <input id="adminNewUsername" type="text" placeholder="Nuevo nombre">
+            <button class="admin-button" style="width:100%;" onclick="adminChangeUsername()">Cambiar Nombre</button>
+            <p id="adminRenameMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>🔨 Banear Usuario</h3>
+            <input id="adminBanUsername" type="text" placeholder="Nombre del usuario a banear">
+            <button class="danger-button" style="width: 100%;" onclick="adminBanUser()">Banear Usuario</button>
+            <p id="adminBanMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>✏️ Editar Accesorio / Camiseta por ID</h3>
+            <input type="text" id="editItemId" placeholder="ID del artículo">
+            <input type="number" id="editItemPrice" placeholder="Nuevo Precio (opcional)">
+            <select id="editItemLimited">
+                <option value="">¿Limited?: No cambiar</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+            </select>
+            <select id="editItemOffsale">
+                <option value="">¿Offsale?: No cambiar</option>
+                <option value="true">Sí (Offsale)</option>
+                <option value="false">No (En Venta)</option>
+            </select>
+            <label style="font-size:12px; color:#aaa;">Nuevo Color Fondo Perfil (ej: #ff0000):</label>
+            <input type="color" id="editItemBgColor" value="#111111">
+            <input type="text" id="editItemSoundUrl" placeholder="Nueva URL Audio Perfil (.mp3)">
+            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios</button>
+        </div>
+
+        <div class="section">
+            <h3>📦 Subir Sombrero / Accesorio 3D</h3>
+            <input type="text" id="accessoryName" placeholder="Nombre">
+            <input type="file" id="accessoryGlbFile" accept=".glb">
+            <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
+            </select>
+            <select id="accessoryIsOffsale">
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
+            </select>
+            <div id="limitedOptions" class="hidden">
+                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
+                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
+                <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
+            </div>
+            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil al Equipar:</label>
+            <input type="color" id="accessoryBgColor" value="#111111">
+            <label style="font-size:12px; color:#aaa;">URL Audio Perfil al Equipar (.mp3):</label>
+            <input type="text" id="accessorySoundUrl" placeholder="https://ejemplo.com/audio.mp3">
+            <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
+            <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
+            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
+            <p id="accessoryUploadMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>🪙 Añadir Monedas</h3>
+            <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
+            <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
+            <button class="admin-button" style="width:100%;" onclick="adminAddCoins()">Añadir Monedas</button>
+            <p id="coinAdminMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>💲 Añadir 💲</h3>
+            <input type="text" id="dollarTargetUser" placeholder="Nombre de usuario">
+            <input type="number" id="dollarAmount" placeholder="Cantidad de 💲" min="1">
+            <button class="admin-button" style="width:100%;" onclick="adminAddDollars()">Añadir 💲</button>
+            <p id="dollarAdminMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>📢 Banner Informativo</h3>
+            <input type="text" id="bannerTextInput" placeholder="Texto del banner">
+            <button class="admin-button" style="width:100%;" onclick="saveOwnerBanner()">Guardar Banner</button>
+            <p id="bannerMsg"></p>
+        </div>
+    </div>
+
+    <div class="game-connect">
+        <h3>🎮 Conectar con Game Blocks</h3>
+        <button class="form-button" onclick="createGameCode()">🔗 Generar código</button>
+        <div id="gameCodeContainer" class="hidden">
+            <div id="gameCode" class="game-code">------</div>
+        </div>
+        <p id="gameCodeMessage"></p>
+    </div>
+
+    <div class="section">
+        <h3>🔎 Resultados de Búsqueda</h3>
+        <div id="searchResults"></div>
+    </div>
+
+    <div class="section">
+        <h3>🤝 Intercambios (Trades)</h3>
+        <button class="secondary-button" onclick="loadTrades()">🔄 Cargar ofertas recibidas</button>
+        <div id="tradesContainer"></div>
+    </div>
+
+    <div class="section">
+        <h3>👥 Solicitudes de Amistad</h3>
+        <div id="requests">Cargando...</div>
+    </div>
+
+    <div class="section">
+        <h3>⭐ Amigos</h3>
+        <div id="friends">Cargando...</div>
+    </div>
+
+    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
+</div>
+
+<div id="publicProfileView" class="hidden">
+    <button class="secondary-button" style="width: auto; margin-bottom: 15px;" onclick="showAccount()">⬅️ Volver a mi cuenta</button>
+    <div class="profile-avatar-container">
+        <img id="publicAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+    </div>
+    <h2 id="publicUsername" style="text-align: center; margin-top: 0;">Usuario</h2>
+    
+    <div class="section">
+        <h3>🏅 Insignias</h3>
+        <div id="publicBadges" class="badges">Ninguna.</div>
+    </div>
+
+    <div class="section profile-custom-menu">
+        <h3 style="margin-top:0;">👤 Perfil</h3>
+        <div class="profile-custom-row"><span>Nombre</span><strong id="publicNameValue">-</strong></div>
+        <div class="profile-custom-row"><span>🎨 Fondo</span><strong id="publicBgValue">Predeterminado</strong></div>
+        <div class="profile-custom-row"><span>🔊 Sonido</span><strong id="publicSoundValue">Ninguno</strong></div>
+        <div style="margin-top:12px;">
+            <b>📝 Bio</b>
+            <p id="publicBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>🎒 Inventario</h3>
+        <div id="publicInventory" class="shop-items">Cargando inventario...</div>
+    </div>
+</div>
+
+</div>
+</div>
+
+<!-- MODAL TIENDA Y AVATAR -->
+<div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
+<div class="modal-box" style="max-width: 850px;">
+    <button class="close" onclick="closeAvatarModal()">×</button>
+    <h2>🎭 Personalizar Avatar & Tienda</h2>
+    
+    <div class="avatar-modal-body">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="avatar-viewer-box">
+                <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" camera-controls auto-rotate style="position: absolute; inset:0; z-index:1;"></model-viewer>
+                <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" camera-controls auto-rotate style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
+            </div>
+            <small style="color:#888; margin-top:5px;">💡 Haz clic y arrastra para girar el modelo 3D</small>
+        </div>
+
+        <div style="flex:1; min-width: 260px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0;">🛒 Catálogo</h3>
+                
+                <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
+                    <option value="hat">Sombreros / Accesorios 3D</option>
+                    <option value="tshirt">Camisetas</option>
+                </select>
+            </div>
+
+            <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
+                <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
+                <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
+                    <option value="all">Todas las Camisetas</option>
+                    <option value="adminOnly">Creado por Admins (Sí)</option>
+                </select>
+            </div>
+
+            <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
+
+            <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
+            <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
+        </div>
+    </div>
+
+    <div id="sidebarBannerContainer" class="sidebar-banner hidden"></div>
+</div>
+</div>
+
+<!-- MODAL INTERFAZ DE TRADE -->
+<div id="tradeModal" class="modal">
+    <div class="modal-box" style="max-width: 600px;">
+        <button class="close" onclick="closeTradeModal()">×</button>
+        <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
+        <div class="trade-window">
+            <div class="trade-section">
+                <div class="trade-section-title">Tu Item que darás (LIMITED OFFSALE)</div>
+                <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
+            </div>
+            <div class="trade-section">
+                <div class="trade-section-title">Item que recibirás (LIMITED OFFSALE)</div>
+                <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
+            </div>
+            <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const RENDER_API = "https://panstudios-github-io-1.onrender.com";
+let currentTradeTargetId = null;
+let profileAudio = null;
+
+async function request(endpoint, method = "GET", body = null) {
+    const headers = { "Content-Type": "application/json" };
+    const token = localStorage.getItem("gameblocks_token");
+    if (token) headers.Authorization = "Bearer " + token;
+
+    const options = { method, headers };
+    if (body !== null) options.body = JSON.stringify(body);
+
+    const response = await fetch(RENDER_API + endpoint, options);
+    let data;
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("Respuesta inválida del servidor.");
+    }
+
+    if (!response.ok) {
+        if (data.banned) {
+            showBannedView();
+        }
+        throw new Error(data.error || "Error del servidor.");
+    }
+    return data;
+}
+
+function applyProfileStyling(bgColor, soundUrl) {
+    const box = document.getElementById("accountModalBox");
+    if (bgColor) {
+        box.style.backgroundColor = bgColor;
+    } else {
+        box.style.backgroundColor = "#111";
+    }
+
+    if (profileAudio) {
+        profileAudio.pause();
+        profileAudio = null;
+    }
+
+    if (soundUrl) {
+        try {
+            profileAudio = new Audio(soundUrl);
+            profileAudio.play().catch(() => {});
+        } catch (e) {}
+    }
+}
+
+function openCurrencyModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para usar tus 💲.");
+        openAccount();
+        return;
+    }
+    document.getElementById("currencyModal").style.display = "flex";
+    loadCurrencyPackages();
+}
+
+function closeCurrencyModal() {
+    document.getElementById("currencyModal").style.display = "none";
+}
+
+function outsideCloseCurrency(event) {
+    if (event.target.id === "currencyModal") closeCurrencyModal();
+}
+
+async function loadCurrencyPackages() {
+    const container = document.getElementById("currencyPackages");
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const [packagesData, me] = await Promise.all([
+            request("/api/coins/packages"),
+            request("/api/me")
+        ]);
+        document.getElementById("currencyDollarsModal").textContent = me.dollars || 0;
+        document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        container.innerHTML = "";
+
+        packagesData.packages.forEach(pkg => {
+            const card = document.createElement("div");
+            card.className = "currency-package";
+            card.innerHTML = `<strong>${pkg.coins.toLocaleString()} 🪙</strong><div>${pkg.dollars} 💲</div>`;
+            const btn = document.createElement("button");
+            btn.className = "form-button";
+            btn.style.marginTop = "10px";
+            btn.textContent = "Comprar";
+            btn.onclick = () => purchaseCoinPackage(pkg.coins);
+            card.appendChild(btn);
+            container.appendChild(card);
+        });
+        msg.textContent = "";
+    } catch (e) {
+        container.textContent = "No se pudieron cargar los paquetes.";
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function purchaseCoinPackage(coins) {
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const data = await request("/api/coins/purchase", "POST", { coins });
+        document.getElementById("userCoinsText").textContent = data.coins;
+        document.getElementById("userDollarsText").textContent = data.dollars;
+        document.getElementById("currencyDollarsModal").textContent = data.dollars;
+        msg.className = "success";
+        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} 🪙.`;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+function openAccount() {
+    document.getElementById("accountModal").style.display = "flex";
+    updateAccount();
+}
+
+function closeAccount() {
+    document.getElementById("accountModal").style.display = "none";
+    applyProfileStyling(null, null);
+}
+
+function outsideClose(event) {
+    if (event.target.id === "accountModal") closeAccount();
+}
+
+function openAvatarModal() {
+    document.getElementById("avatarModal").style.display = "flex";
+    loadShopItems();
+    loadResaleMarket();
+    loadBanner();
+}
+
+function closeAvatarModal() {
+    document.getElementById("avatarModal").style.display = "none";
+}
+
+function outsideCloseAvatar(event) {
+    if (event.target.id === "avatarModal") closeAvatarModal();
+}
+
+function toggleLimitedInput() {
+    const val = document.getElementById("accessoryIsLimited").value;
+    if (val === "si") {
+        document.getElementById("limitedOptions").classList.remove("hidden");
+    } else {
+        document.getElementById("limitedOptions").classList.add("hidden");
+    }
+}
+
+function toggleAdminTshirtLimited() {
+    const val = document.getElementById("adminTshirtIsLimited").value;
+    if (val === "si") {
+        document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
+    } else {
+        document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
+    }
+}
+
+function showLogin() {
+    document.getElementById("loginView").classList.remove("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showRegister() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.remove("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showAccount() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.remove("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showBannedView() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.remove("hidden");
+    document.getElementById("publicProfileView").classList.add("hidden");
+}
+
+function showPublicProfile(user) {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+    document.getElementById("publicProfileView").classList.remove("hidden");
+
+    document.getElementById("publicAvatar").src = user.avatar || "https://via.placeholder.com/110";
+    document.getElementById("publicUsername").textContent = "👤 " + user.username;
+    document.getElementById("publicNameValue").textContent = user.username;
+    document.getElementById("publicBio").textContent = user.bio || "Sin biografía.";
+    document.getElementById("publicBgValue").textContent = user.profileBgColor || "Predeterminado";
+    document.getElementById("publicBgValue").style.color = user.profileBgColor || "#fff";
+    document.getElementById("publicSoundValue").textContent = user.profileSoundUrl ? "Configurado" : "Ninguno";
+
+    applyProfileStyling(user.profileBgColor, user.profileSoundUrl);
+
+    const badgesContainer = document.getElementById("publicBadges");
+    badgesContainer.innerHTML = "";
+    if (user.badges && user.badges.length > 0) {
+        user.badges.forEach(badge => {
+            const el = document.createElement("div");
+            el.className = "badge";
+            el.textContent = typeof badge === 'object' ? badge.name : badge;
+            badgesContainer.appendChild(el);
+        });
+    } else {
+        badgesContainer.textContent = "Sin insignias.";
+    }
+
+    const invContainer = document.getElementById("publicInventory");
+    invContainer.innerHTML = "";
+    if (user.inventory && user.inventory.length > 0) {
+        user.inventory.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            card.innerHTML = `
+                <img src="${item.imageUrl || 'https://via.placeholder.com/80'}" alt="${escapeHTML(item.name)}">
+                <div style="font-weight:bold; font-size:12px; margin-top:5px;">${escapeHTML(item.name)}</div>
+            `;
+            invContainer.appendChild(card);
+        });
+    } else {
+        invContainer.textContent = "Sin artículos en el inventario.";
+    }
+}
+
+async function openPublicProfileById(userId) {
+    try {
+        const user = await request("/api/users/profile/" + userId);
+        openAccount();
+        showPublicProfile(user);
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function saveExePath() {
+    const path = document.getElementById("exePath").value.trim();
+    const msg = document.getElementById("exeMessage");
+    if (!path) {
+        msg.className = "error";
+        msg.textContent = "Ingresa una ruta válida.";
+        return;
+    }
+    localStorage.setItem("gameblocks_exe_path", path);
+    msg.className = "success";
+    msg.textContent = "Ruta guardada.";
+}
+
+function launchGame() {
+    const path = localStorage.getItem("gameblocks_exe_path");
+    if (!path) {
+        alert("Configura primero la ruta del ejecutable.");
+        openAccount();
+        return;
+    }
+    window.location.href = path.includes("://") ? path : "file:///" + path.replace(/\\/g, "/");
+}
+
+async function register() {
+    const username = document.getElementById("registerUsername").value.trim();
+    const password = document.getElementById("registerPassword").value;
+    const password2 = document.getElementById("registerPassword2").value;
+    const message = document.getElementById("registerMessage");
+
+    if (!username || !password || !password2) {
+        message.className = "error";
+        message.textContent = "Completa todos los campos.";
+        return;
+    }
+
+    const validRegex = /^[a-zA-Z0-9_]+$/;
+    if (!validRegex.test(username)) {
+        message.className = "error";
+        message.textContent = "El usuario solo puede tener letras, números y _";
+        return;
+    }
+
+    if (password !== password2) {
+        message.className = "error";
+        message.textContent = "Las contraseñas no coinciden.";
+        return;
+    }
+
+    try {
+        message.textContent = "Creando cuenta...";
+        const data = await request("/api/register", "POST", { username, password });
+        localStorage.setItem("gameblocks_token", data.token);
+        await updateAccount();
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function login() {
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const message = document.getElementById("loginMessage");
+
+    if (!username || !password) {
+        message.className = "error";
+        message.textContent = "Introduce usuario y contraseña.";
+        return;
+    }
+
+    try {
+        message.textContent = "Iniciando sesión...";
+        const data = await request("/api/login", "POST", { username, password });
+        localStorage.setItem("gameblocks_token", data.token);
+        await updateAccount();
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function updateAccount() {
+    const token = localStorage.getItem("gameblocks_token");
+
+    const savedPath = localStorage.getItem("gameblocks_exe_path");
+    if (savedPath) document.getElementById("exePath").value = savedPath;
+
+    if (!token) {
+        document.getElementById("heroSlogan").classList.add("hidden");
+        document.getElementById("loginBtn").classList.remove("hidden");
+        document.getElementById("accountButton").classList.add("hidden");
+        document.getElementById("userCoinsText").textContent = "0";
+        document.getElementById("userDollarsText").textContent = "0";
+        showLogin();
+        return;
+    }
+
+    try {
+        const user = await request("/api/me");
+        document.getElementById("heroSlogan").classList.remove("hidden");
+        document.getElementById("loginBtn").classList.add("hidden");
+        document.getElementById("accountButton").classList.remove("hidden");
+        document.getElementById("userCoinsText").textContent = user.coins || 0;
+        document.getElementById("userDollarsText").textContent = user.dollars || 0;
+
+        if (user.dailyClaimed) {
+            alert("🎁 ¡Has recibido tu recompensa diaria de 10 monedas!");
+        }
+
+        showAccount();
+        applyProfileStyling(user.profileBgColor, null);
+
+        document.getElementById("welcome").textContent = "👤 " + user.username;
+        if (user.avatar) document.getElementById("myAvatar").src = user.avatar;
+        if (user.bio) document.getElementById("myBio").value = user.bio;
+
+        loadMyInventory();
+        loadFriends();
+        loadRequests();
+        loadBadges();
+
+        const hasAdminBadge = user.badges && user.badges.some(b => {
+            const name = typeof b === 'object' ? b.name : b;
+            return name === "🛡️admin" || name === "🛡️ admin" || name === "🛠️ Admin";
+        });
+
+        if (user.admin === true || user.owner === true || hasAdminBadge) {
+            document.getElementById("adminPanel").classList.remove("hidden");
+        } else {
+            document.getElementById("adminPanel").classList.add("hidden");
+        }
+    } catch (err) {
+        if (!err.message.includes("baneado")) {
+            localStorage.removeItem("gameblocks_token");
+            showLogin();
+        }
+    }
+}
+
+async function redeemCode() {
+    const code = document.getElementById("codeRedeemInput").value.trim();
+    const msg = document.getElementById("codeRedeemMsg");
+    if (!code) {
+        msg.className = "error";
+        msg.textContent = "Ingresa un código.";
+        return;
+    }
+    try {
+        const data = await request("/api/codes/redeem", "POST", { code });
+        msg.className = "success";
+        msg.textContent = data.message;
+        document.getElementById("userCoinsText").textContent = data.newBalance;
+        document.getElementById("userDollarsText").textContent = data.newDollars || 0;
+        document.getElementById("codeRedeemInput").value = "";
+        loadMyInventory();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function deleteBannedAccount() {
+    if (!confirm("¿Estás seguro de que deseas borrar tu cuenta definitivamente?")) return;
+    try {
+        await request("/api/account/delete-banned", "POST");
+        alert("Cuenta eliminada con éxito.");
+        logout();
+    } catch (err) {
+        alert(err.message);
+    }
+}
+
+async function loadMyInventory() {
+    const container = document.getElementById("myInventoryContainer");
+    try {
+        const [me, shopData] = await Promise.all([
+            request("/api/me"),
+            request("/api/accessories")
+        ]);
+
+        container.innerHTML = "";
+        const myItems = shopData.items.filter(i => (me.inventory || []).includes(i.id));
+
+        if (myItems.length === 0) {
+            container.textContent = "No tienes artículos en tu inventario.";
+            return;
+        }
+
+        myItems.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+
+            const img = document.createElement("img");
+            img.src = item.imageUrl || "https://via.placeholder.com/80";
+
+            const name = document.createElement("div");
+            name.style.fontWeight = "bold";
+            name.style.fontSize = "13px";
+            name.textContent = item.name;
+
+            const isEquipped = me.equippedAccessory === item.id;
+            const actionBtn = document.createElement("button");
+            actionBtn.className = "form-button";
+            actionBtn.style.padding = "4px";
+            actionBtn.style.marginTop = "5px";
+
+            if (isEquipped) {
+                actionBtn.textContent = "Desequipar";
+                actionBtn.style.background = "#ff4444";
+                actionBtn.style.color = "#fff";
+                actionBtn.onclick = () => unequipAccessory();
+            } else {
+                actionBtn.textContent = "Equipar";
+                actionBtn.style.background = "#28a745";
+                actionBtn.style.color = "#fff";
+                actionBtn.onclick = () => equipAccessory(item.id, item.glbUrl);
+            }
+
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(actionBtn);
+
+            if (item.limited && item.offsale) {
+                const resellBtn = document.createElement("button");
+                resellBtn.className = "admin-button";
+                resellBtn.style.marginTop = "4px";
+                resellBtn.style.fontSize = "11px";
+                resellBtn.textContent = "🏷️ Revender";
+                resellBtn.onclick = () => listResaleItem(item.id);
+                card.appendChild(resellBtn);
+            }
+
+            container.appendChild(card);
+        });
+    } catch {
+        container.textContent = "Error al cargar tu inventario.";
+    }
+}
+
+async function userUploadTshirt() {
+    const name = document.getElementById("userTshirtName").value.trim();
+    const imageUrl = document.getElementById("userTshirtUrl").value.trim();
+    const price = document.getElementById("userTshirtCost").value;
+    const msg = document.getElementById("userTshirtMsg");
+
+    if (!name || !imageUrl || !price) {
+        msg.className = "error";
+        msg.textContent = "Completa todos los campos de la camiseta.";
+        return;
+    }
+
+    try {
+        await request("/api/tshirts/upload", "POST", { name, imageUrl, price });
+        msg.className = "success";
+        msg.textContent = "¡Camiseta subida con éxito al catálogo!";
+        document.getElementById("userTshirtName").value = "";
+        document.getElementById("userTshirtUrl").value = "";
+        document.getElementById("userTshirtCost").value = "";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function editAvatar() {
+    const url = prompt("Introduce la URL de tu foto:");
+    if (!url) return;
+    try {
+        await request("/api/profile/avatar", "POST", { avatar: url });
+        document.getElementById("myAvatar").src = url;
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function saveBio() {
+    const bio = document.getElementById("myBio").value.trim();
+    const msg = document.getElementById("bioMessage");
+    try {
+        await request("/api/profile/bio", "POST", { bio });
+        msg.className = "success";
+        msg.textContent = "Biografía guardada.";
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function loadBadges() {
+    const container = document.getElementById("myBadges");
+    try {
+        const data = await request("/api/badges/me");
+        container.innerHTML = "";
+        if (!data.badges || data.badges.length === 0) {
+            container.textContent = "No tienes insignias.";
+            return;
+        }
+        data.badges.forEach(badge => {
+            const element = document.createElement("div");
+            element.className = "badge";
+            element.textContent = typeof badge === 'object' ? badge.name : badge;
+            container.appendChild(element);
+        });
+    } catch {
+        container.textContent = "Error al cargar insignias.";
+    }
+}
+
+async function logout() {
+    try { await request("/api/logout", "POST"); } catch {}
+    localStorage.removeItem("gameblocks_token");
+    closeAccount();
+    updateAccount();
+}
+
+async function loadShopItems() {
+    const container = document.getElementById("shopContainer");
+    const categoryType = document.getElementById("catalogTypeSelect").value;
+    const tshirtAdminFilter = document.getElementById("tshirtAdminFilter").value;
+
+    const filterBox = document.getElementById("tshirtFilterContainer");
+    if (categoryType === "tshirt") {
+        filterBox.classList.remove("hidden");
+    } else {
+        filterBox.classList.add("hidden");
+    }
+
+    try {
+        const [data, me] = await Promise.all([
+            request("/api/accessories"),
+            request("/api/me").catch(() => null)
+        ]);
+
+        container.innerHTML = "";
+        if (!data.items || data.items.length === 0) {
+            container.textContent = "No hay artículos en el catálogo.";
+            return;
+        }
+
+        let filteredItems = data.items.filter(i => (i.type || "hat") === categoryType);
+
+        if (categoryType === "tshirt" && tshirtAdminFilter === "adminOnly") {
+            filteredItems = filteredItems.filter(i => i.createdByAdmin === true);
+        }
+
+        if (filteredItems.length === 0) {
+            container.textContent = "No hay artículos en esta categoría o filtro.";
+            return;
+        }
+
+        const myInventory = me ? (me.inventory || []) : [];
+        const equippedId = me ? me.equippedAccessory : null;
+
+        filteredItems.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+
+            const img = document.createElement("img");
+            img.src = item.imageUrl || "https://via.placeholder.com/80";
+
+            const name = document.createElement("div");
+            name.style.fontWeight = "bold";
+            name.style.fontSize = "13px";
+            name.textContent = item.name || "Artículo";
+
+            const idLabel = document.createElement("div");
+            idLabel.className = "item-id-label";
+            idLabel.textContent = "ID: " + item.id;
+
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(idLabel);
+
+            if (categoryType === "tshirt") {
+                const creatorLabel = document.createElement("div");
+                creatorLabel.style.fontSize = "11px";
+                creatorLabel.style.color = "#aaa";
+                
+                if (item.creatorUsername && item.creatorId) {
+                    creatorLabel.innerHTML = `Creador: <span class="creator-link" onclick="openPublicProfileById('${item.creatorId}')">${escapeHTML(item.creatorUsername)}</span>`;
+                } else {
+                    creatorLabel.textContent = "Creador: Admin";
+                }
+                card.appendChild(creatorLabel);
+            }
+
+            const price = document.createElement("div");
+            price.innerHTML = "<b>" + (item.price === 0 ? "GRATIS" : item.price + " 🪙") + "</b>";
+            card.appendChild(price);
+
+            const isOwned = myInventory.includes(item.id);
+            const isEquipped = equippedId === item.id;
+
+            const btnAction = document.createElement("button");
+            btnAction.className = "form-button";
+            btnAction.style.padding = "4px";
+            btnAction.style.marginTop = "5px";
+
+            if (isEquipped) {
+                btnAction.textContent = "Desequipar";
+                btnAction.style.background = "#ff4444";
+                btnAction.style.color = "#fff";
+                btnAction.onclick = () => unequipAccessory();
+            } else if (isOwned) {
+                btnAction.textContent = "Equipar";
+                btnAction.style.background = "#28a745";
+                btnAction.style.color = "#fff";
+                btnAction.onclick = () => equipAccessory(item.id, item.glbUrl);
+            } else {
+                btnAction.textContent = "Comprar";
+                btnAction.style.background = "#fff";
+                btnAction.style.color = "#000";
+                btnAction.onclick = () => buyAccessory(item.id);
+            }
+
+            if (item.limited) {
+                const lim = document.createElement("small");
+                lim.style.color = "gold";
+                let limText = "LIMITED";
+                if (item.maxGlobal) limText += " (" + item.totalSold + "/" + item.maxGlobal + ")";
+                lim.textContent = limText;
+                card.appendChild(lim);
+            }
+
+            if (item.offsale) {
+                const off = document.createElement("small");
+                off.style.color = "#ff4444";
+                off.style.fontWeight = "bold";
+                off.textContent = "OFFSALE";
+                card.appendChild(off);
+            }
+
+            card.appendChild(btnAction);
+
+            if (isOwned && item.limited && item.offsale) {
+                const resellBtn = document.createElement("button");
+                resellBtn.className = "admin-button";
+                resellBtn.style.marginTop = "4px";
+                resellBtn.style.fontSize = "11px";
+                resellBtn.textContent = "🏷️ Revender";
+                resellBtn.onclick = () => listResaleItem(item.id);
+                card.appendChild(resellBtn);
+            }
+
+            container.appendChild(card);
+        });
+    } catch {
+        container.textContent = "Error al cargar el catálogo.";
+    }
+}
+
+async function listResaleItem(itemId) {
+    const price = prompt("Ingresa el precio en monedas para ponerlo en reventa:");
+    if (!price) return;
+    try {
+        await request("/api/accessories/resell-list", "POST", { itemId, price });
+        alert("Publicado en la reventa.");
+        loadMyInventory();
+        loadShopItems();
+        loadResaleMarket();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function loadResaleMarket() {
+    const container = document.getElementById("resaleMarketContainer");
+    try {
+        const [marketData, shopData] = await Promise.all([
+            request("/api/accessories/resale-market"),
+            request("/api/accessories")
+        ]);
+
+        container.innerHTML = "";
+        if (!marketData.listings || marketData.listings.length === 0) {
+            container.textContent = "No hay ítems en reventa actualmente.";
+            return;
+        }
+
+        marketData.listings.forEach(listing => {
+            const item = shopData.items.find(i => String(i.id) === String(listing.itemId));
+            const card = document.createElement("div");
+            card.className = "shop-card";
+
+            const img = document.createElement("img");
+            img.src = item ? item.imageUrl : "https://via.placeholder.com/80";
+
+            const name = document.createElement("div");
+            name.style.fontWeight = "bold";
+            name.style.fontSize = "13px";
+            name.textContent = item ? item.name : ("Item " + listing.itemId);
+
+            const seller = document.createElement("div");
+            seller.style.fontSize = "10px";
+            seller.style.color = "#aaa";
+            seller.textContent = "Vendedor: " + listing.sellerUsername;
+
+            const price = document.createElement("div");
+            price.innerHTML = "<b>" + listing.price + " 🪙</b>";
+
+            const buyBtn = document.createElement("button");
+            buyBtn.className = "friend-button";
+            buyBtn.style.marginTop = "5px";
+            buyBtn.textContent = "🛒 Comprar";
+            buyBtn.onclick = async () => {
+                try {
+                    await request("/api/accessories/resell-buy", "POST", { listingId: listing.id });
+                    alert("¡Compra de reventa realizada!");
+                    updateAccount();
+                    loadShopItems();
+                    loadResaleMarket();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+
+            card.appendChild(img);
+            card.appendChild(name);
+            card.appendChild(seller);
+            card.appendChild(price);
+            card.appendChild(buyBtn);
+
+            container.appendChild(card);
+        });
+    } catch {
+        container.textContent = "Error al cargar mercado de reventa.";
+    }
+}
+
+async function buyAccessory(itemId) {
+    try {
+        const res = await request("/api/accessories/buy", "POST", { itemId });
+        alert("¡Compra realizada!");
+        document.getElementById("userCoinsText").textContent = res.newBalance;
+        loadMyInventory();
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function equipAccessory(itemId, glbUrl) {
+    try {
+        const res = await request("/api/accessories/equip", "POST", { itemId });
+        if (glbUrl) {
+            document.getElementById("accessoryViewer").src = glbUrl;
+        }
+        applyProfileStyling(res.profileBgColor, res.profileSoundUrl);
+        loadMyInventory();
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function unequipAccessory() {
+    try {
+        await request("/api/accessories/unequip", "POST");
+        document.getElementById("accessoryViewer").src = "";
+        applyProfileStyling(null, null);
+        loadMyInventory();
+        loadShopItems();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function adminCreateCode() {
+    const code = document.getElementById("adminCodeName").value.trim();
+    const coins = document.getElementById("adminCodeCoins").value;
+    const dollars = document.getElementById("adminCodeDollars").value;
+    const maxUses = document.getElementById("adminCodeMaxUses").value;
+    const expiresInDays = document.getElementById("adminCodeExpiresDays").value;
+    const rewardItemId = document.getElementById("adminCodeRewardItem").value.trim();
+    const msg = document.getElementById("adminCodeMsg");
+
+    if (!code) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el nombre del código.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/codes/create", "POST", {
+            code, coins, dollars, maxUses, expiresInDays, rewardItemId
+        });
+        msg.className = "success";
+        msg.textContent = "¡Código promocional creado correctamente!";
+        document.getElementById("adminCodeName").value = "";
+        document.getElementById("adminCodeCoins").value = "";
+        document.getElementById("adminCodeDollars").value = "";
+        document.getElementById("adminCodeMaxUses").value = "";
+        document.getElementById("adminCodeExpiresDays").value = "";
+        document.getElementById("adminCodeRewardItem").value = "";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminUploadTshirt() {
+    const name = document.getElementById("adminTshirtName").value.trim();
+    const limited = document.getElementById("adminTshirtIsLimited").value === "si";
+    const maxPerUser = document.getElementById("adminTshirtMaxUser").value;
+    const maxGlobal = document.getElementById("adminTshirtMaxGlobal").value;
+    const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
+    const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
+    const imageUrl = document.getElementById("adminTshirtImgUrl").value.trim();
+    const price = document.getElementById("adminTshirtPrice").value;
+    const msg = document.getElementById("adminTshirtMsg");
+
+    if (!name || !imageUrl || price === "") {
+        msg.className = "error";
+        msg.textContent = "Nombre, Imagen y Coste son requeridos.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/tshirts/upload", "POST", {
+            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays
+        });
+        msg.className = "success";
+        msg.textContent = "Camiseta subida por Admin con éxito.";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function uploadAccessory() {
+    const glbFile = document.getElementById("accessoryGlbFile").files[0];
+    const name = document.getElementById("accessoryName").value.trim();
+    const isLimited = document.getElementById("accessoryIsLimited").value === "si";
+    const isOffsale = document.getElementById("accessoryIsOffsale").value === "si";
+    const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
+    const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
+    const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
+    const bgColor = document.getElementById("accessoryBgColor").value;
+    const soundUrl = document.getElementById("accessorySoundUrl").value.trim();
+    const price = document.getElementById("accessoryPrice").value;
+    const pngUrl = document.getElementById("accessoryPngUrl").value.trim();
+    const msg = document.getElementById("accessoryUploadMsg");
+
+    if (!glbFile || !price || !pngUrl) {
+        msg.className = "error";
+        msg.textContent = "Completa GLB, Precio e Imagen PNG.";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("glb", glbFile);
+    formData.append("name", name);
+    formData.append("limited", isLimited);
+    formData.append("offsale", isOffsale);
+    formData.append("maxPerUser", maxPerUser || 1);
+    formData.append("maxGlobal", maxGlobal || "");
+    formData.append("expiresInDays", expiresInDays || "");
+    formData.append("bgColor", bgColor || "");
+    formData.append("soundUrl", soundUrl || "");
+    formData.append("price", price);
+    formData.append("imageUrl", pngUrl);
+
+    try {
+        msg.textContent = "Subiendo...";
+        const token = localStorage.getItem("gameblocks_token");
+        const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+            body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al subir.");
+
+        msg.className = "success";
+        msg.textContent = "Subido con éxito.";
+        loadShopItems();
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function adminAddBadge() {
+    const username = document.getElementById("badgeTargetUser").value.trim();
+    const badgeName = document.getElementById("badgeNameInput").value.trim();
+    const msg = document.getElementById("badgeAdminMsg");
+
+    if (!username || !badgeName) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el usuario y el nombre de la insignia.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/badges/add", "POST", { username, badgeName });
+        msg.className = "success";
+        msg.textContent = "Insignia añadida correctamente.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminRemoveBadge() {
+    const username = document.getElementById("badgeTargetUser").value.trim();
+    const badgeName = document.getElementById("badgeNameInput").value.trim();
+    const msg = document.getElementById("badgeAdminMsg");
+
+    if (!username || !badgeName) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el usuario y el nombre de la insignia.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/badges/remove", "POST", { username, badgeName });
+        msg.className = "success";
+        msg.textContent = "Insignia quitada correctamente.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminChangeUsername() {
+    const targetUsername = document.getElementById("adminTargetUsername").value.trim();
+    const newName = document.getElementById("adminNewUsername").value.trim();
+    const msg = document.getElementById("adminRenameMsg");
+
+    if (!newName) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el nuevo nombre.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/users/rename", "POST", { targetUsername, newName });
+        msg.className = "success";
+        msg.textContent = "Nombre cambiado correctamente.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminBanUser() {
+    const username = document.getElementById("adminBanUsername").value.trim();
+    const msg = document.getElementById("adminBanMsg");
+
+    if (!username) {
+        msg.className = "error";
+        msg.textContent = "Ingresa el nombre del usuario.";
+        return;
+    }
+
+    try {
+        await request("/api/admin/users/ban", "POST", { username });
+        msg.className = "success";
+        msg.textContent = "Usuario baneado correctamente.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminEditAccessory() {
+    const itemId = document.getElementById("editItemId").value.trim();
+    const price = document.getElementById("editItemPrice").value;
+    const limited = document.getElementById("editItemLimited").value;
+    const offsale = document.getElementById("editItemOffsale").value;
+    const bgColor = document.getElementById("editItemBgColor").value;
+    const soundUrl = document.getElementById("editItemSoundUrl").value.trim();
+
+    if (!itemId) {
+        alert("Ingresa un ID de accesorio.");
+        return;
+    }
+
+    const payload = { itemId };
+    if (price !== "") payload.price = price;
+    if (limited !== "") payload.limited = limited;
+    if (offsale !== "") payload.offsale = offsale;
+    if (bgColor !== "") payload.bgColor = bgColor;
+    if (soundUrl !== "") payload.soundUrl = soundUrl;
+
+    try {
+        await request("/api/admin/accessories/edit", "POST", payload);
+        alert("Accesorio actualizado correctamente.");
+        loadShopItems();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function adminAddCoins() {
+    const username = document.getElementById("coinTargetUser").value.trim();
+    const amount = document.getElementById("coinAmount").value;
+    const msg = document.getElementById("coinAdminMsg");
+
+    try {
+        await request("/api/admin/coins/add", "POST", { username, amount: parseInt(amount) });
+        msg.className = "success";
+        msg.textContent = "Monedas añadidas.";
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function adminAddDollars() {
+    const username = document.getElementById("dollarTargetUser").value.trim();
+    const amount = parseInt(document.getElementById("dollarAmount").value);
+    const msg = document.getElementById("dollarAdminMsg");
+
+    try {
+        const data = await request("/api/admin/dollars/add", "POST", { username, amount });
+        msg.className = "success";
+        msg.textContent = "💲 añadidos. Nuevo saldo: " + data.newBalance;
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function saveOwnerBanner() {
+    const text = document.getElementById("bannerTextInput").value.trim();
+    const msg = document.getElementById("bannerMsg");
+    try {
+        await request("/api/admin/banner", "POST", { text });
+        msg.className = "success";
+        msg.textContent = "Banner guardado.";
+        loadBanner();
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function loadBanner() {
+    const container = document.getElementById("sidebarBannerContainer");
+    try {
+        const data = await request("/api/banner");
+        if (data.text) {
+            container.textContent = data.text;
+            container.classList.remove("hidden");
+        } else {
+            container.classList.add("hidden");
+        }
+    } catch {
+        container.classList.add("hidden");
+    }
+}
+
+async function createGameCode() {
+    const container = document.getElementById("gameCodeContainer");
+    const codeElement = document.getElementById("gameCode");
+    const message = document.getElementById("gameCodeMessage");
+    try {
+        const data = await request("/api/game/create-code", "POST");
+        codeElement.textContent = data.code;
+        container.classList.remove("hidden");
+        message.className = "success";
+        message.textContent = "Código listo.";
+    } catch (error) {
+        message.className = "error";
+        message.textContent = error.message;
+    }
+}
+
+async function searchUsers() {
+    const query = document.getElementById("searchInput").value.trim();
+    const results = document.getElementById("searchResults");
+    if (!query) return;
+    openAccount();
+    results.textContent = "Buscando...";
+
+    try {
+        const data = await request("/api/users/search?q=" + encodeURIComponent(query));
+        results.innerHTML = "";
+        if (data.users.length === 0) {
+            results.textContent = "Sin resultados.";
+            return;
+        }
+        data.users.forEach(user => {
+            const div = document.createElement("div");
+            div.className = "result";
+
+            const header = document.createElement("div");
+            header.className = "user-card-header";
+
+            const infoClick = document.createElement("div");
+            infoClick.className = "user-info-click";
+            infoClick.onclick = () => openPublicProfileById(user.id);
+
+            const img = document.createElement("img");
+            img.className = "result-avatar";
+            img.src = user.avatar || "https://via.placeholder.com/45";
+
+            const details = document.createElement("div");
+            details.className = "user-details";
+            details.innerHTML = `<strong>👤 ${escapeHTML(user.username)}</strong><span class="user-bio-preview">${escapeHTML(user.bio || 'Sin biografía.')}</span>`;
+
+            infoClick.appendChild(img);
+            infoClick.appendChild(details);
+            header.appendChild(infoClick);
+            div.appendChild(header);
+
+            const btnGroup = document.createElement("div");
+            btnGroup.style.display = "flex";
+            btnGroup.style.gap = "8px";
+            btnGroup.style.marginTop = "8px";
+
+            const btnProfile = document.createElement("button");
+            btnProfile.className = "secondary-button";
+            btnProfile.style.marginTop = "0";
+            btnProfile.textContent = "👤 Ver Perfil";
+            btnProfile.onclick = () => openPublicProfileById(user.id);
+
+            const btnFriend = document.createElement("button");
+            btnFriend.className = "friend-button";
+            btnFriend.textContent = "📩 Soli de Amigo";
+            btnFriend.onclick = () => sendFriendRequest(user.id);
+
+            const btnTrade = document.createElement("button");
+            btnTrade.className = "admin-button";
+            btnTrade.textContent = "🔄 Trade";
+            btnTrade.onclick = () => openTradeModal(user.id, user.username, user.inventory || []);
+
+            btnGroup.appendChild(btnProfile);
+            btnGroup.appendChild(btnFriend);
+            btnGroup.appendChild(btnTrade);
+
+            div.appendChild(btnGroup);
+            results.appendChild(div);
+        });
+    } catch (error) {
+        results.textContent = error.message;
+    }
+}
+
+async function sendFriendRequest(userId) {
+    try {
+        const res = await request("/api/friends/request", "POST", { userId });
+        alert(res.message || "Solicitud enviada.");
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function acceptFriendRequest(requestId) {
+    try {
+        const res = await request("/api/friends/accept", "POST", { requestId });
+        alert(res.message || "Solicitud aceptada.");
+        loadRequests();
+        loadFriends();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function openTradeModal(targetId, username, targetInventory) {
+    currentTradeTargetId = targetId;
+    document.getElementById("tradeTargetTitle").textContent = "Trade con " + username;
+
+    try {
+        const [me, shopData] = await Promise.all([
+            request("/api/me"),
+            request("/api/accessories")
+        ]);
+
+        const giveSelect = document.getElementById("tradeGiveSelect");
+        const getSelect = document.getElementById("tradeGetSelect");
+
+        giveSelect.innerHTML = '<option value="">-- Ninguno --</option>';
+        getSelect.innerHTML = '<option value="">-- Ninguno --</option>';
+
+        const myLimitedsOffsale = shopData.items.filter(i => (me.inventory || []).includes(i.id) && i.limited && i.offsale);
+        myLimitedsOffsale.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.id;
+            opt.textContent = `${item.name} (ID: ${item.id})`;
+            giveSelect.appendChild(opt);
+        });
+
+        const targetLimitedsOffsale = shopData.items.filter(i => targetInventory.includes(i.id) && i.limited && i.offsale);
+        targetLimitedsOffsale.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.id;
+            opt.textContent = `${item.name} (ID: ${item.id})`;
+            getSelect.appendChild(opt);
+        });
+
+        document.getElementById("tradeModal").style.display = "flex";
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function closeTradeModal() {
+    document.getElementById("tradeModal").style.display = "none";
+}
+
+async function sendTradeOffer() {
+    const offeredItemId = document.getElementById("tradeGiveSelect").value;
+    const offeredCoins = parseInt(document.getElementById("tradeGiveCoins").value) || 0;
+    const requestedItemId = document.getElementById("tradeGetSelect").value;
+    const requestedCoins = parseInt(document.getElementById("tradeGetCoins").value) || 0;
+
+    try {
+        await request("/api/trade/offer", "POST", {
+            targetUserId: currentTradeTargetId,
+            offeredItemId: offeredItemId || null,
+            offeredCoins,
+            requestedItemId: requestedItemId || null,
+            requestedCoins
+        });
+        alert("¡Oferta de intercambio enviada!");
+        closeTradeModal();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function loadTrades() {
+    const container = document.getElementById("tradesContainer");
+    try {
+        const data = await request("/api/trade/pending");
+        container.innerHTML = "";
+        if (!data.trades || data.trades.length === 0) {
+            container.textContent = "No tienes ofertas de intercambio pendientes.";
+            return;
+        }
+
+        data.trades.forEach(t => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
+                <div><b>Ofrece:</b> ${t.offeredCoins}🪙 ${t.offeredItemId ? '(Item: ' + t.offeredItemId + ')' : ''}</div>
+                <div><b>Pide:</b> ${t.requestedCoins}🪙 ${t.requestedItemId ? '(Item: ' + t.requestedItemId + ')' : ''}</div>
+            `;
+            const acceptBtn = document.createElement("button");
+            acceptBtn.className = "form-button";
+            acceptBtn.textContent = "Aceptar Intercambio";
+            acceptBtn.onclick = async () => {
+                try {
+                    await request("/api/trade/accept", "POST", { tradeId: t.id });
+                    alert("¡Intercambio completado!");
+                    updateAccount();
+                    loadTrades();
+                } catch (err) {
+                    alert(err.message);
+                }
+            };
+            div.appendChild(acceptBtn);
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.textContent = error.message;
+    }
+}
+
+async function loadFriends() {
+    const container = document.getElementById("friends");
+    try {
+        const data = await request("/api/friends");
+        container.innerHTML = "";
+        if (data.friends.length === 0) {
+            container.textContent = "No tienes amigos aún.";
+            return;
+        }
+        data.friends.forEach(f => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.style.cursor = "pointer";
+            div.textContent = "⭐ " + f.username;
+            div.onclick = () => openPublicProfileById(f.id);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = e.message;
+    }
+}
+
+async function loadRequests() {
+    const container = document.getElementById("requests");
+    try {
+        const data = await request("/api/friends/requests");
+        container.innerHTML = "";
+        if (data.requests.length === 0) {
+            container.textContent = "Sin solicitudes.";
+            return;
+        }
+        data.requests.forEach(r => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.style.flexDirection = "row";
+            div.style.justifyContent = "space-between";
+            div.style.alignItems = "center";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = "📩 " + r.username;
+
+            const acceptBtn = document.createElement("button");
+            acceptBtn.className = "friend-button";
+            acceptBtn.textContent = "✅ Aceptar";
+            acceptBtn.onclick = () => acceptFriendRequest(r.id);
+
+            div.appendChild(nameSpan);
+            div.appendChild(acceptBtn);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = e.message;
+    }
+}
+
+function escapeHTML(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+window.addEventListener("load", () => {
+    updateAccount();
+});
+</script>
+</body>
 </html>
