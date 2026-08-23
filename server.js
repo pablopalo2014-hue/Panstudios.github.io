@@ -46,6 +46,13 @@ let tradeOffers = [];
 let resaleListings = []; 
 let promoCodes = [];     
 let bannerText = "";     
+let currencyPackages = [
+    { coins: 100, dollars: 1 },
+    { coins: 500, dollars: 5 },
+    { coins: 1000, dollars: 10 },
+    { coins: 2500, dollars: 25 },
+    { coins: 6000, dollars: 60 }
+];
 
 function sanitizeText(str) {
     if (typeof str !== 'string') return str;
@@ -97,6 +104,7 @@ async function loadDataFromGit() {
                 inventory: u.inventory || [],
                 badges: u.badges || [],
                 coins: typeof u.coins === 'number' ? u.coins : 100,
+                dollars: typeof u.dollars === 'number' ? u.dollars : 0,
                 equippedAccessory: u.equippedAccessory || null,
                 profileBgColor: u.profileBgColor || null,
                 profileSoundUrl: u.profileSoundUrl || null,
@@ -226,7 +234,8 @@ app.post('/api/register', async (req, res) => {
         avatar: "https://via.placeholder.com/110",
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner", "🛡️admin"] : [],
-        coins: 100,
+        coins: 0,
+        dollars: 0,
         inventory: [],
         equippedAccessory: null,
         profileBgColor: null,
@@ -361,6 +370,7 @@ app.post('/api/codes/redeem', authenticateToken, async (req, res) => {
     promo.usedBy.push(req.user.id);
 
     req.user.coins = (req.user.coins || 0) + (promo.coins || 0);
+    req.user.dollars = (req.user.dollars || 0) + (promo.dollars || 0);
 
     let rewardItemName = null;
     if (promo.rewardItemId) {
@@ -373,10 +383,17 @@ app.post('/api/codes/redeem', authenticateToken, async (req, res) => {
 
     await saveDataToGit();
 
-    let msg = `¡Código canjeado! Ganaste ${promo.coins} monedas.`;
+    let msg = `¡Código canjeado! Ganaste ${promo.coins || 0} monedas`;
+    if (promo.dollars) msg += ` y ${promo.dollars} 💲`;
+    msg += ".";
     if (rewardItemName) msg += ` Además obtuviste el objeto: ${rewardItemName}.`;
 
-    res.json({ success: true, message: msg, newBalance: req.user.coins });
+    res.json({
+        success: true,
+        message: msg,
+        newBalance: req.user.coins,
+        newDollars: req.user.dollars || 0
+    });
 });
 
 // ACCIONES DE USUARIO BANEADO
@@ -466,7 +483,7 @@ app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
 app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
-    const { name, imageUrl, price, bgColor, soundUrl } = req.body;
+    const { name, imageUrl, price } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Completa el nombre, imagen y precio." });
     }
@@ -482,11 +499,11 @@ app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
         type: "tshirt",
         imageUrl: imageUrl.trim(),
         glbUrl: null,
-        bgColor: bgColor ? bgColor.trim() : null,
-        soundUrl: soundUrl ? soundUrl.trim() : null,
         price: cost,
         limited: false,
         offsale: false,
+        bgColor: null,
+        soundUrl: null,
         creatorId: req.user.id,
         creatorUsername: req.user.username,
         createdByAdmin: false
@@ -574,8 +591,13 @@ app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req
     const item = accessories.find(a => String(a.id) === String(itemId));
     
     if (item) {
-        req.user.profileBgColor = item.bgColor || null;
-        req.user.profileSoundUrl = item.soundUrl || null;
+        if (item.type === "tshirt") {
+            req.user.profileBgColor = null;
+            req.user.profileSoundUrl = null;
+        } else {
+            req.user.profileBgColor = item.bgColor || null;
+            req.user.profileSoundUrl = item.soundUrl || null;
+        }
     }
 
     await saveDataToGit();
@@ -776,9 +798,39 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     res.json({ success: true, message: "¡Compra de reventa realizada!" });
 });
 
+// COMPRA DE MONEDAS CON 💲
+app.get('/api/coins/packages', (req, res) => {
+    res.json({ packages: currencyPackages });
+});
+
+app.post('/api/coins/purchase', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
+    const coinsToBuy = parseInt(req.body.coins);
+    const pkg = currencyPackages.find(p => p.coins === coinsToBuy);
+
+    if (!pkg) return res.status(400).json({ error: "Paquete de monedas no válido." });
+
+    const currentDollars = req.user.dollars || 0;
+    if (currentDollars < pkg.dollars) {
+        return res.status(400).json({ error: `Necesitas ${pkg.dollars} 💲 para comprar ${pkg.coins} monedas.` });
+    }
+
+    req.user.dollars = currentDollars - pkg.dollars;
+    req.user.coins = (req.user.coins || 0) + pkg.coins;
+
+    await saveDataToGit();
+
+    res.json({
+        success: true,
+        coins: req.user.coins,
+        dollars: req.user.dollars
+    });
+});
+
 // PANEL DE ADMINISTRACIÓN
 app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req, res) => {
-    const { code, coins, maxUses, expiresInDays, rewardItemId } = req.body;
+    const { code, coins, dollars, maxUses, expiresInDays, rewardItemId } = req.body;
     if (!code) return res.status(400).json({ error: "Nombre del código requerido." });
 
     const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
@@ -787,6 +839,7 @@ app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req,
         id: Date.now().toString(),
         code: code.trim().toUpperCase(),
         coins: parseInt(coins) || 0,
+        dollars: parseInt(dollars) || 0,
         maxUses: maxUses ? parseInt(maxUses) : null,
         currentUses: 0,
         expiresAt,
@@ -800,7 +853,7 @@ app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req,
 });
 
 app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
-    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl } = req.body;
+    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Nombre, imagen y precio requeridos." });
     }
@@ -819,8 +872,8 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
         maxPerUser: maxPerUser ? parseInt(maxPerUser) : null,
         maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
         expiresAt,
-        bgColor: bgColor ? bgColor.trim() : null,
-        soundUrl: soundUrl ? soundUrl.trim() : null,
+        bgColor: null,
+        soundUrl: null,
         creatorId: req.user.id,
         creatorUsername: req.user.username,
         createdByAdmin: true
@@ -938,8 +991,13 @@ app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (
     if (price !== undefined && price !== "") item.price = parseInt(price);
     if (limited !== undefined && limited !== "") item.limited = (limited === 'true' || limited === true);
     if (offsale !== undefined && offsale !== "") item.offsale = (offsale === 'true' || offsale === true);
-    if (bgColor !== undefined && bgColor !== "") item.bgColor = bgColor;
-    if (soundUrl !== undefined && soundUrl !== "") item.soundUrl = soundUrl;
+    if (item.type === "tshirt") {
+        item.bgColor = null;
+        item.soundUrl = null;
+    } else {
+        if (bgColor !== undefined && bgColor !== "") item.bgColor = bgColor;
+        if (soundUrl !== undefined && soundUrl !== "") item.soundUrl = soundUrl;
+    }
 
     await saveDataToGit();
     res.json({ success: true, item });
@@ -957,6 +1015,21 @@ app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, re
     res.json({ success: true, newBalance: target.coins });
 });
 
+app.post('/api/admin/dollars/add', authenticateToken, requireAdmin, async (req, res) => {
+    const { username, amount } = req.body;
+    const parsedAmount = parseInt(amount);
+    if (!username || !parsedAmount || parsedAmount < 1) {
+        return res.status(400).json({ error: "Usuario y cantidad válida requeridos." });
+    }
+
+    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    target.dollars = (target.dollars || 0) + parsedAmount;
+    await saveDataToGit();
+    res.json({ success: true, newBalance: target.dollars });
+});
+
 app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) => {
     bannerText = req.body.text || "";
     await saveDataToGit();
@@ -965,6 +1038,37 @@ app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) 
 
 app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
+});
+
+// Guardado local inmediato al apagar el proceso.
+// Esto protege las cuentas y la tienda incluso si el proceso se reinicia antes del intervalo de 60 segundos.
+function saveLocalDataSync() {
+    try {
+        const dataObj = {
+            users,
+            friendships,
+            friendRequests,
+            accessories,
+            resaleListings,
+            tradeOffers,
+            promoCodes,
+            bannerText
+        };
+        fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(dataObj, null, 2), 'utf8');
+        console.log("💾 Datos guardados localmente antes del apagado.");
+    } catch (err) {
+        console.error("❌ No se pudo guardar database.json al apagar:", err.message);
+    }
+}
+
+process.on('SIGINT', () => {
+    saveLocalDataSync();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    saveLocalDataSync();
+    process.exit(0);
 });
 
 // INICIAR SERVIDOR
