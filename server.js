@@ -164,7 +164,7 @@ async function saveDataToGit() {
 
 setInterval(async () => {
     await saveDataToGit();
-}, 60000);
+}, 20000);
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -206,8 +206,17 @@ app.get('/api/ping', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
+// IMPORTANTE: Render (y hostings similares) "duerme" el servicio gratuito tras 15 min SIN
+// tráfico EXTERNO real. Un ping a "localhost" nunca sale del contenedor, así que Render no
+// lo detecta y el servicio se duerme igual -> al despertar, si no hay Gist configurado, la
+// memoria se reinicia y las cuentas guardadas solo en database.json local (disco efímero)
+// pueden perderse. Por eso ahora pingueamos la URL PÚBLICA real del servicio.
+// RENDER_EXTERNAL_URL la define Render automáticamente; si no existe (ej. en local), usamos
+// SELF_URL (puedes definirla tú en las variables de entorno) o localhost como último recurso.
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
+
 setInterval(() => {
-    fetch(`http://localhost:${PORT}/api/ping`).then(r => r.text()).catch(() => {});
+    fetch(`${SELF_URL}/api/ping`).then(r => r.text()).catch(() => {});
 }, 40000);
 
 // AUTENTICACIÓN Y PERFIL
