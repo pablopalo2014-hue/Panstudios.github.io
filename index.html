@@ -92,6 +92,60 @@ body {
     transform: scale(1.05);
 }
 
+.dollar-display {
+    background: #1a1a1a;
+    color: #55dd77;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.dollar-display:hover {
+    background: #2a2a2a;
+    border-color: #55dd77;
+    transform: scale(1.05);
+}
+.currency-packages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+.currency-package {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+}
+.currency-package strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+.profile-custom-menu {
+    background: rgba(0,0,0,.35);
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+}
+.profile-custom-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid #292929;
+}
+.profile-custom-row:last-child { border-bottom: 0; }
+
+
 .hero {
     min-height: 100vh;
     display: flex;
@@ -492,8 +546,11 @@ model-viewer {
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
     <div class="topbar-right">
-        <div class="coin-display" id="userCoinsDisplay" title="Monedas">
+        <div class="coin-display" id="userCoinsDisplay" title="Monedas" onclick="openCurrencyModal()">
             <span id="userCoinsText">0</span> 🪙
+        </div>
+        <div class="dollar-display" id="userDollarsDisplay" title="💲" onclick="openCurrencyModal()">
+            <span id="userDollarsText">0</span> 💲
         </div>
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
@@ -513,6 +570,20 @@ model-viewer {
         <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
     </div>
 </section>
+
+<!-- MODAL COMPRA DE MONEDAS -->
+<div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
+    <div class="modal-box" style="max-width: 720px;">
+        <button class="close" onclick="closeCurrencyModal()">×</button>
+        <h2>💲 Comprar monedas</h2>
+        <p style="color:#aaa;">Usa tus 💲 para obtener monedas de Game Blocks.</p>
+        <div id="currencyBalance" class="result" style="text-align:center;">
+            <b>Saldo:</b> <span id="currencyDollarsModal">0</span> 💲
+        </div>
+        <div id="currencyPackages" class="currency-packages">Cargando paquetes...</div>
+        <p id="currencyPurchaseMsg"></p>
+    </div>
+</div>
 
 <!-- MODAL PRINCIPAL CUENTA -->
 <div id="accountModal" class="modal" onclick="outsideClose(event)">
@@ -571,14 +642,11 @@ model-viewer {
 
     <div class="section">
         <h3>👕 Subir Camiseta (UGC)</h3>
+        <small style="color:#888;">Las camisetas UGC no pueden modificar el fondo ni el sonido del perfil.</small>
         <label style="font-size:12px; color:#aaa;">Nombre de la Camiseta:</label>
         <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
         <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
         <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
-        <label style="font-size:12px; color:#aaa;">Color de fondo de perfil al equipar (Opcional ej: #ff0000):</label>
-        <input type="color" id="userTshirtBgColor" value="#111111">
-        <label style="font-size:12px; color:#aaa;">URL de sonido al visitar perfil (Opcional ej: .mp3):</label>
-        <input type="text" id="userTshirtSoundUrl" placeholder="https://ejemplo.com/sonido.mp3">
         <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
         <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
         <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
@@ -612,6 +680,7 @@ model-viewer {
             <h3>🎟️ Crear Código Promocional</h3>
             <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
             <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
+            <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
             <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
             <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
             <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional, ignora limited/offsale)">
@@ -636,9 +705,6 @@ model-viewer {
                 <option value="si">¿Offsale?: Sí</option>
             </select>
             <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
-            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil (Opcional):</label>
-            <input type="color" id="adminTshirtBgColor" value="#111111">
-            <input type="text" id="adminTshirtSoundUrl" placeholder="URL Audio Perfil (Opcional .mp3)">
             <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
             <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
             <p id="adminTshirtMsg"></p>
@@ -726,6 +792,14 @@ model-viewer {
         </div>
 
         <div class="section">
+            <h3>💲 Añadir 💲</h3>
+            <input type="text" id="dollarTargetUser" placeholder="Nombre de usuario">
+            <input type="number" id="dollarAmount" placeholder="Cantidad de 💲" min="1">
+            <button class="admin-button" style="width:100%;" onclick="adminAddDollars()">Añadir 💲</button>
+            <p id="dollarAdminMsg"></p>
+        </div>
+
+        <div class="section">
             <h3>📢 Banner Informativo</h3>
             <input type="text" id="bannerTextInput" placeholder="Texto del banner">
             <button class="admin-button" style="width:100%;" onclick="saveOwnerBanner()">Guardar Banner</button>
@@ -778,9 +852,15 @@ model-viewer {
         <div id="publicBadges" class="badges">Ninguna.</div>
     </div>
 
-    <div class="section">
-        <h3>📝 Biografía</h3>
-        <p id="publicBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+    <div class="section profile-custom-menu">
+        <h3 style="margin-top:0;">👤 Perfil</h3>
+        <div class="profile-custom-row"><span>Nombre</span><strong id="publicNameValue">-</strong></div>
+        <div class="profile-custom-row"><span>🎨 Fondo</span><strong id="publicBgValue">Predeterminado</strong></div>
+        <div class="profile-custom-row"><span>🔊 Sonido</span><strong id="publicSoundValue">Ninguno</strong></div>
+        <div style="margin-top:12px;">
+            <b>📝 Bio</b>
+            <p id="publicBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+        </div>
     </div>
 
     <div class="section">
@@ -908,6 +988,71 @@ function applyProfileStyling(bgColor, soundUrl) {
     }
 }
 
+function openCurrencyModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para usar tus 💲.");
+        openAccount();
+        return;
+    }
+    document.getElementById("currencyModal").style.display = "flex";
+    loadCurrencyPackages();
+}
+
+function closeCurrencyModal() {
+    document.getElementById("currencyModal").style.display = "none";
+}
+
+function outsideCloseCurrency(event) {
+    if (event.target.id === "currencyModal") closeCurrencyModal();
+}
+
+async function loadCurrencyPackages() {
+    const container = document.getElementById("currencyPackages");
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const [packagesData, me] = await Promise.all([
+            request("/api/coins/packages"),
+            request("/api/me")
+        ]);
+        document.getElementById("currencyDollarsModal").textContent = me.dollars || 0;
+        document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        container.innerHTML = "";
+
+        packagesData.packages.forEach(pkg => {
+            const card = document.createElement("div");
+            card.className = "currency-package";
+            card.innerHTML = `<strong>${pkg.coins.toLocaleString()} 🪙</strong><div>${pkg.dollars} 💲</div>`;
+            const btn = document.createElement("button");
+            btn.className = "form-button";
+            btn.style.marginTop = "10px";
+            btn.textContent = "Comprar";
+            btn.onclick = () => purchaseCoinPackage(pkg.coins);
+            card.appendChild(btn);
+            container.appendChild(card);
+        });
+        msg.textContent = "";
+    } catch (e) {
+        container.textContent = "No se pudieron cargar los paquetes.";
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function purchaseCoinPackage(coins) {
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const data = await request("/api/coins/purchase", "POST", { coins });
+        document.getElementById("userCoinsText").textContent = data.coins;
+        document.getElementById("userDollarsText").textContent = data.dollars;
+        document.getElementById("currencyDollarsModal").textContent = data.dollars;
+        msg.className = "success";
+        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} 🪙.`;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
 function openAccount() {
     document.getElementById("accountModal").style.display = "flex";
     updateAccount();
@@ -996,7 +1141,11 @@ function showPublicProfile(user) {
 
     document.getElementById("publicAvatar").src = user.avatar || "https://via.placeholder.com/110";
     document.getElementById("publicUsername").textContent = "👤 " + user.username;
+    document.getElementById("publicNameValue").textContent = user.username;
     document.getElementById("publicBio").textContent = user.bio || "Sin biografía.";
+    document.getElementById("publicBgValue").textContent = user.profileBgColor || "Predeterminado";
+    document.getElementById("publicBgValue").style.color = user.profileBgColor || "#fff";
+    document.getElementById("publicSoundValue").textContent = user.profileSoundUrl ? "Configurado" : "Ninguno";
 
     applyProfileStyling(user.profileBgColor, user.profileSoundUrl);
 
@@ -1132,6 +1281,7 @@ async function updateAccount() {
         document.getElementById("loginBtn").classList.remove("hidden");
         document.getElementById("accountButton").classList.add("hidden");
         document.getElementById("userCoinsText").textContent = "0";
+        document.getElementById("userDollarsText").textContent = "0";
         showLogin();
         return;
     }
@@ -1142,6 +1292,7 @@ async function updateAccount() {
         document.getElementById("loginBtn").classList.add("hidden");
         document.getElementById("accountButton").classList.remove("hidden");
         document.getElementById("userCoinsText").textContent = user.coins || 0;
+        document.getElementById("userDollarsText").textContent = user.dollars || 0;
 
         if (user.dailyClaimed) {
             alert("🎁 ¡Has recibido tu recompensa diaria de 10 monedas!");
@@ -1190,6 +1341,7 @@ async function redeemCode() {
         msg.className = "success";
         msg.textContent = data.message;
         document.getElementById("userCoinsText").textContent = data.newBalance;
+        document.getElementById("userDollarsText").textContent = data.newDollars || 0;
         document.getElementById("codeRedeemInput").value = "";
         loadMyInventory();
     } catch (e) {
@@ -1280,8 +1432,6 @@ async function userUploadTshirt() {
     const name = document.getElementById("userTshirtName").value.trim();
     const imageUrl = document.getElementById("userTshirtUrl").value.trim();
     const price = document.getElementById("userTshirtCost").value;
-    const bgColor = document.getElementById("userTshirtBgColor").value;
-    const soundUrl = document.getElementById("userTshirtSoundUrl").value.trim();
     const msg = document.getElementById("userTshirtMsg");
 
     if (!name || !imageUrl || !price) {
@@ -1291,13 +1441,12 @@ async function userUploadTshirt() {
     }
 
     try {
-        await request("/api/tshirts/upload", "POST", { name, imageUrl, price, bgColor, soundUrl });
+        await request("/api/tshirts/upload", "POST", { name, imageUrl, price });
         msg.className = "success";
         msg.textContent = "¡Camiseta subida con éxito al catálogo!";
         document.getElementById("userTshirtName").value = "";
         document.getElementById("userTshirtUrl").value = "";
         document.getElementById("userTshirtCost").value = "";
-        document.getElementById("userTshirtSoundUrl").value = "";
         loadShopItems();
     } catch (e) {
         msg.className = "error";
@@ -1611,6 +1760,7 @@ async function unequipAccessory() {
 async function adminCreateCode() {
     const code = document.getElementById("adminCodeName").value.trim();
     const coins = document.getElementById("adminCodeCoins").value;
+    const dollars = document.getElementById("adminCodeDollars").value;
     const maxUses = document.getElementById("adminCodeMaxUses").value;
     const expiresInDays = document.getElementById("adminCodeExpiresDays").value;
     const rewardItemId = document.getElementById("adminCodeRewardItem").value.trim();
@@ -1624,12 +1774,13 @@ async function adminCreateCode() {
 
     try {
         await request("/api/admin/codes/create", "POST", {
-            code, coins, maxUses, expiresInDays, rewardItemId
+            code, coins, dollars, maxUses, expiresInDays, rewardItemId
         });
         msg.className = "success";
         msg.textContent = "¡Código promocional creado correctamente!";
         document.getElementById("adminCodeName").value = "";
         document.getElementById("adminCodeCoins").value = "";
+        document.getElementById("adminCodeDollars").value = "";
         document.getElementById("adminCodeMaxUses").value = "";
         document.getElementById("adminCodeExpiresDays").value = "";
         document.getElementById("adminCodeRewardItem").value = "";
@@ -1647,8 +1798,6 @@ async function adminUploadTshirt() {
     const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
     const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
     const imageUrl = document.getElementById("adminTshirtImgUrl").value.trim();
-    const bgColor = document.getElementById("adminTshirtBgColor").value;
-    const soundUrl = document.getElementById("adminTshirtSoundUrl").value.trim();
     const price = document.getElementById("adminTshirtPrice").value;
     const msg = document.getElementById("adminTshirtMsg");
 
@@ -1660,7 +1809,7 @@ async function adminUploadTshirt() {
 
     try {
         await request("/api/admin/tshirts/upload", "POST", {
-            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl
+            name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays
         });
         msg.className = "success";
         msg.textContent = "Camiseta subida por Admin con éxito.";
@@ -1848,6 +1997,21 @@ async function adminAddCoins() {
         await request("/api/admin/coins/add", "POST", { username, amount: parseInt(amount) });
         msg.className = "success";
         msg.textContent = "Monedas añadidas.";
+    } catch (error) {
+        msg.className = "error";
+        msg.textContent = error.message;
+    }
+}
+
+async function adminAddDollars() {
+    const username = document.getElementById("dollarTargetUser").value.trim();
+    const amount = parseInt(document.getElementById("dollarAmount").value);
+    const msg = document.getElementById("dollarAdminMsg");
+
+    try {
+        const data = await request("/api/admin/dollars/add", "POST", { username, amount });
+        msg.className = "success";
+        msg.textContent = "💲 añadidos. Nuevo saldo: " + data.newBalance;
     } catch (error) {
         msg.className = "error";
         msg.textContent = error.message;
