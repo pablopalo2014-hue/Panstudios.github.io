@@ -15,7 +15,10 @@ const GIST_ID = process.env.GIST_ID;
 const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 
 app.use(cors());
-app.use(express.json());
+
+// Se aumenta el límite para aceptar cargas de imágenes o JSON pesados sin generar error HTML 413
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
 app.use(express.static(__dirname));
@@ -240,14 +243,14 @@ function requireAdmin(req, res, next) {
 }
 
 app.get('/api/ping', (req, res) => {
-    res.send("hola");
+    res.json({ message: "hola" });
 });
 
 const PORT = process.env.PORT || 3000;
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
 
 setInterval(() => {
-    fetch(`${SELF_URL}/api/ping`).then(r => r.text()).catch(() => {});
+    fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
 }, 40000);
 
 // AUTENTICACIÓN Y PERFIL
@@ -674,7 +677,7 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 // TIENDA, LIMITEDS, REVENTA, CAMISETAS E INTERCAMBIOS
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     const enrichedItems = accessories
-        .filter(item => !item.isGhost)
+        .filter(item => !item.isGhost) // NO sale en el catálogo si es fantasma
         .map(item => {
             let totalSold = 0;
             users.forEach(u => {
@@ -997,6 +1000,7 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
         return res.status(400).json({ error: "No posees este artículo en tu inventario." });
     }
 
+    // Al revender se quita del inventario
     req.user.inventory.splice(invIndex, 1);
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
@@ -1048,6 +1052,7 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     const isSelfBuy = String(listing.sellerId) === String(req.user.id);
 
     if (isSelfBuy) {
+        // Comprar tu propia oferta de reventa (recuperar el objeto)
         req.user.inventory.push(listing.itemId);
         resaleListings.splice(listingIndex, 1);
         await saveDataToGit();
@@ -1371,6 +1376,17 @@ app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) 
 
 app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
+});
+
+// Manejador de rutas API no encontradas (garantiza devolver JSON 404 en lugar de HTML)
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: "Ruta de API no encontrada." });
+});
+
+// Manejador global de errores (captura excepciones no controladas y responde en JSON)
+app.use((err, req, res, next) => {
+    console.error("❌ Error en servidor:", err);
+    res.status(err.status || 500).json({ error: err.message || "Error interno del servidor." });
 });
 
 // Guardado local inmediato al apagar el proceso.
