@@ -14,16 +14,19 @@ const octokit = process.env.GITHUB_TOKEN ? new Octokit({ auth: process.env.GITHU
 const GIST_ID = process.env.GIST_ID; 
 const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
+// Archivos estáticos y servidor de la app principal
 app.use(express.static(__dirname));
  
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Configuración de Multer para archivos 3D (.glb) e imágenes
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -37,6 +40,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Variables globales de datos
 let users = [];          
 let friendRequests = []; 
 let friendships = [];    
@@ -57,6 +61,7 @@ let currencyPackages = [
     { coins: 6000, dollars: 60 }
 ];
 
+// Funciones auxiliares
 function sanitizeText(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (m) => ({
@@ -202,6 +207,7 @@ setInterval(async () => {
     await saveDataToGit();
 }, 20000);
 
+// Middleware de Autenticación
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -247,7 +253,9 @@ const PORT = process.env.PORT || 3000;
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
 
 setInterval(() => {
-    fetch(`${SELF_URL}/api/ping`).then(r => r.text()).catch(() => {});
+    if (typeof fetch === 'function') {
+        fetch(`${SELF_URL}/api/ping`).then(r => r.text()).catch(() => {});
+    }
 }, 40000);
 
 // AUTENTICACIÓN Y PERFIL
@@ -1049,7 +1057,6 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     const isSelfBuy = String(listing.sellerId) === String(req.user.id);
 
     if (isSelfBuy) {
-        // Comprar tu propia oferta de reventa (recuperar el objeto)
         req.user.inventory.push(listing.itemId);
         resaleListings.splice(listingIndex, 1);
         await saveDataToGit();
@@ -1375,7 +1382,7 @@ app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
-// Guardado local inmediato al apagar el proceso.
+// Guardado local inmediato al apagar el proceso
 function saveLocalDataSync() {
     try {
         const dataObj = {
