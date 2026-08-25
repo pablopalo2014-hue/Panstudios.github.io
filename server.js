@@ -19,7 +19,7 @@ app.use(express.json());
 
 // --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
 app.use(express.static(__dirname));
-
+ 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
