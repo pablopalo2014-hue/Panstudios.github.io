@@ -191,7 +191,7 @@ body {
     color: #fff;
     border: 1px solid #444;
 }
- 
+
 .modal {
     display: none;
     position: fixed;
@@ -996,7 +996,8 @@ model-viewer {
 </div>
 
 <script>
-const RENDER_API = ""; // Relativo para coincidir con el servidor Express
+// Conexión dinámica relativa al servidor Express
+const RENDER_API = window.location.origin;
 let currentTradeTargetId = null;
 let currentChatFriendId = null;
 let currentCardUserId = null;
@@ -1817,7 +1818,7 @@ async function loadFriendsAndRequests() {
         const reqDiv = document.getElementById("requests");
         reqDiv.innerHTML = "";
         if (reqs.requests.length === 0) {
-            reqDiv.textContent = "No tienes solicitudes de amistad pendietes.";
+            reqDiv.textContent = "No tienes solicitudes de amistad pendientes.";
         } else {
             reqs.requests.forEach(r => {
                 const div = document.createElement("div");
@@ -2035,7 +2036,7 @@ async function loadReportedUsersInbox() {
                 <div><b>Estado:</b> ${u.banned ? 'BANEADO' : 'Activo'}</div>
                 <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
                     <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre a [contenido baneado]</button>
-                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Bapear Cuenta</button>
+                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Banear Cuenta</button>
                     <button class="admin-button" style="padding:4px 8px;" onclick="adminClearReported('${u.id}')">Borrar Denuncias</button>
                 </div>
             `;
