@@ -46,6 +46,9 @@ let tradeOffers = [];
 let resaleListings = []; 
 let promoCodes = [];     
 let bannerText = "";     
+let chatMessages = [];
+let blockSubscriptionRewardItemId = null;
+
 let currencyPackages = [
     { coins: 100, dollars: 1 },
     { coins: 500, dollars: 5 },
@@ -65,20 +68,43 @@ function sanitizeText(str) {
     })[m]);
 }
 
+function hasActiveBlockSub(user) {
+    if (!user || !user.blockSubExpiresAt) return false;
+    return Date.now() < user.blockSubExpiresAt;
+}
+
 // Cargar datos locales de respaldo
 function loadLocalData() {
     if (fs.existsSync(LOCAL_DB_PATH)) {
         try {
             const content = fs.readFileSync(LOCAL_DB_PATH, 'utf8');
             const parsed = JSON.parse(content);
-            users = parsed.users || [];
+            users = (parsed.users || []).map(u => ({
+                ...u,
+                inventory: u.inventory || [],
+                badges: u.badges || [],
+                likes: u.likes || [],
+                dislikes: u.dislikes || [],
+                reports: u.reports || [],
+                coins: typeof u.coins === 'number' ? u.coins : 100,
+                dollars: typeof u.dollars === 'number' ? u.dollars : 0,
+                blockSubExpiresAt: u.blockSubExpiresAt || null,
+                lastDailyReward: u.lastDailyReward || 0
+            }));
             friendships = parsed.friendships || [];
             friendRequests = parsed.friendRequests || [];
-            accessories = parsed.accessories || [];
+            accessories = (parsed.accessories || []).map(a => ({
+                ...a,
+                type: a.type || "hat",
+                isGhost: Boolean(a.isGhost),
+                onlyBlock: Boolean(a.onlyBlock)
+            }));
             resaleListings = parsed.resaleListings || [];
             tradeOffers = parsed.tradeOffers || [];
             promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
+            chatMessages = parsed.chatMessages || [];
+            blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
             console.log("✅ Datos cargados localmente desde database.json");
         } catch (err) {
             console.error("⚠️ Error al leer database.json local:", err.message);
@@ -103,8 +129,12 @@ async function loadDataFromGit() {
                 password: u.password,
                 inventory: u.inventory || [],
                 badges: u.badges || [],
+                likes: u.likes || [],
+                dislikes: u.dislikes || [],
+                reports: u.reports || [],
                 coins: typeof u.coins === 'number' ? u.coins : 100,
                 dollars: typeof u.dollars === 'number' ? u.dollars : 0,
+                blockSubExpiresAt: u.blockSubExpiresAt || null,
                 equippedAccessory: u.equippedAccessory || null,
                 profileBgColor: u.profileBgColor || null,
                 profileSoundUrl: u.profileSoundUrl || null,
@@ -115,12 +145,16 @@ async function loadDataFromGit() {
             friendRequests = parsed.friendRequests || [];
             accessories = (parsed.accessories || []).map(a => ({
                 ...a,
-                type: a.type || "hat"
+                type: a.type || "hat",
+                isGhost: Boolean(a.isGhost),
+                onlyBlock: Boolean(a.onlyBlock)
             }));
             resaleListings = parsed.resaleListings || [];
             tradeOffers = parsed.tradeOffers || [];
             promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
+            chatMessages = parsed.chatMessages || [];
+            blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
             console.log("✅ Datos cargados correctamente desde el Gist privado.");
         } else {
             loadLocalData();
@@ -140,7 +174,9 @@ async function saveDataToGit() {
         resaleListings,
         tradeOffers,
         promoCodes,
-        bannerText
+        bannerText,
+        chatMessages,
+        blockSubscriptionRewardItemId
     };
     const dataToSave = JSON.stringify(dataObj, null, 2);
 
@@ -180,6 +216,9 @@ function authenticateToken(req, res, next) {
         
         if (!foundUser.inventory) foundUser.inventory = [];
         if (!foundUser.badges) foundUser.badges = [];
+        if (!foundUser.likes) foundUser.likes = [];
+        if (!foundUser.dislikes) foundUser.dislikes = [];
+        if (!foundUser.reports) foundUser.reports = [];
 
         req.user = foundUser;
         next();
@@ -205,14 +244,6 @@ app.get('/api/ping', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-// IMPORTANTE: Render (y hostings similares) "duerme" el servicio gratuito tras 15 min SIN
-// tráfico EXTERNO real. Un ping a "localhost" nunca sale del contenedor, así que Render no
-// lo detecta y el servicio se duerme igual -> al despertar, si no hay Gist configurado, la
-// memoria se reinicia y las cuentas guardadas solo en database.json local (disco efímero)
-// pueden perderse. Por eso ahora pingueamos la URL PÚBLICA real del servicio.
-// RENDER_EXTERNAL_URL la define Render automáticamente; si no existe (ej. en local), usamos
-// SELF_URL (puedes definirla tú en las variables de entorno) o localhost como último recurso.
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
 
 setInterval(() => {
@@ -246,6 +277,10 @@ app.post('/api/register', async (req, res) => {
         coins: 0,
         dollars: 0,
         inventory: [],
+        likes: [],
+        dislikes: [],
+        reports: [],
+        blockSubExpiresAt: null,
         equippedAccessory: null,
         profileBgColor: null,
         profileSoundUrl: null,
@@ -289,16 +324,23 @@ app.get('/api/me', authenticateToken, async (req, res) => {
     const NOW = Date.now();
     const DAY_MS = 86400000;
     let dailyClaimed = false;
+    const isBlockSub = hasActiveBlockSub(req.user);
+    const dailyAmount = isBlockSub ? 34 : 10;
 
     if (!req.user.lastDailyReward || (NOW - req.user.lastDailyReward) >= DAY_MS) {
-        req.user.coins = (req.user.coins || 0) + 10;
+        req.user.coins = (req.user.coins || 0) + dailyAmount;
         req.user.lastDailyReward = NOW;
         dailyClaimed = true;
         await saveDataToGit();
     }
 
     const { password, ...safeUserData } = req.user;
-    res.json({ ...safeUserData, dailyClaimed });
+    res.json({ 
+        ...safeUserData, 
+        dailyClaimed, 
+        dailyAmount,
+        hasBlockSub: isBlockSub 
+    });
 });
 
 app.post('/api/logout', (req, res) => res.json({ success: true }));
@@ -316,6 +358,155 @@ app.post('/api/profile/bio', authenticateToken, async (req, res) => {
     req.user.bio = sanitizeText(req.body.bio || "");
     await saveDataToGit();
     res.json({ success: true, bio: req.user.bio });
+});
+
+// LIKES, DISLIKES Y REPORTES
+app.post('/api/users/:id/like', authenticateToken, async (req, res) => {
+    const target = users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    if (!target.likes) target.likes = [];
+    if (!target.dislikes) target.dislikes = [];
+
+    const myId = req.user.id;
+    target.dislikes = target.dislikes.filter(id => String(id) !== String(myId));
+
+    const idx = target.likes.findIndex(id => String(id) === String(myId));
+    if (idx !== -1) {
+        target.likes.splice(idx, 1);
+    } else {
+        target.likes.push(myId);
+    }
+
+    await saveDataToGit();
+    res.json({ success: true, likes: target.likes.length, dislikes: target.dislikes.length });
+});
+
+app.post('/api/users/:id/dislike', authenticateToken, async (req, res) => {
+    const target = users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    if (!target.likes) target.likes = [];
+    if (!target.dislikes) target.dislikes = [];
+
+    const myId = req.user.id;
+    target.likes = target.likes.filter(id => String(id) !== String(myId));
+
+    const idx = target.dislikes.findIndex(id => String(id) === String(myId));
+    if (idx !== -1) {
+        target.dislikes.splice(idx, 1);
+    } else {
+        target.dislikes.push(myId);
+    }
+
+    await saveDataToGit();
+    res.json({ success: true, likes: target.likes.length, dislikes: target.dislikes.length });
+});
+
+app.post('/api/users/:id/report', authenticateToken, async (req, res) => {
+    const target = users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes denunciarte a ti mismo." });
+
+    if (!target.reports) target.reports = [];
+    if (target.reports.includes(req.user.id)) {
+        return res.status(400).json({ error: "Ya has denunciado a este usuario." });
+    }
+
+    target.reports.push(req.user.id);
+    await saveDataToGit();
+    res.json({ success: true, message: "Denuncia enviada.", totalReports: target.reports.length });
+});
+
+// SUSCRIPCIÓN BLOCK
+app.post('/api/subscription/buy-block', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+
+    const currentDollars = req.user.dollars || 0;
+    if (currentDollars < 5) {
+        return res.status(400).json({ error: "Necesitas al menos 5 💲 para la Suscripción Block." });
+    }
+
+    req.user.dollars = currentDollars - 5;
+    const monthMs = 30 * 86400000;
+    const currentSubEnd = (req.user.blockSubExpiresAt && req.user.blockSubExpiresAt > Date.now()) 
+        ? req.user.blockSubExpiresAt 
+        : Date.now();
+
+    req.user.blockSubExpiresAt = currentSubEnd + monthMs;
+
+    let freeItemGiven = null;
+    if (blockSubscriptionRewardItemId) {
+        const rewardItem = accessories.find(a => String(a.id) === String(blockSubscriptionRewardItemId));
+        if (rewardItem) {
+            req.user.inventory.push(rewardItem.id);
+            freeItemGiven = rewardItem.name;
+        }
+    }
+
+    await saveDataToGit();
+    res.json({
+        success: true,
+        message: "¡Te has suscrito a Block con éxito!",
+        dollars: req.user.dollars,
+        blockSubExpiresAt: req.user.blockSubExpiresAt,
+        freeItemGiven
+    });
+});
+
+// CHAT CON AMIGOS
+app.get('/api/chat/:friendId', authenticateToken, (req, res) => {
+    const friendId = String(req.params.friendId);
+    const myId = String(req.user.id);
+
+    const isFriend = friendships.some(f => 
+        (String(f.user1) === myId && String(f.user2) === friendId) ||
+        (String(f.user2) === myId && String(f.user1) === friendId)
+    );
+
+    if (!isFriend) return res.status(403).json({ error: "Solo puedes chatear con amigos." });
+
+    const msgs = chatMessages.filter(m => 
+        (String(m.senderId) === myId && String(m.receiverId) === friendId) ||
+        (String(m.senderId) === friendId && String(m.receiverId) === myId)
+    );
+
+    res.json({ messages: msgs });
+});
+
+app.post('/api/chat/send', authenticateToken, async (req, res) => {
+    const { friendId, text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
+
+    const myId = String(req.user.id);
+    const targetId = String(friendId);
+
+    const isFriend = friendships.some(f => 
+        (String(f.user1) === myId && String(f.user2) === targetId) ||
+        (String(f.user2) === myId && String(f.user1) === targetId)
+    );
+
+    if (!isFriend) return res.status(403).json({ error: "Solo puedes enviar mensajes a amigos." });
+
+    const containsEmoji = /(\p{Extended_Pictographic}|\p{Emoji_Presentation})/u.test(text);
+    if (containsEmoji && !hasActiveBlockSub(req.user)) {
+        return res.status(403).json({ 
+            error: "🔒 Emojis bloqueados. Requiere la Suscripción Block (5 💲/mes) para usarlos o pegarlos." 
+        });
+    }
+
+    const newMessage = {
+        id: Date.now().toString(),
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        receiverId: targetId,
+        text: sanitizeText(text.trim()),
+        timestamp: Date.now()
+    };
+
+    chatMessages.push(newMessage);
+    await saveDataToGit();
+    res.json({ success: true, message: newMessage });
 });
 
 app.get('/api/badges/me', authenticateToken, (req, res) => {
@@ -347,7 +538,11 @@ app.get('/api/users/profile/:id', (req, res) => {
         badges: target.badges || [],
         inventory: userInventory,
         profileBgColor: target.profileBgColor || null,
-        profileSoundUrl: target.profileSoundUrl || null
+        profileSoundUrl: target.profileSoundUrl || null,
+        likesCount: (target.likes || []).length,
+        dislikesCount: (target.dislikes || []).length,
+        reportsCount: (target.reports || []).length,
+        isAlert: (target.reports || []).length >= 5
     });
 });
 
@@ -478,10 +673,29 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 
 // TIENDA, LIMITEDS, REVENTA, CAMISETAS E INTERCAMBIOS
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
+    const enrichedItems = accessories
+        .filter(item => !item.isGhost) // NO sale en el catálogo si es fantasma
+        .map(item => {
+            let totalSold = 0;
+            users.forEach(u => {
+                totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
+            });
+            resaleListings.forEach(r => {
+                if (String(r.itemId) === String(item.id)) totalSold += 1;
+            });
+            return { ...item, totalSold, type: item.type || "hat" };
+        });
+    res.json({ items: enrichedItems });
+});
+
+app.get('/api/accessories/all', (req, res) => {
     const enrichedItems = accessories.map(item => {
         let totalSold = 0;
         users.forEach(u => {
             totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
+        });
+        resaleListings.forEach(r => {
+            if (String(r.itemId) === String(item.id)) totalSold += 1;
         });
         return { ...item, totalSold, type: item.type || "hat" };
     });
@@ -492,7 +706,7 @@ app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
 app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
-    const { name, imageUrl, price } = req.body;
+    const { name, imageUrl, price, onlyBlock } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Completa el nombre, imagen y precio." });
     }
@@ -511,6 +725,8 @@ app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
         price: cost,
         limited: false,
         offsale: false,
+        isGhost: false,
+        onlyBlock: Boolean(onlyBlock),
         bgColor: null,
         soundUrl: null,
         creatorId: req.user.id,
@@ -531,6 +747,10 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (item.offsale) return res.status(400).json({ error: "Este artículo está Offsale." });
 
+    if (item.onlyBlock && !hasActiveBlockSub(req.user)) {
+        return res.status(400).json({ error: "Este accesorio es exclusivo para usuarios con Suscripción Block." });
+    }
+
     if (item.expiresAt && Date.now() > item.expiresAt) {
         return res.status(400).json({ error: "Este artículo ha expirado y ya no se puede comprar." });
     }
@@ -538,6 +758,9 @@ app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
     let totalSold = 0;
     users.forEach(u => {
         totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
+    });
+    resaleListings.forEach(r => {
+        if (String(r.itemId) === String(item.id)) totalSold += 1;
     });
 
     if (item.maxGlobal && totalSold >= item.maxGlobal) {
@@ -595,9 +818,13 @@ app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const itemId = req.body.itemId || req.body.id;
     if (!req.user.inventory.includes(itemId)) return res.status(403).json({ error: "No posees este accesorio." });
+
+    const item = accessories.find(a => String(a.id) === String(itemId));
+    if (item && item.onlyBlock && !hasActiveBlockSub(req.user)) {
+        return res.status(400).json({ error: "Este accesorio es exclusivo de la Suscripción Block." });
+    }
     
     req.user.equippedAccessory = itemId;
-    const item = accessories.find(a => String(a.id) === String(itemId));
     
     if (item) {
         if (item.type === "tshirt") {
@@ -637,10 +864,11 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
     if (!target) return res.status(404).json({ error: "Usuario destino no encontrado." });
     if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes tradear contigo mismo." });
 
+    let offeredItemObj = null;
     if (offeredItemId) {
-        const itemOff = accessories.find(a => String(a.id) === String(offeredItemId));
-        if (!itemOff) return res.status(404).json({ error: "Artículo ofrecido no existe." });
-        if (!itemOff.limited || !itemOff.offsale) {
+        offeredItemObj = accessories.find(a => String(a.id) === String(offeredItemId));
+        if (!offeredItemObj) return res.status(404).json({ error: "Artículo ofrecido no existe." });
+        if (!offeredItemObj.limited || !offeredItemObj.offsale) {
             return res.status(400).json({ error: "Solo se pueden intercambiar artículos LIMITEDS y OFFSALE." });
         }
         if (!req.user.inventory.includes(offeredItemId)) {
@@ -648,10 +876,11 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
         }
     }
 
+    let requestedItemObj = null;
     if (requestedItemId) {
-        const itemReq = accessories.find(a => String(a.id) === String(requestedItemId));
-        if (!itemReq) return res.status(404).json({ error: "Artículo solicitado no existe." });
-        if (!itemReq.limited || !itemReq.offsale) {
+        requestedItemObj = accessories.find(a => String(a.id) === String(requestedItemId));
+        if (!requestedItemObj) return res.status(404).json({ error: "Artículo solicitado no existe." });
+        if (!requestedItemObj.limited || !requestedItemObj.offsale) {
             return res.status(400).json({ error: "Solo puedes solicitar artículos LIMITEDS y OFFSALE." });
         }
         if (!target.inventory.includes(requestedItemId)) {
@@ -672,8 +901,10 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
         senderUsername: req.user.username,
         targetUserId: target.id,
         offeredItemId: offeredItemId || null,
+        offeredItemName: offeredItemObj ? offeredItemObj.name : null,
         offeredCoins: offerCoinsParsed,
         requestedItemId: requestedItemId || null,
+        requestedItemName: requestedItemObj ? requestedItemObj.name : null,
         requestedCoins: reqCoinsParsed
     };
 
@@ -683,7 +914,17 @@ app.post('/api/trade/offer', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/trade/pending', authenticateToken, (req, res) => {
-    const pending = tradeOffers.filter(t => String(t.targetUserId) === String(req.user.id));
+    const pending = tradeOffers
+        .filter(t => String(t.targetUserId) === String(req.user.id))
+        .map(t => {
+            const offItem = accessories.find(a => String(a.id) === String(t.offeredItemId));
+            const reqItem = accessories.find(a => String(a.id) === String(t.requestedItemId));
+            return {
+                ...t,
+                offeredItemName: offItem ? offItem.name : t.offeredItemName || "Ninguno",
+                requestedItemName: reqItem ? reqItem.name : t.requestedItemName || "Ninguno"
+            };
+        });
     res.json({ trades: pending });
 });
 
@@ -751,8 +992,17 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
         return res.status(400).json({ error: "Solo puedes poner en reventa artículos LIMITEDS y OFFSALE." });
     }
 
-    if (!req.user.inventory.includes(itemId)) {
+    const invIndex = req.user.inventory.indexOf(itemId);
+    if (invIndex === -1) {
         return res.status(400).json({ error: "No posees este artículo en tu inventario." });
+    }
+
+    // Al revender se quita del inventario
+    req.user.inventory.splice(invIndex, 1);
+    if (String(req.user.equippedAccessory) === String(itemId)) {
+        req.user.equippedAccessory = null;
+        req.user.profileBgColor = null;
+        req.user.profileSoundUrl = null;
     }
 
     const listing = {
@@ -769,7 +1019,23 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
 });
 
 app.get('/api/accessories/resale-market', (req, res) => {
-    res.json({ listings: resaleListings });
+    const listingsEnriched = resaleListings.map(listing => {
+        const item = accessories.find(a => String(a.id) === String(listing.itemId));
+        let totalSold = 0;
+        if (item) {
+            users.forEach(u => {
+                totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
+            });
+            resaleListings.forEach(r => {
+                if (String(r.itemId) === String(item.id)) totalSold += 1;
+            });
+        }
+        return {
+            ...listing,
+            item: item ? { ...item, totalSold } : null
+        };
+    });
+    res.json({ listings: listingsEnriched });
 });
 
 app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
@@ -780,15 +1046,21 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     if (listingIndex === -1) return res.status(404).json({ error: "Publicación de reventa no encontrada." });
 
     const listing = resaleListings[listingIndex];
-    if (String(listing.sellerId) === String(req.user.id)) {
-        return res.status(400).json({ error: "No puedes comprar tu propia publicación." });
+    const isSelfBuy = String(listing.sellerId) === String(req.user.id);
+
+    if (isSelfBuy) {
+        // Comprar tu propia oferta de reventa (recuperar el objeto)
+        req.user.inventory.push(listing.itemId);
+        resaleListings.splice(listingIndex, 1);
+        await saveDataToGit();
+        return res.json({ success: true, message: "Has retirado/comprado de vuelta tu propia oferta." });
     }
 
     const seller = users.find(u => String(u.id) === String(listing.sellerId));
-    if (!seller || !seller.inventory.includes(listing.itemId)) {
+    if (!seller) {
         resaleListings.splice(listingIndex, 1);
         await saveDataToGit();
-        return res.status(400).json({ error: "El vendedor ya no posee el artículo." });
+        return res.status(400).json({ error: "El vendedor ya no existe." });
     }
 
     if ((req.user.coins || 0) < listing.price) {
@@ -797,9 +1069,6 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
 
     req.user.coins -= listing.price;
     seller.coins = (seller.coins || 0) + listing.price;
-
-    const idx = seller.inventory.indexOf(listing.itemId);
-    if (idx !== -1) seller.inventory.splice(idx, 1);
     req.user.inventory.push(listing.itemId);
 
     resaleListings.splice(listingIndex, 1);
@@ -837,7 +1106,57 @@ app.post('/api/coins/purchase', authenticateToken, async (req, res) => {
     });
 });
 
-// PANEL DE ADMINISTRACIÓN
+// PANEL DE ADMINISTRACIÓN Y REPORTES
+app.get('/api/admin/reports', authenticateToken, requireAdmin, (req, res) => {
+    const reportedUsers = users
+        .filter(u => (u.reports || []).length >= 10)
+        .map(u => ({
+            id: u.id,
+            username: u.username,
+            avatar: u.avatar,
+            reportsCount: u.reports.length,
+            banned: u.banned
+        }));
+    res.json({ reportedUsers });
+});
+
+app.post('/api/admin/reports/rename', authenticateToken, requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+    const target = users.find(u => String(u.id) === String(userId));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    target.username = "[contenido baneado]";
+    await saveDataToGit();
+    res.json({ success: true, message: "Nombre cambiado a [contenido baneado]." });
+});
+
+app.post('/api/admin/reports/ban', authenticateToken, requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+    const target = users.find(u => String(u.id) === String(userId));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    target.banned = true;
+    await saveDataToGit();
+    res.json({ success: true, message: "Usuario baneado." });
+});
+
+app.post('/api/admin/reports/clear', authenticateToken, requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+    const target = users.find(u => String(u.id) === String(userId));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    target.reports = [];
+    await saveDataToGit();
+    res.json({ success: true, message: "Denuncias borradas y usuario removido de la bandeja." });
+});
+
+app.post('/api/admin/settings/block-reward', authenticateToken, requireAdmin, async (req, res) => {
+    const { itemId } = req.body;
+    blockSubscriptionRewardItemId = itemId || null;
+    await saveDataToGit();
+    res.json({ success: true, blockSubscriptionRewardItemId });
+});
+
 app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req, res) => {
     const { code, coins, dollars, maxUses, expiresInDays, rewardItemId } = req.body;
     if (!code) return res.status(400).json({ error: "Nombre del código requerido." });
@@ -862,7 +1181,7 @@ app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req,
 });
 
 app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
-    const { name, imageUrl, price, limited, offsale, maxPerUser, maxGlobal, expiresInDays } = req.body;
+    const { name, imageUrl, price, limited, offsale, onlyBlock, maxPerUser, maxGlobal, expiresInDays } = req.body;
     if (!name || !imageUrl || price === undefined) {
         return res.status(400).json({ error: "Nombre, imagen y precio requeridos." });
     }
@@ -878,6 +1197,8 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
         price: parseInt(price) || 0,
         limited: Boolean(limited),
         offsale: Boolean(offsale),
+        isGhost: false,
+        onlyBlock: Boolean(onlyBlock),
         maxPerUser: maxPerUser ? parseInt(maxPerUser) : null,
         maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
         expiresAt,
@@ -895,7 +1216,7 @@ app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (re
 
 app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, upload.single('glb'), async (req, res) => {
     try {
-        const { name, limited, offsale, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl, price, imageUrl } = req.body;
+        const { name, limited, offsale, onlyBlock, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl, price, imageUrl } = req.body;
         
         if (!req.file || !price || !imageUrl) {
             return res.status(400).json({ error: "Completa el archivo GLB, Precio e Imagen PNG." });
@@ -913,6 +1234,8 @@ app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, uploa
             price: parseInt(price) || 0,
             limited: limited === 'true' || limited === true,
             offsale: offsale === 'true' || offsale === true,
+            isGhost: false,
+            onlyBlock: onlyBlock === 'true' || onlyBlock === true,
             maxPerUser: maxPerUser ? parseInt(maxPerUser) : 1,
             maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
             expiresAt,
@@ -991,7 +1314,7 @@ app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, re
 });
 
 app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (req, res) => {
-    const { itemId, price, limited, offsale, bgColor, soundUrl } = req.body;
+    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl } = req.body;
     if (!itemId) return res.status(400).json({ error: "ID del accesorio requerido." });
 
     const item = accessories.find(a => String(a.id) === String(itemId));
@@ -1000,6 +1323,9 @@ app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (
     if (price !== undefined && price !== "") item.price = parseInt(price);
     if (limited !== undefined && limited !== "") item.limited = (limited === 'true' || limited === true);
     if (offsale !== undefined && offsale !== "") item.offsale = (offsale === 'true' || offsale === true);
+    if (isGhost !== undefined && isGhost !== "") item.isGhost = (isGhost === 'true' || isGhost === true);
+    if (onlyBlock !== undefined && onlyBlock !== "") item.onlyBlock = (onlyBlock === 'true' || onlyBlock === true);
+
     if (item.type === "tshirt") {
         item.bgColor = null;
         item.soundUrl = null;
@@ -1060,7 +1386,9 @@ function saveLocalDataSync() {
             resaleListings,
             tradeOffers,
             promoCodes,
-            bannerText
+            bannerText,
+            chatMessages,
+            blockSubscriptionRewardItemId
         };
         fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(dataObj, null, 2), 'utf8');
         console.log("💾 Datos guardados localmente antes del apagado.");
