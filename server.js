@@ -1,4 +1,5 @@
 const express = require('express');
+require('express-async-errors'); // Hace que los errores lanzados dentro de rutas "async" lleguen al manejador de errores en vez de colgar la petición o tirar el servidor
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -9,6 +10,15 @@ const { Octokit } = require('@octokit/rest');
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
+
+// Red de seguridad: evita que un error no controlado (fuera del ciclo de una petición Express,
+// por ejemplo en los setInterval de abajo) tumbe todo el proceso y deje el servidor sin responder.
+process.on('unhandledRejection', (reason) => {
+    console.error("⚠️ Promesa rechazada sin manejar:", reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error("⚠️ Excepción no controlada:", err);
+});
 
 const octokit = process.env.GITHUB_TOKEN ? new Octokit({ auth: process.env.GITHUB_TOKEN }) : null;
 const GIST_ID = process.env.GIST_ID; 
@@ -250,7 +260,12 @@ const PORT = process.env.PORT || 3000;
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
 
 setInterval(() => {
-    fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
+    try {
+        if (typeof fetch !== 'function') return; // Node sin fetch global (< 18): se omite en vez de crashear
+        fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
+    } catch (err) {
+        console.error("⚠️ Error en auto-ping:", err.message);
+    }
 }, 40000);
 
 // AUTENTICACIÓN Y PERFIL
