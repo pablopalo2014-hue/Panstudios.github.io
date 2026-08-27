@@ -191,7 +191,7 @@ body {
     color: #fff;
     border: 1px solid #444;
 }
-
+ 
 .modal {
     display: none;
     position: fixed;
@@ -996,8 +996,7 @@ model-viewer {
 </div>
 
 <script>
-// Conexión dinámica relativa al servidor Express
-const RENDER_API = window.location.origin;
+const RENDER_API = ""; // Relativo para coincidir con el servidor Express
 let currentTradeTargetId = null;
 let currentChatFriendId = null;
 let currentCardUserId = null;
@@ -1043,19 +1042,37 @@ async function request(endpoint, method = "GET", body = null) {
     const options = { method, headers };
     if (body !== null) options.body = JSON.stringify(body);
 
-    const response = await fetch(RENDER_API + endpoint, options);
-    let data;
+    let response;
     try {
-        data = await response.json();
-    } catch {
-        throw new Error("Respuesta inválida del servidor.");
+        response = await fetch(RENDER_API + endpoint, options);
+    } catch (networkErr) {
+        // El fetch ni siquiera llegó al servidor (sin conexión, servidor caído, CORS, etc.)
+        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.");
+    }
+
+    // Se lee siempre como texto primero: evita que response.json() reviente
+    // cuando el cuerpo está vacío (204, timeouts de proxy) o no es JSON (páginas de error HTML).
+    const rawText = await response.text().catch(() => "");
+
+    let data = {};
+    if (rawText) {
+        try {
+            data = JSON.parse(rawText);
+        } catch {
+            // El servidor respondió pero no con JSON válido (ej. página de error del hosting)
+            throw new Error(
+                response.ok
+                    ? "Respuesta inválida del servidor."
+                    : `Error del servidor (código ${response.status}). Intenta de nuevo en unos segundos.`
+            );
+        }
     }
 
     if (!response.ok) {
         if (data.banned) {
             showBannedView();
         }
-        throw new Error(data.error || "Error del servidor.");
+        throw new Error(data.error || `Error del servidor (código ${response.status}).`);
     }
     return data;
 }
@@ -1818,7 +1835,7 @@ async function loadFriendsAndRequests() {
         const reqDiv = document.getElementById("requests");
         reqDiv.innerHTML = "";
         if (reqs.requests.length === 0) {
-            reqDiv.textContent = "No tienes solicitudes de amistad pendientes.";
+            reqDiv.textContent = "No tienes solicitudes de amistad pendietes.";
         } else {
             reqs.requests.forEach(r => {
                 const div = document.createElement("div");
@@ -2036,7 +2053,7 @@ async function loadReportedUsersInbox() {
                 <div><b>Estado:</b> ${u.banned ? 'BANEADO' : 'Activo'}</div>
                 <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
                     <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre a [contenido baneado]</button>
-                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Banear Cuenta</button>
+                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Bapear Cuenta</button>
                     <button class="admin-button" style="padding:4px 8px;" onclick="adminClearReported('${u.id}')">Borrar Denuncias</button>
                 </div>
             `;
