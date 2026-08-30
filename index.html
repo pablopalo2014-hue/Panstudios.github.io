@@ -996,7 +996,11 @@ model-viewer {
 </div>
 
 <script>
-const RENDER_API = ""; // Relativo para coincidir con el servidor Express
+const RENDER_API = (
+    window.GAMEBLOCKS_API_URL ||
+    localStorage.getItem("gameblocks_api_url") ||
+    "https://TU-SERVICIO.onrender.com"
+).replace(/\\/$/, "");
 let currentTradeTargetId = null;
 let currentChatFriendId = null;
 let currentCardUserId = null;
@@ -1034,6 +1038,11 @@ function loadSavedHomeBgColor() {
     }
 }
 
+// API de Game Blocks.
+// Puedes fijarla antes de cargar la página con:
+// window.GAMEBLOCKS_API_URL = "https://tu-servicio.onrender.com"
+// o guardarla con:
+// localStorage.setItem("gameblocks_api_url", "https://tu-servicio.onrender.com")
 async function request(endpoint, method = "GET", body = null) {
     const headers = { "Content-Type": "application/json" };
     const token = localStorage.getItem("gameblocks_token");
