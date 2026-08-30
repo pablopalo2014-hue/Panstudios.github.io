@@ -10,8 +10,7 @@ const { Octokit } = require('@octokit/rest');
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
-// Red de seguridad: evita que un error no controlado (fuera del ciclo de una petición Express,
-// por ejemplo en los setInterval de abajo) tumbe todo el proceso y deje el servidor sin responder.
+// Red de seguridad: evita que un error no controlado tumbe todo el proceso.
 process.on('unhandledRejection', (reason) => {
     console.error("⚠️ Promesa rechazada sin manejar:", reason);
 });
@@ -19,15 +18,15 @@ process.on('uncaughtException', (err) => {
     console.error("⚠️ Excepción no controlada:", err);
 });
 
-// Envuelve automáticamente cada ruta async (sin necesidad de instalar ningún paquete nuevo):
-// si la función async lanza un error, se reenvía a next(err) en vez de dejar la petición
-// colgada o, peor, tirar el proceso completo por una promesa rechazada sin manejar.
+// Envuelve automáticamente cada ruta async para reenviar errores a next(err).
+// Solo se ignoran los middleware de error de Express (que tienen 4 parámetros: err, req, res, next).
 function wrapAsync(fn) {
-    if (fn.length >= 3) return fn; // ya es un middleware de error (err, req, res, next): no tocar
+    if (fn.length === 4) return fn; // Middleware de error de Express
     return function (req, res, next) {
         Promise.resolve(fn(req, res, next)).catch(next);
     };
 }
+
 ['get', 'post', 'put', 'delete', 'patch'].forEach((method) => {
     const original = app[method].bind(app);
     app[method] = (path, ...handlers) => original(path, ...handlers.map((h) => (typeof h === 'function' ? wrapAsync(h) : h)));
@@ -39,15 +38,13 @@ const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 
 app.use(cors());
 
-// Se aumenta el límite para aceptar cargas de imágenes o JSON pesados sin generar error HTML 413
+// Límite aumentado para aceptar cargas pesadas
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Evita que express.static devuelva un 405 en texto plano cuando llega un método
-// no-GET/HEAD a una ruta estática. Las peticiones OPTIONS (CORS preflight) y las rutas de autenticación/API se dejan pasar.
+// Evita devoluciones 405 en texto plano fuera de la API
 app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') return next();
-    if (req.path.startsWith('/api/') || req.path === '/register' || req.path === '/login') return next();
+    if (req.path.startsWith('/api/')) return next();
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
     }
@@ -118,6 +115,7 @@ function loadLocalData() {
             const parsed = JSON.parse(content);
             users = (parsed.users || []).map(u => ({
                 ...u,
+                password: u.password,
                 inventory: u.inventory || [],
                 badges: u.badges || [],
                 likes: u.likes || [],
@@ -126,6 +124,12 @@ function loadLocalData() {
                 coins: typeof u.coins === 'number' ? u.coins : 100,
                 dollars: typeof u.dollars === 'number' ? u.dollars : 0,
                 blockSubExpiresAt: u.blockSubExpiresAt || null,
+                equippedAccessory: u.equippedAccessory || null,
+                profileBgColor: u.profileBgColor || null,
+                profileSoundUrl: u.profileSoundUrl || null,
+                admin: Boolean(u.admin),
+                owner: Boolean(u.owner),
+                banned: Boolean(u.banned),
                 lastDailyReward: u.lastDailyReward || 0
             }));
             friendships = parsed.friendships || [];
@@ -175,7 +179,9 @@ async function loadDataFromGit() {
                 equippedAccessory: u.equippedAccessory || null,
                 profileBgColor: u.profileBgColor || null,
                 profileSoundUrl: u.profileSoundUrl || null,
-                banned: u.banned || false,
+                admin: Boolean(u.admin),
+                owner: Boolean(u.owner),
+                banned: Boolean(u.banned),
                 lastDailyReward: u.lastDailyReward || 0
             }));
             friendships = parsed.friendships || [];
@@ -285,15 +291,15 @@ const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `htt
 
 setInterval(() => {
     try {
-        if (typeof fetch !== 'function') return; // Node sin fetch global (< 18): se omite en vez de crashear
+        if (typeof fetch !== 'function') return;
         fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
     } catch (err) {
         console.error("⚠️ Error en auto-ping:", err.message);
     }
 }, 40000);
 
-// AUTENTICACIÓN Y PERFIL (Soporta tanto /api/register como /register y /api/login como /login)
-app.post(['/api/register', '/register'], async (req, res) => {
+// AUTENTICACIÓN Y PERFIL
+app.post('/api/register', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
@@ -339,7 +345,7 @@ app.post(['/api/register', '/register'], async (req, res) => {
     res.json({ success: true, token });
 });
 
-app.post(['/api/login', '/login'], async (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
 
@@ -716,7 +722,7 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
 // TIENDA, LIMITEDS, REVENTA, CAMISETAS E INTERCAMBIOS
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     const enrichedItems = accessories
-        .filter(item => !item.isGhost) // NO sale en el catálogo si es fantasma
+        .filter(item => !item.isGhost)
         .map(item => {
             let totalSold = 0;
             users.forEach(u => {
@@ -844,7 +850,7 @@ app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
 
     req.user.inventory.splice(index, 1);
     const refundAmount = Math.floor(item.price * 0.5);
-    req.user.coins += refundAmount;
+    req.user.coins = (req.user.coins || 0) + refundAmount;
 
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
@@ -1039,7 +1045,6 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
         return res.status(400).json({ error: "No posees este artículo en tu inventario." });
     }
 
-    // Al revender se quita del inventario
     req.user.inventory.splice(invIndex, 1);
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
@@ -1091,7 +1096,6 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     const isSelfBuy = String(listing.sellerId) === String(req.user.id);
 
     if (isSelfBuy) {
-        // Comprar tu propia oferta de reventa (recuperar el objeto)
         req.user.inventory.push(listing.itemId);
         resaleListings.splice(listingIndex, 1);
         await saveDataToGit();
@@ -1413,12 +1417,12 @@ app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) 
     res.json({ success: true, bannerText });
 });
 
-app.get(['/api/banner', '/banner'], (req, res) => {
+app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
 // Manejador de rutas API no encontradas (garantiza devolver JSON 404 en lugar de HTML)
-app.use('/api/*', (req, res) => {
+app.use('/api', (req, res) => {
     res.status(404).json({ error: "Ruta de API no encontrada." });
 });
 
