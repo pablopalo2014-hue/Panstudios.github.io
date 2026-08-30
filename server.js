@@ -30,6 +30,17 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Evita que express.static devuelva un 405 en texto plano cuando llega un método
+// no-GET/HEAD a una ruta como "/" (ej. index.html). Las rutas /api/... se dejan pasar
+// intactas: sus propios app.post/app.get, definidos más abajo, son los que deciden.
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
+    }
+    next();
+});
+
 // --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
 app.use(express.static(__dirname));
  
