@@ -1,5 +1,4 @@
 const express = require('express');
-require('express-async-errors'); // Hace que los errores lanzados dentro de rutas "async" lleguen al manejador de errores en vez de colgar la petición o tirar el servidor
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -18,6 +17,20 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
     console.error("⚠️ Excepción no controlada:", err);
+});
+
+// Envuelve automáticamente cada ruta async (sin necesidad de instalar ningún paquete nuevo):
+// si la función async lanza un error, se reenvía a next(err) en vez de dejar la petición
+// colgada o, peor, tirar el proceso completo por una promesa rechazada sin manejar.
+function wrapAsync(fn) {
+    if (fn.length >= 3) return fn; // ya es un middleware de error (err, req, res, next): no tocar
+    return function (req, res, next) {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
+}
+['get', 'post', 'put', 'delete', 'patch'].forEach((method) => {
+    const original = app[method].bind(app);
+    app[method] = (path, ...handlers) => original(path, ...handlers.map((h) => (typeof h === 'function' ? wrapAsync(h) : h)));
 });
 
 const octokit = process.env.GITHUB_TOKEN ? new Octokit({ auth: process.env.GITHUB_TOKEN }) : null;
