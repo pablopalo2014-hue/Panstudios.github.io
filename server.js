@@ -44,10 +44,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Evita que express.static devuelva un 405 en texto plano cuando llega un método
-// no-GET/HEAD a una ruta como "/" (ej. index.html). Las rutas /api/... se dejan pasar
-// intactas: sus propios app.post/app.get, definidos más abajo, son los que deciden.
+// no-GET/HEAD a una ruta estática. Las peticiones OPTIONS (CORS preflight) y las rutas de autenticación/API se dejan pasar.
 app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
+    if (req.method === 'OPTIONS') return next();
+    if (req.path.startsWith('/api/') || req.path === '/register' || req.path === '/login') return next();
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
     }
@@ -292,8 +292,8 @@ setInterval(() => {
     }
 }, 40000);
 
-// AUTENTICACIÓN Y PERFIL
-app.post('/api/register', async (req, res) => {
+// AUTENTICACIÓN Y PERFIL (Soporta tanto /api/register como /register y /api/login como /login)
+app.post(['/api/register', '/register'], async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
 
@@ -339,7 +339,7 @@ app.post('/api/register', async (req, res) => {
     res.json({ success: true, token });
 });
 
-app.post('/api/login', async (req, res) => {
+app.post(['/api/login', '/login'], async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
 
@@ -1413,7 +1413,7 @@ app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) 
     res.json({ success: true, bannerText });
 });
 
-app.get('/api/banner', (req, res) => {
+app.get(['/api/banner', '/banner'], (req, res) => {
     res.json({ text: bannerText });
 });
 
