@@ -1072,7 +1072,16 @@ async function request(endpoint, method = "GET", body = null) {
         if (data.banned) {
             showBannedView();
         }
-        throw new Error(data.error || `Error del servidor (código ${response.status}).`);
+        if (data.error) throw new Error(data.error);
+        const mensajesPorCodigo = {
+            401: "Tu sesión expiró o no es válida. Inicia sesión de nuevo.",
+            403: "No tienes permiso para hacer esto.",
+            404: "Esa función no existe en el servidor.",
+            405: "El servidor rechazó esa acción (método no permitido). Recarga la página e intenta de nuevo.",
+            413: "El archivo o los datos enviados son demasiado grandes.",
+            500: "Error interno del servidor. Intenta de nuevo en unos segundos."
+        };
+        throw new Error(mensajesPorCodigo[response.status] || `Error del servidor (código ${response.status}).`);
     }
     return data;
 }
