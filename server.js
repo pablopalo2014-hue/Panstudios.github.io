@@ -46,12 +46,23 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Evita que express.static devuelva un 405 en texto plano cuando llega un método
 // no-GET/HEAD a una ruta estática. Las rutas /api/, /register, /login y solicitudes OPTIONS se dejan pasar intactas.
 app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') return next();
-    if (req.path.startsWith('/api/') || req.path === '/register' || req.path === '/login') return next();
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-        return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
+    if (req.method === 'OPTIONS' || req.method === 'GET' || req.method === 'HEAD') return next();
+
+    const fullUrl = (req.originalUrl || req.path || '').split('?')[0].toLowerCase();
+    const cleanPath = (req.path || '').toLowerCase();
+
+    if (
+        fullUrl.startsWith('/api') || 
+        fullUrl.startsWith('/login') || 
+        fullUrl.startsWith('/register') ||
+        cleanPath.startsWith('/api') || 
+        cleanPath.startsWith('/login') || 
+        cleanPath.startsWith('/register')
+    ) {
+        return next();
     }
-    next();
+
+    return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
 });
 
 // --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
