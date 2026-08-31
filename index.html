@@ -18,7 +18,7 @@ body {
     margin: 0;
     background: #000;
     color: #fff;
-    font-family: Arial, sans-serif;
+    font-family: 'Courier New', Courier, monospace; /* Toque 2007 retro / old school */
     transition: background-color 0.3s ease;
 }
 
@@ -146,6 +146,7 @@ body {
     width: 300px;
     max-width: 80%;
     margin-bottom: 20px;
+    filter: drop-shadow(2px 2px 0px #444);
 }
 
 .slogan {
@@ -205,12 +206,12 @@ body {
 
 .modal-box {
     width: 100%;
-    max-width: 600px;
+    max-width: 700px;
     max-height: 90vh;
     overflow-y: auto;
     background: #111;
-    border: 1px solid #333;
-    border-radius: 10px;
+    border: 2px solid #444;
+    border-radius: 6px;
     padding: 25px;
     box-shadow: 0 0 30px #000;
     transition: background-color 0.3s ease;
@@ -519,6 +520,29 @@ model-viewer {
     font-size: 16px;
 }
 .emoji-btn:hover { background: #353535; }
+
+/* Estilos específicos para Grupos y pestañas 2007 */
+.group-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+.group-tab-btn {
+    background: #222;
+    color: #ccc;
+    border: 1px solid #444;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.group-tab-btn.active {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}
 </style>
 </head>
 
@@ -537,6 +561,7 @@ model-viewer {
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
             💲 <span id="userDollarsText">0</span>
         </div>
+        <button class="top-button" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥 Grupos</button>
         <button class="top-button" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡ Block Sub</button>
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
@@ -546,11 +571,11 @@ model-viewer {
 
 <section class="hero">
     <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
-    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción</h1>
+    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción (Edición 2007)</h1>
 
     <!-- CAMBIAR COLOR DE FONDO LOCAL -->
-    <div style="background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 8px; border: 1px solid #333; margin-bottom: 20px;">
-        <label style="font-size: 13px; color: #aaa; display: block; margin-bottom: 5px;">🎨 Color de Fondo Local de la Inicio:</label>
+    <div style="background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #444; margin-bottom: 20px;">
+        <label style="font-size: 13px; color: #aaa; display: block; margin-bottom: 5px;">🎨 Color de Fondo Local (Estilo 2007):</label>
         <input type="color" id="homeBgColorPicker" value="#000000" onchange="changeHomeBgColor(this.value)" style="width:60px; height:35px; padding:0; cursor:pointer;">
         <button class="secondary-button" style="width: auto; padding: 4px 10px; margin-left: 8px;" onclick="resetHomeBgColor()">Restablecer</button>
     </div>
@@ -564,6 +589,94 @@ model-viewer {
         <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
     </div>
 </section>
+
+<!-- MODAL DE GRUPOS (CLANES) -->
+<div id="groupsModal" class="modal" onclick="outsideCloseGroups(event)">
+    <div class="modal-box" style="max-width: 750px;">
+        <button class="close" onclick="closeGroupsModal()">×</button>
+        <h2 style="color: #ff8800; margin-top:0;">👥 Grupos de Game Blocks (2007)</h2>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button class="form-button" style="background: #ff8800; color: #000;" onclick="openCreateGroupModal()">➕ Crear Grupo (100 🪙)</button>
+            <button class="secondary-button" style="margin:0;" onclick="loadAllGroups()">🔄 Actualizar Lista</button>
+        </div>
+
+        <div id="allGroupsContainer" class="section">Cargando grupos...</div>
+    </div>
+</div>
+
+<!-- MODAL CREAR GRUPO -->
+<div id="createGroupModal" class="modal">
+    <div class="modal-box" style="max-width: 450px;">
+        <button class="close" onclick="closeCreateGroupModal()">×</button>
+        <h3 style="margin-top:0;">🛠️ Crear Nuevo Grupo</h3>
+        <p style="font-size: 13px; color: #aaa;">Crear un grupo cuesta 100 monedas (🪙).</p>
+        <input type="text" id="newGroupName" placeholder="Nombre del Grupo" maxlength="30">
+        <textarea id="newGroupDesc" placeholder="Descripción del grupo..."></textarea>
+        <button class="form-button" style="background: #ff8800; color: #000;" onclick="submitCreateGroup()">Pagar 100 🪙 y Crear</button>
+        <p id="createGroupMsg" style="margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- MODAL VISTA INDIVIDUAL DE GRUPO -->
+<div id="groupDetailModal" class="modal">
+    <div class="modal-box" style="max-width: 650px;">
+        <button class="close" onclick="closeGroupDetailModal()">×</button>
+        <h2 id="groupDetailName" style="margin:0; color:#ff8800;">Nombre del Grupo</h2>
+        <div id="groupDetailId" style="font-size: 11px; color: #888; margin-bottom: 10px;">ID: --</div>
+        <p id="groupDetailDesc" style="color: #ccc; background: #151515; padding: 10px; border-radius: 4px; border: 1px solid #333;"></p>
+
+        <!-- CHAT DE NOTICIAS (Solo admins pueden hablar) -->
+        <div class="section" style="background: #121212; padding: 10px; border-radius: 5px; border: 1px solid #444;">
+            <h4 style="margin: 0 0 5px 0; color: #ffd700;">📢 Chat de Noticias (Solo Admins)</h4>
+            <div id="groupNewsBox" class="chat-box" style="height: 120px;">Cargando noticias...</div>
+            <div id="groupNewsInputArea" class="hidden" style="display:flex; gap:5px; margin-top:5px;">
+                <input type="text" id="groupNewsText" placeholder="Escribir noticia oficial..." style="margin:0;">
+                <button class="form-button" style="width:auto; background:#ffd700; color:#000;" onclick="sendGroupNews()">Publicar</button>
+            </div>
+        </div>
+
+        <!-- PESTAÑAS DEL GRUPO -->
+        <div class="group-tabs" style="margin-top: 20px;">
+            <button class="group-tab-btn active" onclick="switchGroupTab('members')">Miembros</button>
+            <button id="tabBtnForums" class="group-tab-btn hidden" onclick="switchGroupTab('forums')">Foros</button>
+            <button id="tabBtnChats" class="group-tab-btn hidden" onclick="switchGroupTab('chats')">Chats</button>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: MIEMBROS -->
+        <div id="groupTabMembers" class="group-tab-content">
+            <div id="groupMembersList">Cargando miembros...</div>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: FOROS -->
+        <div id="groupTabForums" class="group-tab-content hidden">
+            <div id="groupForumsContainer">Cargando foros...</div>
+            <div style="margin-top:10px;">
+                <input type="text" id="forumPostTitle" placeholder="Título del tema de foro...">
+                <textarea id="forumPostContent" placeholder="Escribe tu mensaje en el foro..."></textarea>
+                <button class="form-button" onclick="createForumPost()">Crear Tema de Foro</button>
+            </div>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: CHATS -->
+        <div id="groupTabChats" class="group-tab-content hidden">
+            <div id="groupChatBox" class="chat-box" style="height: 200px;">Cargando chat de grupo...</div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="groupChatInput" placeholder="Escribe en el chat del grupo..." style="margin:0;">
+                <button class="form-button" style="width:auto; background:#007bff;" onclick="sendGroupChatMessage()">Enviar</button>
+            </div>
+        </div>
+
+        <!-- PANEL DE CONTROL DEL OWNER / ADMINS -->
+        <div id="groupOwnerAdminPanel" class="hidden section" style="background: #1a0800; border: 1px solid #ff8800; padding: 12px; border-radius: 6px;">
+            <h4 style="margin:0; color:#ff8800;">⚙️ Panel de Control del Grupo</h4>
+            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('forumEnabled')">🔄 Activar/Desactivar Foros</button>
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('chatEnabled')">🔄 Activar/Desactivar Chat</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- MODAL SUSCRIPCIÓN BLOCK -->
 <div id="blockSubModal" class="modal">
@@ -647,7 +760,7 @@ model-viewer {
     <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
         <h3>🎟️ Canjear Código promocional</h3>
         <input type="text" id="codeRedeemInput" placeholder="Introduce tu código aquí (ej: PROMO100)">
-        <button class="form-button" style="background:#ffd700;" onclick="redeemCode()">Canjear Código</button>
+        <button class="form-button" style="background:#ffd700; color:#000;" onclick="redeemCode()">Canjear Código</button>
         <p id="codeRedeemMsg"></p>
     </div>
 
@@ -696,7 +809,13 @@ model-viewer {
     <div id="adminPanel" class="admin-panel hidden">
         <h2>🛠️ Panel de Administración</h2>
 
-        <!-- BANDEJA EXCLUSIVA DE REPORTES (10+ DENUNCIAS) -->
+        <div class="section" style="border: 2px solid #ff8800; padding: 12px; border-radius: 8px;">
+            <h3 style="color: #ff8800; margin-top:0;">📌 Fijar / Desfijar Grupo por ID</h3>
+            <input type="text" id="adminPinGroupId" placeholder="ID del Grupo">
+            <button class="admin-button" style="width:100%;" onclick="adminPinGroup()">Fijar/Desfijar Grupo</button>
+            <p id="adminPinMsg"></p>
+        </div>
+
         <div class="section" style="border: 2px solid #ff4444; padding: 12px; border-radius: 8px;">
             <h3 style="color: #ff5555; margin-top:0;">📥 Bandeja de Cuentas Reportadas (10+ Denuncias)</h3>
             <button class="secondary-button" onclick="loadReportedUsersInbox()">🔄 Actualizar Bandeja</button>
@@ -716,7 +835,7 @@ model-viewer {
             <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
             <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
             <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
-            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional, ignora limited/offsale)">
+            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional)">
             <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
             <p id="adminCodeMsg"></p>
         </div>
@@ -763,7 +882,7 @@ model-viewer {
             </select>
             <select id="editItemIsGhost">
                 <option value="">¿Es Fantasma?: No cambiar</option>
-                <option value="true">Sí (Fantasma: oculto del catálogo)</option>
+                <option value="true">Sí (Fantasma)</option>
                 <option value="false">No (Público)</option>
             </select>
             <select id="editItemOnlyBlock">
@@ -1000,10 +1119,12 @@ const RENDER_API = (
     window.GAMEBLOCKS_API_URL ||
     localStorage.getItem("gameblocks_api_url") ||
     "https://TU-SERVICIO.onrender.com"
-).replace(/\\/$/, "");
+).replace(/\/$/, "");
+
 let currentTradeTargetId = null;
 let currentChatFriendId = null;
 let currentCardUserId = null;
+let currentOpenGroupId = null;
 let profileAudio = null;
 
 function escapeHTML(str) {
@@ -1038,11 +1159,6 @@ function loadSavedHomeBgColor() {
     }
 }
 
-// API de Game Blocks.
-// Puedes fijarla antes de cargar la página con:
-// window.GAMEBLOCKS_API_URL = "https://tu-servicio.onrender.com"
-// o guardarla con:
-// localStorage.setItem("gameblocks_api_url", "https://tu-servicio.onrender.com")
 async function request(endpoint, method = "GET", body = null) {
     const headers = { "Content-Type": "application/json" };
     const token = localStorage.getItem("gameblocks_token");
@@ -1055,42 +1171,23 @@ async function request(endpoint, method = "GET", body = null) {
     try {
         response = await fetch(RENDER_API + endpoint, options);
     } catch (networkErr) {
-        // El fetch ni siquiera llegó al servidor (sin conexión, servidor caído, CORS, etc.)
-        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.");
+        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión.");
     }
 
-    // Se lee siempre como texto primero: evita que response.json() reviente
-    // cuando el cuerpo está vacío (204, timeouts de proxy) o no es JSON (páginas de error HTML).
     const rawText = await response.text().catch(() => "");
-
     let data = {};
     if (rawText) {
         try {
             data = JSON.parse(rawText);
         } catch {
-            // El servidor respondió pero no con JSON válido (ej. página de error del hosting)
-            throw new Error(
-                response.ok
-                    ? "Respuesta inválida del servidor."
-                    : `Error del servidor (código ${response.status}). Intenta de nuevo en unos segundos.`
-            );
+            throw new Error(response.ok ? "Respuesta inválida del servidor." : `Error del servidor (${response.status}).`);
         }
     }
 
     if (!response.ok) {
-        if (data.banned) {
-            showBannedView();
-        }
+        if (data.banned) showBannedView();
         if (data.error) throw new Error(data.error);
-        const mensajesPorCodigo = {
-            401: "Tu sesión expiró o no es válida. Inicia sesión de nuevo.",
-            403: "No tienes permiso para hacer esto.",
-            404: "Esa función no existe en el servidor.",
-            405: "El servidor rechazó esa acción (método no permitido). Recarga la página e intenta de nuevo.",
-            413: "El archivo o los datos enviados son demasiado grandes.",
-            500: "Error interno del servidor. Intenta de nuevo en unos segundos."
-        };
-        throw new Error(mensajesPorCodigo[response.status] || `Error del servidor (código ${response.status}).`);
+        throw new Error(`Error del servidor (${response.status}).`);
     }
     return data;
 }
@@ -1116,6 +1213,332 @@ function applyProfileStyling(bgColor, soundUrl) {
     }
 }
 
+// ==========================================
+// FUNCIONES DE GRUPOS EN CLIENTE
+// ==========================================
+function openGroupsModal() {
+    document.getElementById("groupsModal").style.display = "flex";
+    loadAllGroups();
+}
+
+function closeGroupsModal() {
+    document.getElementById("groupsModal").style.display = "none";
+}
+
+function outsideCloseGroups(event) {
+    if (event.target.id === "groupsModal") closeGroupsModal();
+}
+
+function openCreateGroupModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para crear un grupo.");
+        openAccount();
+        return;
+    }
+    document.getElementById("createGroupModal").style.display = "flex";
+}
+
+function closeCreateGroupModal() {
+    document.getElementById("createGroupModal").style.display = "none";
+}
+
+async function submitCreateGroup() {
+    const name = document.getElementById("newGroupName").value;
+    const description = document.getElementById("newGroupDesc").value;
+    const msg = document.getElementById("createGroupMsg");
+
+    try {
+        const data = await request("/api/groups/create", "POST", { name, description });
+        msg.className = "success";
+        msg.textContent = "¡Grupo creado con éxito!";
+        document.getElementById("userCoinsText").textContent = data.newBalance;
+        setTimeout(() => {
+            closeCreateGroupModal();
+            loadAllGroups();
+        }, 1000);
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function loadAllGroups() {
+    const container = document.getElementById("allGroupsContainer");
+    try {
+        const data = await request("/api/groups");
+        container.innerHTML = "";
+        if (data.groups.length === 0) {
+            container.textContent = "No hay grupos creados todavía.";
+            return;
+        }
+
+        data.groups.forEach(g => {
+            const div = document.createElement("div");
+            div.className = "result";
+            if (g.pinned) {
+                div.style.borderColor = "#ff8800";
+                div.style.background = "#1a0d00";
+            }
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <h3 style="margin:0; color:#ff8800;">${escapeHTML(g.name)} ${g.pinned ? '📌 [FIJADO]' : ''}</h3>
+                        <div style="font-size:11px; color:#aaa; margin-top:2px;">ID: ${g.id}</div>
+                        <p style="font-size:13px; color:#ccc; margin:5px 0;">${escapeHTML(g.description || "Sin descripción")}</p>
+                        <div style="font-size:12px; color:#888;">Miembros: ${g.members.length}</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 12px;" onclick="joinGroup('${g.id}')">Unirse</button>
+                        <button class="form-button" style="width:auto; margin:0; padding:6px 12px; background:#ff8800; color:#000;" onclick="openGroupDetail('${g.id}')">Ver Grupo</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = "Error al cargar los grupos.";
+    }
+}
+
+async function joinGroup(groupId) {
+    try {
+        const data = await request(`/api/groups/${groupId}/join`, "POST");
+        alert(data.message);
+        loadAllGroups();
+    } catch (e) { alert(e.message); }
+}
+
+async function openGroupDetail(groupId) {
+    currentOpenGroupId = groupId;
+    document.getElementById("groupDetailModal").style.display = "flex";
+    loadGroupData();
+}
+
+function closeGroupDetailModal() {
+    document.getElementById("groupDetailModal").style.display = "none";
+    currentOpenGroupId = null;
+}
+
+async function loadGroupData() {
+    if (!currentOpenGroupId) return;
+    try {
+        const [group, me] = await Promise.all([
+            request(`/api/groups/${currentOpenGroupId}`),
+            request("/api/me")
+        ]);
+
+        document.getElementById("groupDetailName").textContent = group.name;
+        document.getElementById("groupDetailId").textContent = "ID: " + group.id;
+        document.getElementById("groupDetailDesc").textContent = group.description || "Sin descripción";
+
+        // Chat de noticias
+        const newsBox = document.getElementById("groupNewsBox");
+        newsBox.innerHTML = "";
+        if (!group.newsMessages || group.newsMessages.length === 0) {
+            newsBox.textContent = "No hay noticias oficiales.";
+        } else {
+            group.newsMessages.forEach(n => {
+                const d = document.createElement("div");
+                d.className = "chat-msg chat-msg-them";
+                d.style.background = "#2a1c00";
+                d.textContent = `[${n.senderUsername}]: ${n.text}`;
+                newsBox.appendChild(d);
+            });
+            newsBox.scrollTop = newsBox.scrollHeight;
+        }
+
+        const isOwner = String(group.ownerId) === String(me.id);
+        const isAdmin = group.admins && group.admins.includes(me.id);
+
+        if (isOwner || isAdmin) {
+            document.getElementById("groupNewsInputArea").classList.remove("hidden");
+        } else {
+            document.getElementById("groupNewsInputArea").classList.add("hidden");
+        }
+
+        if (isOwner) {
+            document.getElementById("groupOwnerAdminPanel").classList.remove("hidden");
+        } else {
+            document.getElementById("groupOwnerAdminPanel").classList.add("hidden");
+        }
+
+        // Pestañas dinámicas según configuración del owner
+        const btnForums = document.getElementById("tabBtnForums");
+        const btnChats = document.getElementById("tabBtnChats");
+
+        if (group.forumEnabled) {
+            btnForums.classList.remove("hidden");
+        } else {
+            btnForums.classList.add("hidden");
+        }
+
+        if (group.chatEnabled) {
+            btnChats.classList.remove("hidden");
+        } else {
+            btnChats.classList.add("hidden");
+        }
+
+        // Listar miembros
+        const membersDiv = document.getElementById("groupMembersList");
+        membersDiv.innerHTML = "";
+        group.enrichedMembers.forEach(m => {
+            const mIsOwner = String(m.id) === String(group.ownerId);
+            const mIsAdmin = group.admins.includes(m.id);
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <img src="${m.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                        <b>${escapeHTML(m.username)}</b> ${mIsOwner ? '👑 [Owner]' : mIsAdmin ? '🛡️ [Admin]' : ''}
+                    </div>
+                    <div>
+                        ${(isOwner && !mIsOwner) ? `
+                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:11px;" onclick="toggleGroupAdmin('${m.id}')">${mIsAdmin ? 'Quitar Admin' : 'Hacer Admin'}</button>
+                            <button class="danger-button" style="padding:4px 8px; font-size:11px;" onclick="banGroupMember('${m.id}')">Banear</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            membersDiv.appendChild(div);
+        });
+
+        // Cargar Foros y Chat si están activos
+        if (group.forumEnabled) loadGroupForums(group);
+        if (group.chatEnabled) loadGroupChat(group);
+
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function switchGroupTab(tabName) {
+    document.querySelectorAll('.group-tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.group-tab-btn').forEach(el => el.classList.remove('active'));
+
+    if (tabName === 'members') {
+        document.getElementById('groupTabMembers').classList.remove('hidden');
+        document.querySelectorAll('.group-tab-btn')[0].classList.add('active');
+    } else if (tabName === 'forums') {
+        document.getElementById('groupTabForums').classList.remove('hidden');
+        document.getElementById('tabBtnForums').classList.add('active');
+    } else if (tabName === 'chats') {
+        document.getElementById('groupTabChats').classList.remove('hidden');
+        document.getElementById('tabBtnChats').classList.add('active');
+    }
+}
+
+async function sendGroupNews() {
+    const text = document.getElementById("groupNewsText").value;
+    if (!text.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/news`, "POST", { text });
+        document.getElementById("groupNewsText").value = "";
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function toggleGroupSetting(settingName) {
+    try {
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        const body = {};
+        if (settingName === 'chatEnabled') body.chatEnabled = !group.chatEnabled;
+        if (settingName === 'forumEnabled') body.forumEnabled = !group.forumEnabled;
+
+        await request(`/api/groups/${currentOpenGroupId}/settings`, "POST", body);
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function toggleGroupAdmin(memberId) {
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/admin`, "POST", { memberId });
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function banGroupMember(memberId) {
+    if (!confirm("¿Seguro que deseas banear a este miembro del grupo?")) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/ban-member`, "POST", { memberId });
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadGroupForums(group) {
+    const container = document.getElementById("groupForumsContainer");
+    container.innerHTML = "";
+    if (!group.forumPosts || group.forumPosts.length === 0) {
+        container.textContent = "No hay temas en el foro.";
+        return;
+    }
+    group.forumPosts.forEach(p => {
+        const d = document.createElement("div");
+        d.className = "result";
+        d.innerHTML = `
+            <b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
+            <p style="margin:5px 0; color:#ccc;">${escapeHTML(p.content)}</p>
+        `;
+        container.appendChild(d);
+    });
+}
+
+async function createForumPost() {
+    const title = document.getElementById("forumPostTitle").value;
+    const content = document.getElementById("forumPostContent").value;
+    if (!title.trim() || !content.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/forum`, "POST", { title, content });
+        document.getElementById("forumPostTitle").value = "";
+        document.getElementById("forumPostContent").value = "";
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        loadGroupForums(group);
+    } catch (e) { alert(e.message); }
+}
+
+async function loadGroupChat(group) {
+    const box = document.getElementById("groupChatBox");
+    box.innerHTML = "";
+    if (!group.groupChatMessages || group.groupChatMessages.length === 0) {
+        box.textContent = "Sin mensajes en el chat de grupo.";
+        return;
+    }
+    group.groupChatMessages.forEach(m => {
+        const d = document.createElement("div");
+        d.className = "chat-msg chat-msg-them";
+        d.textContent = `[${m.senderUsername}]: ${m.text}`;
+        box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+}
+
+async function sendGroupChatMessage() {
+    const textInput = document.getElementById("groupChatInput");
+    const text = textInput.value;
+    if (!text.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/chat`, "POST", { text });
+        textInput.value = "";
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        loadGroupChat(group);
+    } catch (e) { alert(e.message); }
+}
+
+// ADMIN: Fijar grupo por ID
+async function adminPinGroup() {
+    const groupId = document.getElementById("adminPinGroupId").value;
+    const msg = document.getElementById("adminPinMsg");
+    try {
+        const data = await request("/api/admin/groups/pin", "POST", { groupId });
+        msg.className = "success";
+        msg.textContent = data.message;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+// Modales generales y utilidades
 function openCurrencyModal() {
     if (!localStorage.getItem("gameblocks_token")) {
         alert("Inicia sesión para usar tus 💲.");
@@ -1126,13 +1549,8 @@ function openCurrencyModal() {
     loadCurrencyPackages();
 }
 
-function closeCurrencyModal() {
-    document.getElementById("currencyModal").style.display = "none";
-}
-
-function outsideCloseCurrency(event) {
-    if (event.target.id === "currencyModal") closeCurrencyModal();
-}
+function closeCurrencyModal() { document.getElementById("currencyModal").style.display = "none"; }
+function outsideCloseCurrency(event) { if (event.target.id === "currencyModal") closeCurrencyModal(); }
 
 function openBlockSubModal() {
     if (!localStorage.getItem("gameblocks_token")) {
@@ -1143,9 +1561,7 @@ function openBlockSubModal() {
     document.getElementById("blockSubModal").style.display = "flex";
 }
 
-function closeBlockSubModal() {
-    document.getElementById("blockSubModal").style.display = "none";
-}
+function closeBlockSubModal() { document.getElementById("blockSubModal").style.display = "none"; }
 
 async function buyBlockSubscription() {
     const msg = document.getElementById("blockSubMsg");
@@ -1229,30 +1645,19 @@ function openAvatarModal() {
     loadBanner();
 }
 
-function closeAvatarModal() {
-    document.getElementById("avatarModal").style.display = "none";
-}
-
-function outsideCloseAvatar(event) {
-    if (event.target.id === "avatarModal") closeAvatarModal();
-}
+function closeAvatarModal() { document.getElementById("avatarModal").style.display = "none"; }
+function outsideCloseAvatar(event) { if (event.target.id === "avatarModal") closeAvatarModal(); }
 
 function toggleLimitedInput() {
     const val = document.getElementById("accessoryIsLimited").value;
-    if (val === "si") {
-        document.getElementById("limitedOptions").classList.remove("hidden");
-    } else {
-        document.getElementById("limitedOptions").classList.add("hidden");
-    }
+    if (val === "si") document.getElementById("limitedOptions").classList.remove("hidden");
+    else document.getElementById("limitedOptions").classList.add("hidden");
 }
 
 function toggleAdminTshirtLimited() {
     const val = document.getElementById("adminTshirtIsLimited").value;
-    if (val === "si") {
-        document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
-    } else {
-        document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
-    }
+    if (val === "si") document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
+    else document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
 }
 
 function showLogin() {
@@ -1336,14 +1741,12 @@ function logout() {
 }
 
 async function deleteBannedAccount() {
-    if (!confirm("¿Estás seguro de eliminar permanentemente tu cuenta baneada?")) return;
+    if (!confirm("¿Estás seguro de eliminar permanentemente tu cuenta?")) return;
     try {
         await request("/api/account/delete-banned", "POST");
         alert("Cuenta eliminada.");
         logout();
-    } catch (e) {
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 }
 
 async function updateAccount() {
@@ -1387,11 +1790,8 @@ async function updateAccount() {
         loadMyInventory();
         loadFriendsAndRequests();
     } catch (e) {
-        if (e.message.includes("baneado")) {
-            showBannedView();
-        } else {
-            logout();
-        }
+        if (e.message.includes("baneado")) showBannedView();
+        else logout();
     }
 }
 
@@ -1401,9 +1801,7 @@ async function editAvatar() {
     try {
         const data = await request("/api/profile/avatar", "POST", { avatar: url });
         document.getElementById("myAvatar").src = data.avatar;
-    } catch (e) {
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 }
 
 async function saveBio() {
@@ -1508,9 +1906,7 @@ async function searchUsers() {
             container.appendChild(div);
         });
         openAccount();
-    } catch (e) {
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 }
 
 async function openUserProfileCard(userId) {
@@ -1526,11 +1922,8 @@ async function openUserProfileCard(userId) {
         document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
         document.getElementById("cardBio").textContent = u.bio || "Sin biografía.";
 
-        if (u.isAlert) {
-            document.getElementById("cardAlertBadge").classList.remove("hidden");
-        } else {
-            document.getElementById("cardAlertBadge").classList.add("hidden");
-        }
+        if (u.isAlert) document.getElementById("cardAlertBadge").classList.remove("hidden");
+        else document.getElementById("cardAlertBadge").classList.add("hidden");
 
         const badgesDiv = document.getElementById("cardBadges");
         badgesDiv.innerHTML = "";
@@ -1552,18 +1945,11 @@ async function openUserProfileCard(userId) {
             `;
             invDiv.appendChild(card);
         });
-    } catch (e) {
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 }
 
-function closeUserProfileCard() {
-    document.getElementById("userProfileCardModal").style.display = "none";
-}
-
-function outsideCloseUserCard(event) {
-    if (event.target.id === "userProfileCardModal") closeUserProfileCard();
-}
+function closeUserProfileCard() { document.getElementById("userProfileCardModal").style.display = "none"; }
+function outsideCloseUserCard(event) { if (event.target.id === "userProfileCardModal") closeUserProfileCard(); }
 
 async function likeUserCard() {
     if (!currentCardUserId) return;
@@ -1597,11 +1983,8 @@ async function loadShopItems() {
     const filterContainer = document.getElementById("tshirtFilterContainer");
     const container = document.getElementById("shopContainer");
 
-    if (type === "tshirt") {
-        filterContainer.classList.remove("hidden");
-    } else {
-        filterContainer.classList.add("hidden");
-    }
+    if (type === "tshirt") filterContainer.classList.remove("hidden");
+    else filterContainer.classList.add("hidden");
 
     try {
         const data = await request("/api/accessories");
@@ -1649,9 +2032,7 @@ async function loadShopItems() {
             card.appendChild(btn);
             container.appendChild(card);
         });
-    } catch (e) {
-        container.textContent = "Error al cargar la tienda.";
-    }
+    } catch (e) { container.textContent = "Error al cargar la tienda."; }
 }
 
 async function searchUserByName(username) {
@@ -1666,9 +2047,7 @@ async function buyAccessory(itemId) {
         document.getElementById("userCoinsText").textContent = data.newBalance;
         loadMyInventory();
         loadShopItems();
-    } catch (e) {
-        alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
 }
 
 async function loadMyInventory() {
@@ -1688,8 +2067,7 @@ async function loadMyInventory() {
         const counts = {};
         me.inventory.forEach(id => counts[id] = (counts[id] || 0) + 1);
 
-        const uniqueIds = Object.keys(counts);
-        uniqueIds.forEach(itemId => {
+        Object.keys(counts).forEach(itemId => {
             const item = allAcc.items.find(a => String(a.id) === String(itemId)) || {
                 id: itemId,
                 name: "Artículo #" + itemId,
@@ -1699,7 +2077,6 @@ async function loadMyInventory() {
 
             const card = document.createElement("div");
             card.className = "shop-card";
-
             const isEquipped = String(me.equippedAccessory) === String(itemId);
 
             card.innerHTML = `
@@ -1740,9 +2117,7 @@ async function loadMyInventory() {
 
             container.appendChild(card);
         });
-    } catch (e) {
-        container.textContent = "Error al cargar el inventario.";
-    }
+    } catch (e) { container.textContent = "Error al cargar el inventario."; }
 }
 
 async function equipAccessory(itemId) {
@@ -1750,9 +2125,7 @@ async function equipAccessory(itemId) {
         const data = await request("/api/accessories/equip", "POST", { itemId });
         applyProfileStyling(data.profileBgColor, data.profileSoundUrl);
         const item = (await request("/api/accessories/all")).items.find(a => String(a.id) === String(itemId));
-        if (item && item.glbUrl) {
-            document.getElementById("accessoryViewer").src = item.glbUrl;
-        }
+        if (item && item.glbUrl) document.getElementById("accessoryViewer").src = item.glbUrl;
         loadMyInventory();
     } catch (e) { alert(e.message); }
 }
@@ -1767,7 +2140,7 @@ async function unequipAccessory() {
 }
 
 async function sellAccessory(itemId) {
-    if (!confirm("¿Deseas vender una copia de este artículo por el 50% de su valor original?")) return;
+    if (!confirm("¿Deseas vender una copia por el 50% de su valor?")) return;
     try {
         const data = await request("/api/accessories/sell", "POST", { itemId });
         alert(`Vendido por ${data.refundAmount} monedas.`);
@@ -1792,7 +2165,7 @@ async function loadResaleMarket() {
         const data = await request("/api/accessories/resale-market");
         container.innerHTML = "";
         if (data.listings.length === 0) {
-            container.textContent = "No hay ofertas de reventa en este momento.";
+            container.textContent = "No hay ofertas de reventa.";
             return;
         }
 
@@ -1816,9 +2189,7 @@ async function loadResaleMarket() {
             card.appendChild(btn);
             container.appendChild(card);
         });
-    } catch (e) {
-        container.textContent = "Error al cargar el mercado de reventa.";
-    }
+    } catch (e) { container.textContent = "Error al cargar reventas."; }
 }
 
 async function buyResaleItem(listingId) {
@@ -1853,7 +2224,7 @@ async function loadFriendsAndRequests() {
         const reqDiv = document.getElementById("requests");
         reqDiv.innerHTML = "";
         if (reqs.requests.length === 0) {
-            reqDiv.textContent = "No tienes solicitudes de amistad pendietes.";
+            reqDiv.textContent = "No tienes solicitudes de amistad pendientes.";
         } else {
             reqs.requests.forEach(r => {
                 const div = document.createElement("div");
@@ -1940,9 +2311,7 @@ async function openTradeModal(targetUserId, username) {
     } catch (e) { alert(e.message); }
 }
 
-function closeTradeModal() {
-    document.getElementById("tradeModal").style.display = "none";
-}
+function closeTradeModal() { document.getElementById("tradeModal").style.display = "none"; }
 
 async function sendTradeOffer() {
     const offeredItemId = document.getElementById("tradeGiveSelect").value;
@@ -1969,7 +2338,7 @@ async function loadTrades() {
         const data = await request("/api/trade/pending");
         container.innerHTML = "";
         if (data.trades.length === 0) {
-            container.textContent = "No tienes ofertas de intercambio pendientes.";
+            container.textContent = "No tienes ofertas pendientes.";
             return;
         }
         data.trades.forEach(t => {
@@ -2002,9 +2371,7 @@ function openChatModal(friendId, username) {
     loadChatMessages();
 }
 
-function closeChatModal() {
-    document.getElementById("chatModal").style.display = "none";
-}
+function closeChatModal() { document.getElementById("chatModal").style.display = "none"; }
 
 async function loadChatMessages() {
     if (!currentChatFriendId) return;
@@ -2040,9 +2407,7 @@ async function sendChatMessage() {
         await request("/api/chat/send", "POST", { friendId: currentChatFriendId, text });
         textInput.value = "";
         loadChatMessages();
-    } catch (e) {
-        errorMsg.textContent = e.message;
-    }
+    } catch (e) { errorMsg.textContent = e.message; }
 }
 
 function insertEmoji(emoji) {
@@ -2050,7 +2415,7 @@ function insertEmoji(emoji) {
     input.value += emoji;
 }
 
-// PANEL DE ADMIN Y BANDEJA DE REPORTES
+// ADMIN Y REPORTES
 async function loadReportedUsersInbox() {
     const container = document.getElementById("reportedUsersInbox");
     try {
@@ -2070,14 +2435,14 @@ async function loadReportedUsersInbox() {
                 <div><b>Total Denuncias:</b> <span style="color:#ff5555; font-weight:bold;">${u.reportsCount}</span></div>
                 <div><b>Estado:</b> ${u.banned ? 'BANEADO' : 'Activo'}</div>
                 <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
-                    <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre a [contenido baneado]</button>
-                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Bapear Cuenta</button>
+                    <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre</button>
+                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Banear Cuenta</button>
                     <button class="admin-button" style="padding:4px 8px;" onclick="adminClearReported('${u.id}')">Borrar Denuncias</button>
                 </div>
             `;
             container.appendChild(div);
         });
-    } catch (e) { container.textContent = "Error al cargar la bandeja de reportes."; }
+    } catch (e) { container.textContent = "Error al cargar reportes."; }
 }
 
 async function adminRenameReported(userId) {
