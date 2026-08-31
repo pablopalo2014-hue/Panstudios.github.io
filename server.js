@@ -310,8 +310,8 @@ app.post(['/api/register', '/register'], async (req, res) => {
         avatar: "https://via.placeholder.com/110",
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner", "🛡️admin"] : [],
-        coins: 100, // Empezar con 100 monedas para que puedan crear grupo fácilmente
-        dollars: 0,
+        coins: 0, // Empezar con 100 monedas para que puedan crear grupo fácilmente
+        dollars: 3,
         inventory: [],
         likes: [],
         dislikes: [],
