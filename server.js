@@ -556,7 +556,7 @@ app.post('/api/groups/:id/admins', authenticateToken, async (req, res) => {
 });
 
 // Chat de noticias (Solo Admins del grupo)
-app.post('/api/groups/:id/news/send', authenticateToken, async (req, res) => {
+await request(`/api/groups/${currentOpenGroupId}/news/send`, "POST", { text });
     const group = groups.find(g => String(g.id) === String(req.params.id));
     if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
 
@@ -583,7 +583,7 @@ app.post('/api/groups/:id/news/send', authenticateToken, async (req, res) => {
 });
 
 // Chat de grupo (Miembros)
-app.post('/api/groups/:id/chat/send', authenticateToken, async (req, res) => {
+await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
     const group = groups.find(g => String(g.id) === String(req.params.id));
     if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
 
