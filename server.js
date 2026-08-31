@@ -185,7 +185,7 @@ async function loadDataFromGit() {
             chatMessages = parsed.chatMessages || [];
             groups = parsed.groups || [];
             blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
-            console.log("✅ Datos cargados correctamente desde el Gist privado[cite: 5].");
+            console.log("✅ Datos cargados correctamente desde el Gist privado[cite: 5]."); 
         } else {
             loadLocalData();
         }
