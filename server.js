@@ -612,7 +612,7 @@ app.post('/api/groups/:id/chat/send', authenticateToken, async (req, res) => {
 });
 
 // Foros de grupo (Si están activos)
-app.post('/api/groups/:id/forum/create', authenticateToken, async (req, res) => {
+app.post('/api/groups/:id/forum', authenticateToken, async (req, res) => {
     const group = groups.find(g => String(g.id) === String(req.params.id));
     if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
 
