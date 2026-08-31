@@ -1,3 +1,6 @@
+// ==========================================
+// server.js - Versión Completa con Sistema de Grupos y Estética 2007
+// ==========================================
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -10,8 +13,6 @@ const { Octokit } = require('@octokit/rest');
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
 
-// Red de seguridad: evita que un error no controlado (fuera del ciclo de una petición Express,
-// por ejemplo en los setInterval de abajo) tumbe todo el proceso y deje el servidor sin responder.
 process.on('unhandledRejection', (reason) => {
     console.error("⚠️ Promesa rechazada sin manejar:", reason);
 });
@@ -19,11 +20,8 @@ process.on('uncaughtException', (err) => {
     console.error("⚠️ Excepción no controlada:", err);
 });
 
-// Envuelve automáticamente cada ruta async (sin necesidad de instalar ningún paquete nuevo):
-// si la función async lanza un error, se reenvía a next(err) en vez de dejar la petición
-// colgada o, peor, tirar el proceso completo por una promesa rechazada sin manejar.
 function wrapAsync(fn) {
-    if (fn.length >= 3) return fn; // ya es un middleware de error (err, req, res, next): no tocar
+    if (fn.length >= 3) return fn;
     return function (req, res, next) {
         Promise.resolve(fn(req, res, next)).catch(next);
     };
@@ -38,13 +36,9 @@ const GIST_ID = process.env.GIST_ID;
 const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
 
 app.use(cors());
-
-// Se aumenta el límite para aceptar cargas de imágenes o JSON pesados sin generar error HTML 413
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Evita que express.static devuelva un 405 en texto plano cuando llega un método
-// no-GET/HEAD a una ruta estática. Las rutas /api/, /register, /login y solicitudes OPTIONS se dejan pasar intactas.
 app.use((req, res, next) => {
     if (req.method === 'OPTIONS') return next();
     if (req.path.startsWith('/api/') || req.path === '/register' || req.path === '/login') return next();
@@ -54,7 +48,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// --- ENGANCHE A INDEX Y ARCHIVOS ESTÁTICOS ---
 app.use(express.static(__dirname));
  
 app.get('/', (req, res) => {
@@ -65,7 +58,6 @@ const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
-
 app.use('/uploads', express.static(uploadDir));
 
 const storage = multer.diskStorage({
@@ -84,6 +76,7 @@ let resaleListings = [];
 let promoCodes = [];     
 let bannerText = "";     
 let chatMessages = [];
+let groups = []; // NUEVO: Sistema de grupos
 let blockSubscriptionRewardItemId = null;
 
 let currencyPackages = [
@@ -110,7 +103,6 @@ function hasActiveBlockSub(user) {
     return Date.now() < user.blockSubExpiresAt;
 }
 
-// Cargar datos locales de respaldo
 function loadLocalData() {
     if (fs.existsSync(LOCAL_DB_PATH)) {
         try {
@@ -141,15 +133,15 @@ function loadLocalData() {
             promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
             chatMessages = parsed.chatMessages || [];
+            groups = parsed.groups || [];
             blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
-            console.log("✅ Datos cargados localmente desde database.json");
+            console.log("✅ Datos cargados localmente desde database.json[cite: 5]");
         } catch (err) {
             console.error("⚠️ Error al leer database.json local:", err.message);
         }
     }
 }
 
-// Persistencia mediante GitHub Gist o respaldo en database.json local
 async function loadDataFromGit() {
     if (!octokit || !GIST_ID) {
         console.log("⚠️ GITHUB_TOKEN o GIST_ID no configurados. Usando almacenamiento en archivo local.");
@@ -191,8 +183,9 @@ async function loadDataFromGit() {
             promoCodes = parsed.promoCodes || [];
             bannerText = parsed.bannerText || "";
             chatMessages = parsed.chatMessages || [];
+            groups = parsed.groups || [];
             blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
-            console.log("✅ Datos cargados correctamente desde el Gist privado.");
+            console.log("✅ Datos cargados correctamente desde el Gist privado[cite: 5].");
         } else {
             loadLocalData();
         }
@@ -213,6 +206,7 @@ async function saveDataToGit() {
         promoCodes,
         bannerText,
         chatMessages,
+        groups,
         blockSubscriptionRewardItemId
     };
     const dataToSave = JSON.stringify(dataObj, null, 2);
@@ -229,7 +223,7 @@ async function saveDataToGit() {
             gist_id: GIST_ID,
             files: { "database.json": { content: dataToSave } }
         });
-        console.log("✅ Cambios sincronizados con Gist.");
+        console.log("✅ Cambios sincronizados con Gist[cite: 5].");
     } catch (err) {
         console.error("❌ Error al guardar en Gist:", err.message);
     }
@@ -285,7 +279,7 @@ const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `htt
 
 setInterval(() => {
     try {
-        if (typeof fetch !== 'function') return; // Node sin fetch global (< 18): se omite en vez de crashear
+        if (typeof fetch !== 'function') return;
         fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
     } catch (err) {
         console.error("⚠️ Error en auto-ping:", err.message);
@@ -316,7 +310,7 @@ app.post(['/api/register', '/register'], async (req, res) => {
         avatar: "https://via.placeholder.com/110",
         bio: "",
         badges: isOwner ? ["🛠️ Admin", "🎮 Owner", "🛡️admin"] : [],
-        coins: 0,
+        coins: 100, // Empezar con 100 monedas para que puedan crear grupo fácilmente
         dollars: 0,
         inventory: [],
         likes: [],
@@ -400,6 +394,263 @@ app.post('/api/profile/bio', authenticateToken, async (req, res) => {
     req.user.bio = sanitizeText(req.body.bio || "");
     await saveDataToGit();
     res.json({ success: true, bio: req.user.bio });
+});
+
+// ==========================================
+// NUEVO: SISTEMA DE GRUPOS (CLANES)
+// ==========================================
+
+// Crear grupo (Cuesta 100 monedas)
+app.post('/api/groups/create', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+    const { name, description } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: "El nombre del grupo es obligatorio." });
+
+    if ((req.user.coins || 0) < 100) {
+        return res.status(400).json({ error: "Necesitas 100 monedas para crear un grupo." });
+    }
+
+    req.user.coins -= 100;
+
+    const newGroup = {
+        id: Date.now().toString(),
+        name: sanitizeText(name.trim()),
+        description: sanitizeText(description || ""),
+        ownerId: req.user.id,
+        admins: [req.user.id],
+        members: [req.user.id],
+        bannedMembers: [],
+        chatEnabled: true,
+        forumEnabled: true,
+        pinned: false,
+        newsMessages: [],
+        groupChatMessages: [],
+        forumPosts: []
+    };
+
+    groups.push(newGroup);
+    await saveDataToGit();
+    res.json({ success: true, group: newGroup, newBalance: req.user.coins });
+});
+
+// Listar todos los grupos (con pines primero)
+app.get('/api/groups', (req, res) => {
+    const sortedGroups = [...groups].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    res.json({ groups: sortedGroups });
+});
+
+// Ver detalle de un grupo
+app.get('/api/groups/:id', (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    // Enriquecer miembros con datos de usuario
+    const enrichedMembers = group.members.map(mId => {
+        const u = users.find(usr => String(usr.id) === String(mId));
+        return u ? { id: u.id, username: u.username, avatar: u.avatar } : null;
+    }).filter(Boolean);
+
+    res.json({ ...group, enrichedMembers });
+});
+
+// Unirse a un grupo
+app.post('/api/groups/:id/join', authenticateToken, async (req, res) => {
+    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (group.bannedMembers.includes(req.user.id)) {
+        return res.status(403).json({ error: "Has sido baneado de este grupo." });
+    }
+
+    if (!group.members.includes(req.user.id)) {
+        group.members.push(req.user.id);
+        await saveDataToGit();
+    }
+    res.json({ success: true, message: "Te has unido al grupo." });
+});
+
+// Salir de un grupo
+app.post('/api/groups/:id/leave', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (String(group.ownerId) === String(req.user.id)) {
+        return res.status(400).json({ error: "El owner no puede abandonar el grupo." });
+    }
+
+    group.members = group.members.filter(mId => String(mId) !== String(req.user.id));
+    group.admins = group.admins.filter(aId => String(aId) !== String(req.user.id));
+    await saveDataToGit();
+    res.json({ success: true, message: "Has salido del grupo." });
+});
+
+// Configurar foros o chat (Owner)
+app.post('/api/groups/:id/settings', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (String(group.ownerId) !== String(req.user.id)) {
+        return res.status(403).json({ error: "Solo el owner puede modificar la configuración." });
+    }
+
+    const { chatEnabled, forumEnabled } = req.body;
+    if (chatEnabled !== undefined) group.chatEnabled = Boolean(chatEnabled);
+    if (forumEnabled !== undefined) group.forumEnabled = Boolean(forumEnabled);
+
+    await saveDataToGit();
+    res.json({ success: true, chatEnabled: group.chatEnabled, forumEnabled: group.forumEnabled });
+});
+
+// Banear miembro del grupo (Owner o Admin)
+app.post('/api/groups/:id/ban-member', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = group.admins.includes(req.user.id);
+
+    if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "No tienes permisos de administración en este grupo." });
+    }
+
+    const { memberId } = req.body;
+    if (String(memberId) === String(group.ownerId)) {
+        return res.status(400).json({ error: "No puedes banear al owner." });
+    }
+
+    group.members = group.members.filter(m => String(m) !== String(memberId));
+    group.admins = group.admins.filter(a => String(a) !== String(memberId));
+    if (!group.bannedMembers.includes(memberId)) {
+        group.bannedMembers.push(memberId);
+    }
+
+    await saveDataToGit();
+    res.json({ success: true, message: "Miembro baneado del grupo." });
+});
+
+// Poner / Quitar Admins en el grupo (Owner)
+app.post('/api/groups/:id/admins', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (String(group.ownerId) !== String(req.user.id)) {
+        return res.status(403).json({ error: "Solo el owner puede gestionar administradores." });
+    }
+
+    const { memberId, action } = req.body; // action: 'add' o 'remove'
+    if (!group.members.includes(memberId)) {
+        return res.status(400).json({ error: "El usuario debe ser miembro del grupo." });
+    }
+
+    if (action === 'add') {
+        if (!group.admins.includes(memberId)) group.admins.push(memberId);
+    } else if (action === 'remove') {
+        if (String(memberId) !== String(group.ownerId)) {
+            group.admins = group.admins.filter(a => String(a) !== String(memberId));
+        }
+    }
+
+    await saveDataToGit();
+    res.json({ success: true, admins: group.admins });
+});
+
+// Chat de noticias (Solo Admins del grupo)
+app.post('/api/groups/:id/news/send', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = group.admins.includes(req.user.id);
+    if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: "Solo los administradores pueden publicar en el chat de noticias." });
+    }
+
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
+
+    const newsMsg = {
+        id: Date.now().toString(),
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        text: sanitizeText(text.trim()),
+        timestamp: Date.now()
+    };
+
+    group.newsMessages.push(newsMsg);
+    await saveDataToGit();
+    res.json({ success: true, message: newsMsg });
+});
+
+// Chat de grupo (Miembros)
+app.post('/api/groups/:id/chat/send', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (!group.chatEnabled) {
+        return res.status(403).json({ error: "El chat de grupo está desactivado por el owner." });
+    }
+
+    if (!group.members.includes(req.user.id)) {
+        return res.status(403).json({ error: "Debes unirte al grupo para chatear." });
+    }
+
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
+
+    const chatMsg = {
+        id: Date.now().toString(),
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        text: sanitizeText(text.trim()),
+        timestamp: Date.now()
+    };
+
+    group.groupChatMessages.push(chatMsg);
+    await saveDataToGit();
+    res.json({ success: true, message: chatMsg });
+});
+
+// Foros de grupo (Si están activos)
+app.post('/api/groups/:id/forum/create', authenticateToken, async (req, res) => {
+    const group = groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    if (!group.forumEnabled) {
+        return res.status(403).json({ error: "Los foros están desactivados por el owner." });
+    }
+
+    if (!group.members.includes(req.user.id)) {
+        return res.status(403).json({ error: "Debes unirte al grupo para publicar en el foro." });
+    }
+
+    const { title, content } = req.body;
+    if (!title || !content) return res.status(400).json({ error: "Título y contenido requeridos." });
+
+    const post = {
+        id: Date.now().toString(),
+        title: sanitizeText(title.trim()),
+        content: sanitizeText(content.trim()),
+        authorId: req.user.id,
+        authorUsername: req.user.username,
+        timestamp: Date.now(),
+        comments: []
+    };
+
+    group.forumPosts.push(post);
+    await saveDataToGit();
+    res.json({ success: true, post });
+});
+
+// Panel Admin: Fijar grupo por ID
+app.post('/api/admin/groups/pin', authenticateToken, requireAdmin, async (req, res) => {
+    const { groupId, pinned } = req.body;
+    const group = groups.find(g => String(g.id) === String(groupId));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+
+    group.pinned = Boolean(pinned);
+    await saveDataToGit();
+    res.json({ success: true, pinned: group.pinned });
 });
 
 // LIKES, DISLIKES Y REPORTES
@@ -642,7 +893,6 @@ app.post('/api/codes/redeem', authenticateToken, async (req, res) => {
     });
 });
 
-// ACCIONES DE USUARIO BANEADO
 app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
     if (!req.user.banned) {
         return res.status(400).json({ error: "Solo los usuarios baneados pueden borrar su cuenta con esta opción." });
@@ -659,7 +909,6 @@ app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
     res.json({ success: true, message: "Tu cuenta ha sido eliminada permanentemente." });
 });
 
-// AMIGOS & CÓDIGOS DE JUEGO
 app.post('/api/friends/request', authenticateToken, (req, res) => {
     const { userId } = req.body;
     if (String(userId) === String(req.user.id)) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
@@ -713,10 +962,9 @@ app.post('/api/game/create-code', authenticateToken, (req, res) => {
     res.json({ success: true, code });
 });
 
-// TIENDA, LIMITEDS, REVENTA, CAMISETAS E INTERCAMBIOS
 app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
     const enrichedItems = accessories
-        .filter(item => !item.isGhost) // NO sale en el catálogo si es fantasma
+        .filter(item => !item.isGhost)
         .map(item => {
             let totalSold = 0;
             users.forEach(u => {
@@ -744,7 +992,6 @@ app.get('/api/accessories/all', (req, res) => {
     res.json({ items: enrichedItems });
 });
 
-// SUBIR CAMISETA POR USUARIO UGC
 app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
@@ -896,7 +1143,6 @@ app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async 
     res.json({ success: true });
 });
 
-// INTERCAMBIOS (TRADES)
 app.post('/api/trade/offer', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
 
@@ -1019,7 +1265,6 @@ app.post('/api/trade/accept', authenticateToken, async (req, res) => {
     res.json({ success: true, message: "Intercambio completado." });
 });
 
-// REVENTA / MERCADO
 app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
     if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
     const { itemId, price } = req.body;
@@ -1039,7 +1284,6 @@ app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => 
         return res.status(400).json({ error: "No posees este artículo en tu inventario." });
     }
 
-    // Al revender se quita del inventario
     req.user.inventory.splice(invIndex, 1);
     if (String(req.user.equippedAccessory) === String(itemId)) {
         req.user.equippedAccessory = null;
@@ -1091,7 +1335,6 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     const isSelfBuy = String(listing.sellerId) === String(req.user.id);
 
     if (isSelfBuy) {
-        // Comprar tu propia oferta de reventa (recuperar el objeto)
         req.user.inventory.push(listing.itemId);
         resaleListings.splice(listingIndex, 1);
         await saveDataToGit();
@@ -1118,7 +1361,6 @@ app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
     res.json({ success: true, message: "¡Compra de reventa realizada!" });
 });
 
-// COMPRA DE MONEDAS CON 💲
 app.get('/api/coins/packages', (req, res) => {
     res.json({ packages: currencyPackages });
 });
@@ -1148,7 +1390,6 @@ app.post('/api/coins/purchase', authenticateToken, async (req, res) => {
     });
 });
 
-// PANEL DE ADMINISTRACIÓN Y REPORTES
 app.get('/api/admin/reports', authenticateToken, requireAdmin, (req, res) => {
     const reportedUsers = users
         .filter(u => (u.reports || []).length >= 10)
@@ -1417,18 +1658,15 @@ app.get('/api/banner', (req, res) => {
     res.json({ text: bannerText });
 });
 
-// Manejador de rutas API no encontradas (garantiza devolver JSON 404 en lugar de HTML)
 app.use('/api/*', (req, res) => {
     res.status(404).json({ error: "Ruta de API no encontrada." });
 });
 
-// Manejador global de errores (captura excepciones no controladas y responde en JSON)
 app.use((err, req, res, next) => {
     console.error("❌ Error en servidor:", err);
     res.status(err.status || 500).json({ error: err.message || "Error interno del servidor." });
 });
 
-// Guardado local inmediato al apagar el proceso.
 function saveLocalDataSync() {
     try {
         const dataObj = {
@@ -1441,6 +1679,7 @@ function saveLocalDataSync() {
             promoCodes,
             bannerText,
             chatMessages,
+            groups,
             blockSubscriptionRewardItemId
         };
         fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(dataObj, null, 2), 'utf8');
@@ -1460,7 +1699,6 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-// INICIAR SERVIDOR
 app.listen(PORT, async () => {
     await loadDataFromGit();
     console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
