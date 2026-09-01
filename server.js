@@ -1,93 +1,1196 @@
-// ==========================================
-// server.js - Versión Completa con Sistema de Grupos y Estética 2007
-// ==========================================
-const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const jwt = require('jsonwebtoken'); 
-const bcrypt = require('bcryptjs');
-const { Octokit } = require('@octokit/rest');
+<!DOCTYPE html>
+<html lang="es">
 
-const app = express();
-const JWT_SECRET = process.env.JWT_SECRET || "gameblocks_secret_key_change_in_production";
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Blocks</title>
 
-process.on('unhandledRejection', (reason) => {
-    console.error("⚠️ Promesa rechazada sin manejar:", reason);
-});
-process.on('uncaughtException', (err) => {
-    console.error("⚠️ Excepción no controlada:", err);
-});
+<!-- Librería para Renderizar y Girar Modelos 3D GLB -->
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
-function wrapAsync(fn) {
-    if (fn.length >= 3) return fn;
-    return function (req, res, next) {
-        Promise.resolve(fn(req, res, next)).catch(next);
-    };
+<style>
+* {
+    box-sizing: border-box;
 }
-['get', 'post', 'put', 'delete', 'patch'].forEach((method) => {
-    const original = app[method].bind(app);
-    app[method] = (path, ...handlers) => original(path, ...handlers.map((h) => (typeof h === 'function' ? wrapAsync(h) : h)));
-});
 
-const octokit = process.env.GITHUB_TOKEN ? new Octokit({ auth: process.env.GITHUB_TOKEN }) : null;
-const GIST_ID = process.env.GIST_ID; 
-const LOCAL_DB_PATH = path.join(__dirname, 'database.json');
+body {
+    margin: 0;
+    background: #000;
+    color: #fff;
+    font-family: 'Courier New', Courier, monospace; /* Toque 2007 retro / old school */
+    transition: background-color 0.3s ease;
+}
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+.topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 65px;
+    background: #111;
+    border-bottom: 2px solid #292929;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+}
 
-app.use((req, res, next) => {
-    if (req.method === 'OPTIONS') return next();
-    if (req.path.startsWith('/api/') || req.path === '/register' || req.path === '/login') return next();
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-        return res.status(405).json({ error: `Método ${req.method} no permitido en ${req.path}.` });
-    }
-    next();
-});
+.topbar-left,
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 
-app.use(express.static(__dirname));
+.top-search {
+    width: 200px;
+    padding: 8px 12px;
+    margin: 0;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+}
+
+.top-button {
+    background: #fff;
+    color: #000;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 5px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.top-button:hover {
+    background: #ddd;
+}
+
+.coin-display {
+    background: #1a1a1a;
+    color: #ffd700;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.coin-display:hover {
+    background: #2a2a2a;
+    border-color: #ffd700;
+    transform: scale(1.05);
+}
+
+.dollar-display {
+    background: #1a1a1a;
+    color: #55dd77;
+    border: 1px solid #333;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.dollar-display:hover {
+    background: #2a2a2a;
+    border-color: #55dd77;
+    transform: scale(1.05);
+}
+.currency-packages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+.currency-package {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+}
+.currency-package strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+
+.currency-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    vertical-align: middle;
+    display: inline-block;
+}
+
+.currency-icon-small {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    vertical-align: -3px;
+    display: inline-block;
+}
+
+.currency-banner {
+    width: 100%;
+    max-height: 150px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 15px;
+    border: 1px solid #333;
+    background: #050505;
+    border-radius: 6px;
+}
+
+.chat-image {
+    display: block;
+    max-width: 240px;
+    max-height: 180px;
+    width: auto;
+    height: auto;
+    margin-top: 5px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    object-fit: contain;
+}
+
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 90px 20px 40px;
+}
+
+.logo {
+    width: 300px;
+    max-width: 80%;
+    margin-bottom: 20px;
+    filter: drop-shadow(2px 2px 0px #444);
+}
+
+.slogan {
+    font-size: 42px;
+    margin: 15px 0 30px;
+    font-weight: bold;
+}
+
+.hero-download-btn {
+    margin-bottom: 30px;
+}
+
+.buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    max-width: 900px;
+}
+
+.button {
+    padding: 14px 22px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+}
+
+.download-button {
+    background: #fff;
+    color: #000;
+}
+
+.discord-button {
+    background: #5865F2;
+    color: #fff;
+}
+
+.login-action-button {
+    background: #151515;
+    color: #fff;
+    border: 1px solid #444;
+}
  
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    padding: 20px;
 }
-app.use('/uploads', express.static(uploadDir));
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname.replace(/\s+/g, '_'))
-});
-const upload = multer({ storage });
+.modal-box {
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #111;
+    border: 2px solid #444;
+    border-radius: 6px;
+    padding: 25px;
+    box-shadow: 0 0 30px #000;
+    transition: background-color 0.3s ease;
+}
 
-let users = [];          
-let friendRequests = []; 
-let friendships = [];    
-let gameCodes = {};      
-let accessories = [];    
-let tradeOffers = [];    
-let resaleListings = []; 
-let promoCodes = [];     
-let bannerText = "";     
-let chatMessages = [];
-let groups = []; // NUEVO: Sistema de grupos
-let blockSubscriptionRewardItemId = null;
+.close {
+    float: right;
+    background: transparent;
+    color: #aaa;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+}
 
-let currencyPackages = [
-    { coins: 100, dollars: 1 },
-    { coins: 500, dollars: 5 },
-    { coins: 1000, dollars: 10 },
-    { coins: 2500, dollars: 25 },
-    { coins: 6000, dollars: 60 }
-];
+.close:hover {
+    color: #fff;
+}
 
-function sanitizeText(str) {
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 13px;
+    margin: 7px 0 12px;
+    background: #050505;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    outline: none;
+    font-family: inherit;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #fff;
+}
+
+.form-button {
+    width: 100%;
+    padding: 13px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.secondary-button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    background: #191919;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.danger-button {
+    background: #e53935;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.admin-button {
+    background: #7a4cff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.block-button {
+    background: #00d2ff;
+    color: #000;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.result {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.section {
+    margin-top: 25px;
+}
+
+.error {
+    color: #ff5555;
+}
+
+.success {
+    color: #55dd77;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.badge {
+    background: #202020;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+.profile-avatar-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.profile-avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #444;
+    background: #000;
+}
+
+.admin-panel {
+    margin-top: 25px;
+    padding: 18px;
+    background: #080808;
+    border: 1px solid #633cff;
+    border-radius: 8px;
+}
+
+.game-connect {
+    margin-top: 25px;
+    padding: 15px;
+    background: #080808;
+    border: 1px solid #333;
+    border-radius: 7px;
+    text-align: center;
+}
+
+.game-code {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    margin: 15px 0;
+}
+
+.avatar-modal-body {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.avatar-viewer-box {
+    width: 250px;
+    height: 300px;
+    background: #050505;
+    border: 1px solid #333;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+model-viewer {
+    width: 100%;
+    height: 100%;
+}
+
+.shop-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.shop-card {
+    background: #181818;
+    border: 1px solid #333;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.shop-card img {
+    width: 100%;
+    height: 70px;
+    object-fit: contain;
+}
+
+.item-id-label {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
+.copies-sold-label {
+    font-size: 11px;
+    color: #00d2ff;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+.creator-link {
+    color: #7a4cff;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.sidebar-banner {
+    margin-top: 15px;
+    padding: 10px;
+    background: #1a1100;
+    border: 1px solid #ffd700;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #ffd700;
+    text-align: center;
+}
+
+.chat-box {
+    height: 250px;
+    background: #050505;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.chat-msg {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.chat-msg-me {
+    align-self: flex-end;
+    background: #007bff;
+    color: #fff;
+}
+
+.chat-msg-them {
+    align-self: flex-start;
+    background: #252525;
+    color: #fff;
+}
+
+.emoji-panel {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    background: #151515;
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid #333;
+    margin-bottom: 8px;
+}
+
+.emoji-btn {
+    background: #252525;
+    border: none;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.emoji-btn:hover { background: #353535; }
+
+/* Estilos específicos para Grupos y pestañas 2007 */
+.group-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+.group-tab-btn {
+    background: #222;
+    color: #ccc;
+    border: 1px solid #444;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.group-tab-btn.active {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+}
+</style>
+</head>
+
+<body>
+
+<div class="topbar">
+    <div class="topbar-left">
+        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
+        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
+        <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
+    </div>
+    <div class="topbar-right">
+        <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="openCurrencyModal()">
+            <img src="dineros.png" class="currency-icon" alt="Monedas"> <span id="userCoinsText">0</span>
+        </div>
+        <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
+            💲 <span id="userDollarsText">0</span>
+        </div>
+        <button class="top-button" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥 Grupos</button>
+        <button class="top-button" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡ Block Sub</button>
+        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
+        <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver mi cuenta</button>
+    </div>
+</div>
+
+<section class="hero">
+    <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
+    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción (Edición 2007)</h1>
+
+    <!-- CAMBIAR COLOR DE FONDO LOCAL -->
+    <div style="background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #444; margin-bottom: 20px;">
+        <label style="font-size: 13px; color: #aaa; display: block; margin-bottom: 5px;">🎨 Color de Fondo Local (Estilo 2007):</label>
+        <input type="color" id="homeBgColorPicker" value="#000000" onchange="changeHomeBgColor(this.value)" style="width:60px; height:35px; padding:0; cursor:pointer;">
+        <button class="secondary-button" style="width: auto; padding: 4px 10px; margin-left: 8px;" onclick="resetHomeBgColor()">Restablecer</button>
+    </div>
+
+    <div class="hero-download-btn">
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
+    </div>
+    <div class="buttons">
+        <a class="button discord-button" href="https://discord.gg/Up24N45SK3" target="_blank">💬 Discord</a>
+        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">⬇️ Descargar</a>
+        <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
+    </div>
+</section>
+
+<!-- MODAL DE GRUPOS (CLANES) -->
+<div id="groupsModal" class="modal" onclick="outsideCloseGroups(event)">
+    <div class="modal-box" style="max-width: 750px;">
+        <button class="close" onclick="closeGroupsModal()">×</button>
+        <h2 style="color: #ff8800; margin-top:0;">👥 Grupos de Game Blocks (2007)</h2>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button class="form-button" style="background: #ff8800; color: #000;" onclick="openCreateGroupModal()">➕ Crear Grupo (100 <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</button>
+            <button class="secondary-button" style="margin:0;" onclick="loadAllGroups()">🔄 Actualizar Lista</button>
+        </div>
+
+        <div id="allGroupsContainer" class="section">Cargando grupos...</div>
+    </div>
+</div>
+
+<!-- MODAL CREAR GRUPO -->
+<div id="createGroupModal" class="modal">
+    <div class="modal-box" style="max-width: 450px;">
+        <button class="close" onclick="closeCreateGroupModal()">×</button>
+        <h3 style="margin-top:0;">🛠️ Crear Nuevo Grupo</h3>
+        <p style="font-size: 13px; color: #aaa;">Crear un grupo cuesta 100 monedas (<img src="dineros.png" class="currency-icon-small" alt="Monedas">).</p>
+        <input type="text" id="newGroupName" placeholder="Nombre del Grupo" maxlength="30">
+        <textarea id="newGroupDesc" placeholder="Descripción del grupo..."></textarea>
+        <button class="form-button" style="background: #ff8800; color: #000;" onclick="submitCreateGroup()">Pagar 100 <img src="dineros.png" class="currency-icon-small" alt="Monedas"> y Crear</button>
+        <p id="createGroupMsg" style="margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- MODAL VISTA INDIVIDUAL DE GRUPO -->
+<div id="groupDetailModal" class="modal">
+    <div class="modal-box" style="max-width: 650px;">
+        <button class="close" onclick="closeGroupDetailModal()">×</button>
+        <h2 id="groupDetailName" style="margin:0; color:#ff8800;">Nombre del Grupo</h2>
+        <div id="groupDetailId" style="font-size: 11px; color: #888; margin-bottom: 10px;">ID: --</div>
+        <p id="groupDetailDesc" style="color: #ccc; background: #151515; padding: 10px; border-radius: 4px; border: 1px solid #333;"></p>
+
+        <!-- CHAT DE NOTICIAS (Solo admins pueden hablar) -->
+        <div class="section" style="background: #121212; padding: 10px; border-radius: 5px; border: 1px solid #444;">
+            <h4 style="margin: 0 0 5px 0; color: #ffd700;">📢 Chat de Noticias (Solo Admins)</h4>
+            <div id="groupNewsBox" class="chat-box" style="height: 120px;">Cargando noticias...</div>
+            <div id="groupNewsInputArea" class="hidden" style="display:flex; gap:5px; margin-top:5px;">
+                <input type="text" id="groupNewsText" placeholder="Escribir noticia oficial..." style="margin:0;">
+                <button class="form-button" style="width:auto; background:#ffd700; color:#000;" onclick="sendGroupNews()">Publicar</button>
+            </div>
+        </div>
+
+        <!-- PESTAÑAS DEL GRUPO -->
+        <div class="group-tabs" style="margin-top: 20px;">
+            <button id="tabBtnMembers" class="group-tab-btn active" onclick="switchGroupTab('members')">Miembros</button>
+            <button id="tabBtnForums" class="group-tab-btn hidden" onclick="switchGroupTab('forums')">Foros</button>
+            <button id="tabBtnChats" class="group-tab-btn hidden" onclick="switchGroupTab('chats')">Chats</button>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: MIEMBROS -->
+        <div id="groupTabMembers" class="group-tab-content">
+            <div id="groupMembersList">Cargando miembros...</div>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: FOROS -->
+        <div id="groupTabForums" class="group-tab-content hidden">
+            <div id="groupForumsContainer">Cargando foros...</div>
+            <div style="margin-top:10px;">
+                <input type="text" id="forumPostTitle" placeholder="Título del tema de foro...">
+                <textarea id="forumPostContent" placeholder="Escribe tu mensaje en el foro..."></textarea>
+                <button class="form-button" onclick="createForumPost()">Crear Tema de Foro</button>
+            </div>
+        </div>
+
+        <!-- CONTENIDO PESTAÑA: CHATS -->
+        <div id="groupTabChats" class="group-tab-content hidden">
+            <div id="groupChatBox" class="chat-box" style="height: 200px;">Cargando chat de grupo...</div>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="groupChatInput" placeholder="Escribe en el chat del grupo..." style="margin:0;">
+                <button class="form-button" style="width:auto; background:#007bff;" onclick="sendGroupChatMessage()">Enviar</button>
+            </div>
+        </div>
+
+        <!-- PANEL DE CONTROL DEL OWNER / ADMINS -->
+        <div id="groupOwnerAdminPanel" class="hidden section" style="background: #1a0800; border: 1px solid #ff8800; padding: 12px; border-radius: 6px;">
+            <h4 style="margin:0; color:#ff8800;">⚙️ Panel de Control del Grupo</h4>
+            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('forumEnabled')">🔄 Activar/Desactivar Foros</button>
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('chatEnabled')">🔄 Activar/Desactivar Chat</button>
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('membersEnabled')">👥 Mostrar/Ocultar Miembros</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL SUSCRIPCIÓN BLOCK -->
+<div id="blockSubModal" class="modal">
+    <div class="modal-box" style="max-width: 500px; text-align: center;">
+        <button class="close" onclick="closeBlockSubModal()">×</button>
+        <h2 style="color: #00d2ff; margin-top:0;">⚡ Suscripción Block</h2>
+        <p style="font-size: 18px; font-weight: bold; color: #ffd700;">¡Por 5 💲 (moneda secundaria) al mes!</p>
+        
+        <div style="text-align: left; background: #151515; padding: 15px; border-radius: 8px; border: 1px solid #333; margin: 15px 0;">
+            <p>✨ <b>Beneficios Exclusivos:</b></p>
+            <ul>
+                <li>😃 <b>Usar y pegar emojis</b> en el chat con tus amigos.</li>
+                <li><img src="dineros.png" class="currency-icon-small" alt="Monedas"> <b>34 Monedas diarias</b> (en lugar de 10) basadas en la hora del servidor.</li>
+                <li>🛍️ Comprar y equipar accesorios marcados como <b>Solo Block</b>.</li>
+                <li>🎁 <b>1 Accesorio gratis</b> exclusivo al suscribirte (¡no se quita al vencer!).</li>
+            </ul>
+        </div>
+
+        <button class="block-button" style="width: 100%; padding: 14px; font-size: 16px;" onclick="buyBlockSubscription()">⚡ Suscribirse por 5 💲</button>
+        <p id="blockSubMsg" style="margin-top:10px;"></p>
+    </div>
+</div>
+
+<!-- MODAL COMPRA DE MONEDAS -->
+<div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
+    <div class="modal-box" style="max-width: 720px;">
+        <button class="close" onclick="closeCurrencyModal()">×</button>
+        <img src="banner compra.png" class="currency-banner" alt="Comprar monedas">
+        <h2>💲 Comprar monedas</h2>
+        <p style="color:#aaa;">Usa tus 💲 para obtener monedas de Game Blocks.</p>
+        <div id="currencyBalance" class="result" style="text-align:center;">
+            <b>Saldo:</b> <span id="currencyDollarsModal">0</span> 💲
+        </div>
+        <div id="currencyPackages" class="currency-packages">Cargando paquetes...</div>
+        <p id="currencyPurchaseMsg"></p>
+    </div>
+</div>
+
+<!-- MODAL PRINCIPAL CUENTA -->
+<div id="accountModal" class="modal" onclick="outsideClose(event)">
+<div class="modal-box" id="accountModalBox">
+<button class="close" onclick="closeAccount()">×</button>
+
+<!-- VISTA DE BANEO -->
+<div id="bannedView" class="hidden" style="text-align: center; padding: 10px;">
+    <h2 style="color: #ff5555; font-size: 26px;">⛔ TE HAN BANEADO</h2>
+    <p style="color: #ccc; margin: 15px 0;">Has sido sancionado y ya no puedes acceder a la plataforma.</p>
+    <button class="danger-button" style="width: 100%;" onclick="deleteBannedAccount()">🗑️ Borrar Cuenta</button>
+</div>
+
+<!-- VISTA LOGIN -->
+<div id="loginView">
+    <h2>Iniciar sesión</h2>
+    <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
+    <input id="loginPassword" type="password" placeholder="Contraseña">
+    <button class="form-button" onclick="login()">Iniciar sesión</button>
+    <button class="secondary-button" onclick="showRegister()">Crear cuenta</button>
+    <p id="loginMessage"></p>
+</div>
+
+<!-- VISTA REGISTRO -->
+<div id="registerView" class="hidden">
+    <h2>Crear cuenta</h2>
+    <small style="color:#aaa;">Solo se permiten letras, números y _</small>
+    <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
+    <input id="registerPassword" type="password" placeholder="Contraseña">
+    <input id="registerPassword2" type="password" placeholder="Repetir contraseña">
+    <button class="form-button" onclick="register()">Crear cuenta</button>
+    <button class="secondary-button" onclick="showLogin()">Ya tengo una cuenta</button>
+    <p id="registerMessage"></p>
+</div>
+
+<!-- VISTA MI CUENTA -->
+<div id="accountView" class="hidden">
+    <div class="profile-avatar-container">
+        <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
+    </div>
+
+    <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
+
+    <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
+        <h3>🎟️ Canjear Código promocional</h3>
+        <input type="text" id="codeRedeemInput" placeholder="Introduce tu código aquí (ej: PROMO100)">
+        <button class="form-button" style="background:#ffd700; color:#000;" onclick="redeemCode()">Canjear Código</button>
+        <p id="codeRedeemMsg"></p>
+    </div>
+
+    <div class="section">
+        <h3>🎒 Mi Inventario</h3>
+        <div id="myInventoryContainer" class="shop-items">Cargando inventario...</div>
+    </div>
+
+    <div class="section">
+        <h3>👕 Subir Camiseta (UGC)</h3>
+        <small style="color:#888;">Las camisetas UGC no pueden modificar el fondo ni el sonido del perfil.</small>
+        <label style="font-size:12px; color:#aaa;">Nombre de la Camiseta:</label>
+        <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
+        <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
+        <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
+        <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
+        <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
+        <select id="userTshirtOnlyBlock">
+            <option value="false">¿Solo Block?: No</option>
+            <option value="true">¿Solo Block?: Sí</option>
+        </select>
+        <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
+        <p id="userTshirtMsg"></p>
+    </div>
+
+    <div class="section">
+        <h3>⚙️ Configuración del Juego</h3>
+        <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
+        <input id="exePath" type="text" placeholder="C:\Juegos\GameBlocks\GameBlocks.exe o gameblocks://">
+        <button class="secondary-button" style="width: auto;" onclick="saveExePath()">Guardar configuración</button>
+        <p id="exeMessage"></p>
+    </div>
+
+    <div class="section">
+        <h3>🏅 Insignias</h3>
+        <div id="myBadges" class="badges">Cargando...</div>
+    </div>
+
+    <div class="section">
+        <h3>📝 Biografía</h3>
+        <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
+        <button class="secondary-button" style="width: auto;" onclick="saveBio()">Guardar biografía</button>
+        <p id="bioMessage"></p>
+    </div>
+
+    <div id="adminPanel" class="admin-panel hidden">
+        <h2>🛠️ Panel de Administración</h2>
+
+        <div class="section" style="border: 2px solid #7a4cff; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#b99cff; margin-top:0;">👤 Gestionar Usuario</h3>
+            <input type="text" id="adminRenameTarget" placeholder="Usuario actual">
+            <input type="text" id="adminRenameNewName" placeholder="Nuevo nombre (sin las limitaciones de registro)">
+            <button class="admin-button" style="width:100%;" onclick="adminRenameUser()">Cambiar Nombre</button>
+            <p id="adminRenameMsg"></p>
+
+            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+                <label style="font-size:12px;color:#aaa;">Añadir insignia:</label>
+                <select id="adminBadgeType">
+                    <option value="admin">🛡️ Admin</option>
+                    <option value="booster">🚀 Booster</option>
+                    <option value="custom">✏️ Personalizada</option>
+                </select>
+                <input type="text" id="adminBadgeCustom" placeholder="Texto de la insignia personalizada" class="hidden">
+                <button class="admin-button" style="width:100%;" onclick="adminAddBadgeFromPanel()">Añadir Insignia</button>
+                <p id="adminBadgeMsg"></p>
+            </div>
+        </div>
+
+        <div class="section" style="border: 2px solid #ff8800; padding: 12px; border-radius: 8px;">
+            <h3 style="color: #ff8800; margin-top:0;">📌 Fijar / Desfijar Grupo por ID</h3>
+            <input type="text" id="adminPinGroupId" placeholder="ID del Grupo">
+            <button class="admin-button" style="width:100%;" onclick="adminPinGroup()">Fijar/Desfijar Grupo</button>
+            <p id="adminPinMsg"></p>
+        </div>
+
+        <div class="section" style="border: 2px solid #ff4444; padding: 12px; border-radius: 8px;">
+            <h3 style="color: #ff5555; margin-top:0;">📥 Bandeja de Cuentas Reportadas (10+ Denuncias)</h3>
+            <button class="secondary-button" onclick="loadReportedUsersInbox()">🔄 Actualizar Bandeja</button>
+            <div id="reportedUsersInbox" style="margin-top: 10px;">Cargando reporte...</div>
+        </div>
+
+        <div class="section">
+            <h3>⚙️ Configurar ID de Regalo Suscripción Block</h3>
+            <input type="text" id="adminBlockRewardItemId" placeholder="ID del Item que se regalará al suscribirse">
+            <button class="admin-button" style="width:100%;" onclick="adminSetBlockReward()">Guardar ID de Regalo</button>
+        </div>
+
+        <div class="section">
+            <h3>🎟️ Crear Código Promocional</h3>
+            <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
+            <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
+            <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
+            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
+            <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
+            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional)">
+            <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
+            <p id="adminCodeMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>👕 Subir Camiseta (Admin)</h3>
+            <input type="text" id="adminTshirtName" placeholder="Nombre">
+            <select id="adminTshirtIsLimited" onchange="toggleAdminTshirtLimited()">
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
+            </select>
+            <div id="adminTshirtLimitedOpts" class="hidden">
+                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario" min="1" value="1">
+                <input type="number" id="adminTshirtMaxGlobal" placeholder="Stock Global Total">
+                <input type="number" id="adminTshirtExpiresDays" placeholder="Días límite">
+            </div>
+            <select id="adminTshirtIsOffsale">
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
+            </select>
+            <select id="adminTshirtOnlyBlock">
+                <option value="false">¿Solo Block?: No</option>
+                <option value="true">¿Solo Block?: Sí</option>
+            </select>
+            <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
+            <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
+            <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
+            <p id="adminTshirtMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>✏️ Editar Accesorio / Camiseta por ID</h3>
+            <input type="text" id="editItemId" placeholder="ID del artículo">
+            <input type="number" id="editItemPrice" placeholder="Nuevo Precio (opcional)">
+            <select id="editItemLimited">
+                <option value="">¿Limited?: No cambiar</option>
+                <option value="true">Sí</option>
+                <option value="false">No</option>
+            </select>
+            <select id="editItemOffsale">
+                <option value="">¿Offsale?: No cambiar</option>
+                <option value="true">Sí (Offsale)</option>
+                <option value="false">No (En Venta)</option>
+            </select>
+            <select id="editItemIsGhost">
+                <option value="">¿Es Fantasma?: No cambiar</option>
+                <option value="true">Sí (Fantasma)</option>
+                <option value="false">No (Público)</option>
+            </select>
+            <select id="editItemOnlyBlock">
+                <option value="">¿Solo Block?: No cambiar</option>
+                <option value="true">Sí (Solo Suscripción Block)</option>
+                <option value="false">No</option>
+            </select>
+            <label style="font-size:12px; color:#aaa;">Nuevo Color Fondo Perfil (ej: #ff0000):</label>
+            <input type="color" id="editItemBgColor" value="#111111">
+            <input type="text" id="editItemSoundUrl" placeholder="Nueva URL Audio Perfil (.mp3)">
+            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios</button>
+        </div>
+
+        <div class="section">
+            <h3>📦 Subir Sombrero / Accesorio 3D</h3>
+            <input type="text" id="accessoryName" placeholder="Nombre">
+            <input type="file" id="accessoryGlbFile" accept=".glb">
+            <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
+                <option value="no">¿Limited?: No</option>
+                <option value="si">¿Limited?: Sí</option>
+            </select>
+            <select id="accessoryIsOffsale">
+                <option value="no">¿Offsale?: No</option>
+                <option value="si">¿Offsale?: Sí</option>
+            </select>
+            <select id="accessoryOnlyBlock">
+                <option value="false">¿Solo Block?: No</option>
+                <option value="true">¿Solo Block?: Sí</option>
+            </select>
+            <div id="limitedOptions" class="hidden">
+                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
+                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
+                <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
+            </div>
+            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil al Equipar:</label>
+            <input type="color" id="accessoryBgColor" value="#111111">
+            <label style="font-size:12px; color:#aaa;">URL Audio Perfil al Equipar (.mp3):</label>
+            <input type="text" id="accessorySoundUrl" placeholder="https://ejemplo.com/audio.mp3">
+            <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
+            <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
+            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
+            <p id="accessoryUploadMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3><img src="dineros.png" class="currency-icon-small" alt="Monedas"> Añadir Monedas</h3>
+            <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
+            <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
+            <button class="admin-button" style="width:100%;" onclick="adminAddCoins()">Añadir Monedas</button>
+            <p id="coinAdminMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>💲 Añadir 💲</h3>
+            <input type="text" id="dollarTargetUser" placeholder="Nombre de usuario">
+            <input type="number" id="dollarAmount" placeholder="Cantidad de 💲" min="1">
+            <button class="admin-button" style="width:100%;" onclick="adminAddDollars()">Añadir 💲</button>
+            <p id="dollarAdminMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3>📢 Banner Informativo</h3>
+            <input type="text" id="bannerTextInput" placeholder="Texto del banner">
+            <button class="admin-button" style="width:100%;" onclick="saveOwnerBanner()">Guardar Banner</button>
+            <p id="bannerMsg"></p>
+        </div>
+    </div>
+
+    <div class="game-connect">
+        <h3>🎮 Conectar con Game Blocks</h3>
+        <button class="form-button" onclick="createGameCode()">🔗 Generar código</button>
+        <div id="gameCodeContainer" class="hidden">
+            <div id="gameCode" class="game-code">------</div>
+        </div>
+        <p id="gameCodeMessage"></p>
+    </div>
+
+    <div class="section">
+        <h3>🔎 Resultados de Búsqueda</h3>
+        <div id="searchResults"></div>
+    </div>
+
+    <div class="section">
+        <h3>🤝 Intercambios (Trades)</h3>
+        <button class="secondary-button" onclick="loadTrades()">🔄 Cargar ofertas recibidas</button>
+        <div id="tradesContainer"></div>
+    </div>
+
+    <div class="section">
+        <h3>👥 Solicitudes de Amistad</h3>
+        <div id="requests">Cargando...</div>
+    </div>
+
+    <div class="section">
+        <h3>⭐ Amigos & Chat</h3>
+        <div id="friends">Cargando...</div>
+    </div>
+
+    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
+</div>
+
+</div>
+</div>
+
+<!-- MODAL TIENDA Y AVATAR -->
+<div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
+<div class="modal-box" style="max-width: 850px;">
+    <button class="close" onclick="closeAvatarModal()">×</button>
+    <h2>🎭 Personalizar Avatar & Tienda</h2>
+    
+    <div class="avatar-modal-body">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="avatar-viewer-box">
+                <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" camera-controls auto-rotate style="position: absolute; inset:0; z-index:1;"></model-viewer>
+                <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" camera-controls auto-rotate style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
+            </div>
+            <small style="color:#888; margin-top:5px;">💡 Haz clic y arrastra para girar el modelo 3D</small>
+        </div>
+
+        <div style="flex:1; min-width: 260px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <h3 style="margin:0;">🛒 Catálogo</h3>
+                
+                <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
+                    <option value="hat">Sombreros / Accesorios 3D</option>
+                    <option value="tshirt">Camisetas</option>
+                </select>
+            </div>
+
+            <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
+                <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
+                <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
+                    <option value="all">Todas las Camisetas</option>
+                    <option value="adminOnly">Creado por Admins (Sí)</option>
+                </select>
+            </div>
+
+            <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
+
+            <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
+            <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
+        </div>
+    </div>
+
+    <div id="sidebarBannerContainer" class="sidebar-banner hidden"></div>
+</div>
+</div>
+
+<!-- MODAL INTERFAZ DE TRADE -->
+<div id="tradeModal" class="modal">
+    <div class="modal-box" style="max-width: 600px;">
+        <button class="close" onclick="closeTradeModal()">×</button>
+        <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
+        <div style="display:flex; flex-direction:column; gap:15px; margin-top:15px;">
+            <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
+                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">TU ITEM (LIMITED OFFSALE)</div>
+                <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
+            </div>
+            <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
+                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">ITEM A RECIBIR (LIMITED OFFSALE)</div>
+                <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
+            </div>
+            <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CHAT CON AMIGOS -->
+<div id="chatModal" class="modal">
+    <div class="modal-box" style="max-width: 500px;">
+        <button class="close" onclick="closeChatModal()">×</button>
+        <h2 id="chatWithTitle" style="margin-top:0;">💬 Chat con Amigo</h2>
+
+        <div id="chatMessagesBox" class="chat-box">Cargando chat...</div>
+
+        <!-- PANEL TECLADO FACILITADOR DE EMOJIS -->
+        <div class="emoji-panel">
+            <span style="font-size:11px; color:#aaa; width:100%;">Emojis rápidos (Requiere Suscripción Block):</span>
+            <button class="emoji-btn" onclick="insertEmoji('😀')">😀</button>
+            <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
+            <button class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+            <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+            <button class="emoji-btn" onclick="insertEmoji('🎮')">🎮</button>
+            <button class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
+            <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="chatInputText" placeholder="Escribe un mensaje..." style="margin:0;">
+            <button id="chatImageButton" class="secondary-button" style="width:auto; margin:0; white-space:nowrap;" onclick="document.getElementById('chatImageInput').click()">🖼️ Imagen</button>
+            <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="sendChatImage()">
+            <button class="form-button" style="width:auto; padding:0 20px; background:#007bff; color:#fff;" onclick="sendChatMessage()">Enviar</button>
+        </div>
+        <p id="chatErrorMsg" class="error" style="margin-top:5px; font-size:12px;"></p>
+    </div>
+</div>
+
+<!-- TARJETA PÚBLICA DE PERFIL DE USUARIO -->
+<div id="userProfileCardModal" class="modal" onclick="outsideCloseUserCard(event)">
+    <div class="modal-box" style="max-width: 480px;">
+        <button class="close" onclick="closeUserProfileCard()">×</button>
+        <div class="profile-avatar-container">
+            <img id="cardAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
+            <h2 id="cardUsername" style="margin:0; text-align:center;">Usuario</h2>
+            <div id="cardAlertBadge" class="hidden" style="background:#ff4444; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">⚠️ EN ALERTA</div>
+        </div>
+
+        <!-- REACCIONES Y REPORTES -->
+        <div style="display:flex; justify-content:center; gap:12px; margin-bottom:15px;">
+            <button class="secondary-button" style="width:auto; margin:0;" onclick="likeUserCard()">👍 <span id="cardLikesCount">0</span></button>
+            <button class="secondary-button" style="width:auto; margin:0;" onclick="dislikeUserCard()">👎 <span id="cardDislikesCount">0</span></button>
+            <button class="danger-button" style="padding:8px 12px; font-size:13px;" onclick="reportUserCard()">🚨 Denunciar</button>
+        </div>
+
+        <div class="section">
+            <h3 style="margin-top:0;">🏅 Insignias</h3>
+            <div id="cardBadges" class="badges">Ninguna.</div>
+        </div>
+
+        <div class="section">
+            <b>📝 Bio</b>
+            <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+        </div>
+
+        <div class="section">
+            <h3>🎒 Inventario</h3>
+            <div id="cardInventory" class="shop-items">Cargando inventario...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const RENDER_API = (
+    window.GAMEBLOCKS_API_URL ||
+    localStorage.getItem("gameblocks_api_url") ||
+    "https://panstudios-github-io-1.onrender.com"
+).replace(/\/$/, "");
+
+let currentTradeTargetId = null;
+let currentChatFriendId = null;
+let currentCardUserId = null;
+let currentOpenGroupId = null;
+let profileAudio = null;
+
+function escapeHTML(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (m) => ({
         '&': '&amp;',
@@ -98,1608 +1201,1616 @@ function sanitizeText(str) {
     })[m]);
 }
 
-function hasActiveBlockSub(user) {
-    if (!user || !user.blockSubExpiresAt) return false;
-    return Date.now() < user.blockSubExpiresAt;
+// CAMBIAR Y MANTENER COLOR DE FONDO LOCAL
+function changeHomeBgColor(color) {
+    document.body.style.backgroundColor = color;
+    localStorage.setItem("gameblocks_home_bg_color", color);
 }
 
-function loadLocalData() {
-    if (fs.existsSync(LOCAL_DB_PATH)) {
-        try {
-            const content = fs.readFileSync(LOCAL_DB_PATH, 'utf8');
-            const parsed = JSON.parse(content);
-            users = (parsed.users || []).map(u => ({
-                ...u,
-                inventory: u.inventory || [],
-                badges: u.badges || [],
-                likes: u.likes || [],
-                dislikes: u.dislikes || [],
-                reports: u.reports || [],
-                coins: typeof u.coins === 'number' ? u.coins : 100,
-                dollars: typeof u.dollars === 'number' ? u.dollars : 0,
-                blockSubExpiresAt: u.blockSubExpiresAt || null,
-                lastDailyReward: u.lastDailyReward || 0
-            }));
-            friendships = parsed.friendships || [];
-            friendRequests = parsed.friendRequests || [];
-            accessories = (parsed.accessories || []).map(a => ({
-                ...a,
-                type: a.type || "hat",
-                isGhost: Boolean(a.isGhost),
-                onlyBlock: Boolean(a.onlyBlock)
-            }));
-            resaleListings = parsed.resaleListings || [];
-            tradeOffers = parsed.tradeOffers || [];
-            promoCodes = parsed.promoCodes || [];
-            bannerText = parsed.bannerText || "";
-            chatMessages = parsed.chatMessages || [];
-            groups = parsed.groups || [];
-            blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
-            console.log("✅ Datos cargados localmente desde database.json[cite: 5]");
-        } catch (err) {
-            console.error("⚠️ Error al leer database.json local:", err.message);
-        }
+function resetHomeBgColor() {
+    document.body.style.backgroundColor = "#000000";
+    document.getElementById("homeBgColorPicker").value = "#000000";
+    localStorage.removeItem("gameblocks_home_bg_color");
+}
+
+function loadSavedHomeBgColor() {
+    const saved = localStorage.getItem("gameblocks_home_bg_color");
+    if (saved) {
+        document.body.style.backgroundColor = saved;
+        const picker = document.getElementById("homeBgColorPicker");
+        if (picker) picker.value = saved;
     }
 }
 
-async function loadDataFromGit() {
-    if (!octokit || !GIST_ID) {
-        console.log("⚠️ GITHUB_TOKEN o GIST_ID no configurados. Usando almacenamiento en archivo local.");
-        loadLocalData();
+async function request(endpoint, method = "GET", body = null) {
+    const headers = { "Content-Type": "application/json" };
+    const token = localStorage.getItem("gameblocks_token");
+    if (token) headers.Authorization = "Bearer " + token;
+
+    const options = { method, headers };
+    if (body !== null) options.body = JSON.stringify(body);
+
+    let response;
+    try {
+        response = await fetch(RENDER_API + endpoint, options);
+    } catch (networkErr) {
+        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión.");
+    }
+
+    const rawText = await response.text().catch(() => "");
+    let data = {};
+    if (rawText) {
+        try {
+            data = JSON.parse(rawText);
+        } catch {
+            throw new Error(response.ok ? "Respuesta inválida del servidor." : `Error del servidor (${response.status}).`);
+        }
+    }
+
+    if (!response.ok) {
+        if (data.banned) showBannedView();
+        if (data.error) throw new Error(data.error);
+        throw new Error(`Error del servidor (${response.status}).`);
+    }
+    return data;
+}
+
+function applyProfileStyling(bgColor, soundUrl) {
+    const box = document.getElementById("accountModalBox");
+    if (bgColor) {
+        box.style.backgroundColor = bgColor;
+    } else {
+        box.style.backgroundColor = "#111";
+    }
+
+    if (profileAudio) {
+        profileAudio.pause();
+        profileAudio = null;
+    }
+
+    if (soundUrl) {
+        try {
+            profileAudio = new Audio(soundUrl);
+            profileAudio.play().catch(() => {});
+        } catch (e) {}
+    }
+}
+
+// ==========================================
+// FUNCIONES DE GRUPOS EN CLIENTE
+// ==========================================
+function openGroupsModal() {
+    document.getElementById("groupsModal").style.display = "flex";
+    loadAllGroups();
+}
+
+function closeGroupsModal() {
+    document.getElementById("groupsModal").style.display = "none";
+}
+
+function outsideCloseGroups(event) {
+    if (event.target.id === "groupsModal") closeGroupsModal();
+}
+
+function openCreateGroupModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para crear un grupo.");
+        openAccount();
+        return;
+    }
+    document.getElementById("createGroupModal").style.display = "flex";
+}
+
+function closeCreateGroupModal() {
+    document.getElementById("createGroupModal").style.display = "none";
+}
+
+async function submitCreateGroup() {
+    const name = document.getElementById("newGroupName").value;
+    const description = document.getElementById("newGroupDesc").value;
+    const msg = document.getElementById("createGroupMsg");
+
+    try {
+        const data = await request("/api/groups/create", "POST", { name, description });
+        msg.className = "success";
+        msg.textContent = "¡Grupo creado con éxito!";
+        document.getElementById("userCoinsText").textContent = data.newBalance;
+        setTimeout(() => {
+            closeCreateGroupModal();
+            loadAllGroups();
+        }, 1000);
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function loadAllGroups() {
+    const container = document.getElementById("allGroupsContainer");
+    try {
+        const data = await request("/api/groups");
+        container.innerHTML = "";
+        if (data.groups.length === 0) {
+            container.textContent = "No hay grupos creados todavía.";
+            return;
+        }
+
+        data.groups.forEach(g => {
+            const div = document.createElement("div");
+            div.className = "result";
+            if (g.pinned) {
+                div.style.borderColor = "#ff8800";
+                div.style.background = "#1a0d00";
+            }
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <h3 style="margin:0; color:#ff8800;">${escapeHTML(g.name)} ${g.pinned ? '📌 [FIJADO]' : ''}</h3>
+                        <div style="font-size:11px; color:#aaa; margin-top:2px;">ID: ${g.id}</div>
+                        <p style="font-size:13px; color:#ccc; margin:5px 0;">${escapeHTML(g.description || "Sin descripción")}</p>
+                        <div style="font-size:12px; color:#888;">Miembros: ${g.members.length}</div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 12px;" onclick="joinGroup('${g.id}')">Unirse</button>
+                        <button class="form-button" style="width:auto; margin:0; padding:6px 12px; background:#ff8800; color:#000;" onclick="openGroupDetail('${g.id}')">Ver Grupo</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.textContent = "Error al cargar los grupos.";
+    }
+}
+
+async function joinGroup(groupId) {
+    try {
+        const data = await request(`/api/groups/${groupId}/join`, "POST");
+        alert(data.message);
+        loadAllGroups();
+    } catch (e) { alert(e.message); }
+}
+
+async function openGroupDetail(groupId) {
+    currentOpenGroupId = groupId;
+    document.getElementById("groupDetailModal").style.display = "flex";
+    loadGroupData();
+}
+
+function closeGroupDetailModal() {
+    document.getElementById("groupDetailModal").style.display = "none";
+    currentOpenGroupId = null;
+}
+
+async function loadGroupData() {
+    if (!currentOpenGroupId) return;
+    try {
+        const [group, me] = await Promise.all([
+            request(`/api/groups/${currentOpenGroupId}`),
+            request("/api/me")
+        ]);
+
+        document.getElementById("groupDetailName").textContent = group.name;
+        document.getElementById("groupDetailId").textContent = "ID: " + group.id;
+        document.getElementById("groupDetailDesc").textContent = group.description || "Sin descripción";
+
+        // Chat de noticias
+        const newsBox = document.getElementById("groupNewsBox");
+        newsBox.innerHTML = "";
+        if (!group.newsMessages || group.newsMessages.length === 0) {
+            newsBox.textContent = "No hay noticias oficiales.";
+        } else {
+            group.newsMessages.forEach(n => {
+                const d = document.createElement("div");
+                d.className = "chat-msg chat-msg-them";
+                d.style.background = "#2a1c00";
+                d.textContent = `[${n.senderUsername}]: ${n.text}`;
+                newsBox.appendChild(d);
+            });
+            newsBox.scrollTop = newsBox.scrollHeight;
+        }
+
+        const isOwner = String(group.ownerId) === String(me.id);
+        const isAdmin = group.admins && group.admins.some(id => String(id) === String(me.id));
+
+        if (isOwner || isAdmin) {
+            document.getElementById("groupNewsInputArea").classList.remove("hidden");
+        } else {
+            document.getElementById("groupNewsInputArea").classList.add("hidden");
+        }
+
+        if (isOwner || isAdmin) {
+            document.getElementById("groupOwnerAdminPanel").classList.remove("hidden");
+        } else {
+            document.getElementById("groupOwnerAdminPanel").classList.add("hidden");
+        }
+
+        const membersEnabled = group.membersEnabled !== false;
+        const membersTabBtn = document.getElementById("tabBtnMembers");
+        const membersTab = document.getElementById("groupTabMembers");
+        if (membersEnabled) {
+            membersTabBtn.classList.remove("hidden");
+            membersTab.classList.remove("hidden");
+        } else {
+            membersTabBtn.classList.add("hidden");
+            membersTab.classList.add("hidden");
+        }
+
+        // Pestañas dinámicas según configuración del owner
+        const btnForums = document.getElementById("tabBtnForums");
+        const btnChats = document.getElementById("tabBtnChats");
+
+        if (group.forumEnabled) {
+            btnForums.classList.remove("hidden");
+        } else {
+            btnForums.classList.add("hidden");
+        }
+
+        if (group.chatEnabled) {
+            btnChats.classList.remove("hidden");
+        } else {
+            btnChats.classList.add("hidden");
+        }
+
+        // Listar miembros
+        const membersDiv = document.getElementById("groupMembersList");
+        membersDiv.innerHTML = "";
+        group.enrichedMembers.forEach(m => {
+            const mIsOwner = String(m.id) === String(group.ownerId);
+            const mIsAdmin = (group.admins || []).some(id => String(id) === String(m.id));
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <img src="${m.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                        <b>${escapeHTML(m.username)}</b> ${mIsOwner ? '👑 [Owner]' : mIsAdmin ? '🛡️ [Admin]' : ''}
+                    </div>
+                    <div>
+                        ${(isOwner && !mIsOwner) ? `
+                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:11px;" onclick="toggleGroupAdmin('${m.id}')">${mIsAdmin ? 'Quitar Admin' : 'Hacer Admin'}</button>
+                            <button class="danger-button" style="padding:4px 8px; font-size:11px;" onclick="banGroupMember('${m.id}')">Banear</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            membersDiv.appendChild(div);
+        });
+
+        // Cargar Foros y Chat si están activos
+        if (group.forumEnabled) loadGroupForums(group);
+        if (group.chatEnabled) loadGroupChat(group);
+        if (group.membersEnabled === false) {
+            if (group.forumEnabled) switchGroupTab('forums');
+            else if (group.chatEnabled) switchGroupTab('chats');
+        }
+
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function switchGroupTab(tabName) {
+    document.querySelectorAll('.group-tab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.group-tab-btn').forEach(el => el.classList.remove('active'));
+
+    if (tabName === 'members') {
+        const btn = document.getElementById('tabBtnMembers');
+        if (btn && btn.classList.contains('hidden')) return;
+        document.getElementById('groupTabMembers').classList.remove('hidden');
+        btn.classList.add('active');
+    } else if (tabName === 'forums') {
+        document.getElementById('groupTabForums').classList.remove('hidden');
+        document.getElementById('tabBtnForums').classList.add('active');
+    } else if (tabName === 'chats') {
+        document.getElementById('groupTabChats').classList.remove('hidden');
+        document.getElementById('tabBtnChats').classList.add('active');
+    }
+}
+
+async function sendGroupNews() {
+    const text = document.getElementById("groupNewsText").value;
+    if (!text.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/news/send`, "POST", { text });
+        document.getElementById("groupNewsText").value = "";
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function toggleGroupSetting(settingName) {
+    try {
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        const body = {};
+        if (settingName === 'chatEnabled') body.chatEnabled = !group.chatEnabled;
+        if (settingName === 'forumEnabled') body.forumEnabled = !group.forumEnabled;
+
+        await request(`/api/groups/${currentOpenGroupId}/settings`, "POST", body);
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function toggleGroupAdmin(memberId) {
+    try {
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        const isAdmin = (group.admins || []).some(id => String(id) === String(memberId));
+        await request(`/api/groups/${currentOpenGroupId}/admins`, "POST", { memberId, action: isAdmin ? "remove" : "add" });
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function banGroupMember(memberId) {
+    if (!confirm("¿Seguro que deseas banear a este miembro del grupo?")) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/ban-member`, "POST", { memberId });
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadGroupForums(group) {
+    const container = document.getElementById("groupForumsContainer");
+    container.innerHTML = "";
+    if (!group.forumPosts || group.forumPosts.length === 0) {
+        container.textContent = "No hay temas en el foro.";
+        return;
+    }
+    group.forumPosts.forEach(p => {
+        const d = document.createElement("div");
+        d.className = "result";
+        d.innerHTML = `
+            <b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
+            <p style="margin:5px 0; color:#ccc;">${escapeHTML(p.content)}</p>
+        `;
+        container.appendChild(d);
+    });
+}
+
+async function createForumPost() {
+    const title = document.getElementById("forumPostTitle").value;
+    const content = document.getElementById("forumPostContent").value;
+    if (!title.trim() || !content.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/forum`, "POST", { title, content });
+        document.getElementById("forumPostTitle").value = "";
+        document.getElementById("forumPostContent").value = "";
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        loadGroupForums(group);
+    } catch (e) { alert(e.message); }
+}
+
+async function loadGroupChat(group) {
+    const box = document.getElementById("groupChatBox");
+    box.innerHTML = "";
+    if (!group.groupChatMessages || group.groupChatMessages.length === 0) {
+        box.textContent = "Sin mensajes en el chat de grupo.";
+        return;
+    }
+    group.groupChatMessages.forEach(m => {
+        const d = document.createElement("div");
+        d.className = "chat-msg chat-msg-them";
+        d.textContent = `[${m.senderUsername}]: ${m.text}`;
+        box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+}
+
+async function sendGroupChatMessage() {
+    const textInput = document.getElementById("groupChatInput");
+    const text = textInput.value;
+    if (!text.trim()) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
+        textInput.value = "";
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        loadGroupChat(group);
+    } catch (e) { alert(e.message); }
+}
+
+// ADMIN: Fijar grupo por ID
+async function adminPinGroup() {
+    const groupId = document.getElementById("adminPinGroupId").value;
+    const msg = document.getElementById("adminPinMsg");
+    try {
+        const data = await request("/api/admin/groups/pin", "POST", { groupId });
+        msg.className = "success";
+        msg.textContent = data.message;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+// Modales generales y utilidades
+function openCurrencyModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para usar tus 💲.");
+        openAccount();
+        return;
+    }
+    document.getElementById("currencyModal").style.display = "flex";
+    loadCurrencyPackages();
+}
+
+function closeCurrencyModal() { document.getElementById("currencyModal").style.display = "none"; }
+function outsideCloseCurrency(event) { if (event.target.id === "currencyModal") closeCurrencyModal(); }
+
+function openBlockSubModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para suscribirte.");
+        openAccount();
+        return;
+    }
+    document.getElementById("blockSubModal").style.display = "flex";
+}
+
+function closeBlockSubModal() { document.getElementById("blockSubModal").style.display = "none"; }
+
+async function buyBlockSubscription() {
+    const msg = document.getElementById("blockSubMsg");
+    try {
+        const data = await request("/api/subscription/buy-block", "POST");
+        msg.className = "success";
+        msg.textContent = data.message + (data.freeItemGiven ? ` ¡Recibiste el regalo: ${data.freeItemGiven}!` : "");
+        document.getElementById("userDollarsText").textContent = data.dollars;
+        loadMyInventory();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function loadCurrencyPackages() {
+    const container = document.getElementById("currencyPackages");
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const [packagesData, me] = await Promise.all([
+            request("/api/coins/packages"),
+            request("/api/me")
+        ]);
+        document.getElementById("currencyDollarsModal").textContent = me.dollars || 0;
+        document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        container.innerHTML = "";
+
+        packagesData.packages.forEach((pkg, index) => {
+            const card = document.createElement("div");
+            card.className = "currency-package";
+            const packImage = `pack${index + 1}.png`;
+            card.innerHTML = `<img src="${packImage}" alt="Pack ${index + 1}" style="width:100%; height:85px; object-fit:contain; margin-bottom:8px;"><strong>${pkg.coins.toLocaleString()} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></strong><div>${pkg.dollars} 💲</div>`;
+            const btn = document.createElement("button");
+            btn.className = "form-button";
+            btn.style.marginTop = "10px";
+            btn.textContent = "Comprar";
+            btn.onclick = () => purchaseCoinPackage(pkg.coins);
+            card.appendChild(btn);
+            container.appendChild(card);
+        });
+        msg.textContent = "";
+    } catch (e) {
+        container.textContent = "No se pudieron cargar los paquetes.";
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function purchaseCoinPackage(coins) {
+    const msg = document.getElementById("currencyPurchaseMsg");
+    try {
+        const data = await request("/api/coins/purchase", "POST", { coins });
+        document.getElementById("userCoinsText").textContent = data.coins;
+        document.getElementById("userDollarsText").textContent = data.dollars;
+        document.getElementById("currencyDollarsModal").textContent = data.dollars;
+        msg.className = "success";
+        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+function openAccount() {
+    document.getElementById("accountModal").style.display = "flex";
+    updateAccount();
+}
+
+function closeAccount() {
+    document.getElementById("accountModal").style.display = "none";
+    applyProfileStyling(null, null);
+}
+
+function outsideClose(event) {
+    if (event.target.id === "accountModal") closeAccount();
+}
+
+function openAvatarModal() {
+    document.getElementById("avatarModal").style.display = "flex";
+    loadShopItems();
+    loadResaleMarket();
+    loadBanner();
+}
+
+function closeAvatarModal() { document.getElementById("avatarModal").style.display = "none"; }
+function outsideCloseAvatar(event) { if (event.target.id === "avatarModal") closeAvatarModal(); }
+
+function toggleLimitedInput() {
+    const val = document.getElementById("accessoryIsLimited").value;
+    if (val === "si") document.getElementById("limitedOptions").classList.remove("hidden");
+    else document.getElementById("limitedOptions").classList.add("hidden");
+}
+
+function toggleAdminTshirtLimited() {
+    const val = document.getElementById("adminTshirtIsLimited").value;
+    if (val === "si") document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
+    else document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
+}
+
+function showLogin() {
+    document.getElementById("loginView").classList.remove("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+}
+
+function showRegister() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.remove("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+}
+
+function showAccount() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.remove("hidden");
+    document.getElementById("bannedView").classList.add("hidden");
+}
+
+function showBannedView() {
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("registerView").classList.add("hidden");
+    document.getElementById("accountView").classList.add("hidden");
+    document.getElementById("bannedView").classList.remove("hidden");
+}
+
+async function login() {
+    const usernameInput = document.getElementById("loginUsername").value;
+    const passwordInput = document.getElementById("loginPassword").value;
+    const msg = document.getElementById("loginMessage");
+    msg.textContent = "";
+
+    try {
+        const data = await request("/api/login", "POST", { username: usernameInput, password: passwordInput });
+        if (data.token) {
+            localStorage.setItem("gameblocks_token", data.token);
+            updateAccount();
+        }
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function register() {
+    const u = document.getElementById("registerUsername").value;
+    const p1 = document.getElementById("registerPassword").value;
+    const p2 = document.getElementById("registerPassword2").value;
+    const msg = document.getElementById("registerMessage");
+    msg.textContent = "";
+
+    if (p1 !== p2) {
+        msg.className = "error";
+        msg.textContent = "Las contraseñas no coinciden.";
+        return;
+    }
+
+    try {
+        const data = await request("/api/register", "POST", { username: u, password: p1 });
+        if (data.token) {
+            localStorage.setItem("gameblocks_token", data.token);
+            updateAccount();
+        }
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+function logout() {
+    localStorage.removeItem("gameblocks_token");
+    document.getElementById("accountButton").classList.add("hidden");
+    document.getElementById("loginBtn").classList.remove("hidden");
+    document.getElementById("userCoinsText").textContent = "0";
+    document.getElementById("userDollarsText").textContent = "0";
+    showLogin();
+}
+
+async function deleteBannedAccount() {
+    if (!confirm("¿Estás seguro de eliminar permanentemente tu cuenta?")) return;
+    try {
+        await request("/api/account/delete-banned", "POST");
+        alert("Cuenta eliminada.");
+        logout();
+    } catch (e) { alert(e.message); }
+}
+
+async function updateAccount() {
+    const token = localStorage.getItem("gameblocks_token");
+    if (!token) {
+        showLogin();
+        return;
+    }
+
+    try {
+        const me = await request("/api/me");
+        showAccount();
+
+        document.getElementById("welcome").textContent = "Hola, " + me.username;
+        document.getElementById("myAvatar").src = me.avatar || "https://via.placeholder.com/110";
+        document.getElementById("userCoinsText").textContent = me.coins || 0;
+        document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        document.getElementById("myBio").value = me.bio || "";
+
+        document.getElementById("accountButton").classList.remove("hidden");
+        document.getElementById("loginBtn").classList.add("hidden");
+
+        const badgesContainer = document.getElementById("myBadges");
+        badgesContainer.innerHTML = "";
+        (me.badges || []).forEach(b => {
+            const span = document.createElement("span");
+            span.className = "badge";
+            span.textContent = typeof b === 'object' ? b.name : b;
+            badgesContainer.appendChild(span);
+        });
+
+        const isAdmin = me.admin || me.owner || (me.badges && me.badges.some(b => (typeof b === 'object' ? b.name : b).includes("admin")));
+        if (isAdmin) {
+            document.getElementById("adminPanel").classList.remove("hidden");
+            loadReportedUsersInbox();
+        } else {
+            document.getElementById("adminPanel").classList.add("hidden");
+        }
+
+        applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
+        loadMyInventory();
+        loadFriendsAndRequests();
+    } catch (e) {
+        if (e.message.includes("baneado")) showBannedView();
+        else logout();
+    }
+}
+
+async function editAvatar() {
+    const url = prompt("Introduce la URL de tu nuevo avatar (PNG/JPG):");
+    if (!url) return;
+    try {
+        const data = await request("/api/profile/avatar", "POST", { avatar: url });
+        document.getElementById("myAvatar").src = data.avatar;
+    } catch (e) { alert(e.message); }
+}
+
+async function saveBio() {
+    const bioText = document.getElementById("myBio").value;
+    const msg = document.getElementById("bioMessage");
+    try {
+        await request("/api/profile/bio", "POST", { bio: bioText });
+        msg.className = "success";
+        msg.textContent = "Biografía guardada correctamente.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+function saveExePath() {
+    const p = document.getElementById("exePath").value;
+    localStorage.setItem("gameblocks_exe_path", p);
+    document.getElementById("exeMessage").className = "success";
+    document.getElementById("exeMessage").textContent = "Configuración guardada.";
+}
+
+function launchGame() {
+    const p = localStorage.getItem("gameblocks_exe_path");
+    if (p) {
+        window.location.href = p;
+    } else {
+        alert("Configura primero la ruta del ejecutable en 'Mi Cuenta'.");
+        openAccount();
+    }
+}
+
+async function redeemCode() {
+    const code = document.getElementById("codeRedeemInput").value;
+    const msg = document.getElementById("codeRedeemMsg");
+    try {
+        const data = await request("/api/codes/redeem", "POST", { code });
+        msg.className = "success";
+        msg.textContent = data.message;
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function userUploadTshirt() {
+    const name = document.getElementById("userTshirtName").value;
+    const imageUrl = document.getElementById("userTshirtUrl").value;
+    const price = document.getElementById("userTshirtCost").value;
+    const onlyBlock = document.getElementById("userTshirtOnlyBlock").value === "true";
+    const msg = document.getElementById("userTshirtMsg");
+
+    try {
+        await request("/api/tshirts/upload", "POST", { name, imageUrl, price, onlyBlock });
+        msg.className = "success";
+        msg.textContent = "¡Camiseta UGC publicada con éxito!";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function createGameCode() {
+    try {
+        const data = await request("/api/game/create-code", "POST");
+        document.getElementById("gameCode").textContent = data.code;
+        document.getElementById("gameCodeContainer").classList.remove("hidden");
+    } catch (e) {
+        document.getElementById("gameCodeMessage").textContent = e.message;
+    }
+}
+
+async function searchUsers() {
+    const q = document.getElementById("searchInput").value;
+    const container = document.getElementById("searchResults");
+    if (!q) return;
+
+    try {
+        const data = await request(`/api/users/search?q=${encodeURIComponent(q)}`);
+        container.innerHTML = "";
+        if (data.users.length === 0) {
+            container.textContent = "No se encontraron usuarios.";
+            return;
+        }
+        data.users.forEach(u => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${u.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <b>${escapeHTML(u.username)}</b>
+                    </div>
+                    <div>
+                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="openUserProfileCard('${u.id}')">Ver Perfil</button>
+                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="sendFriendRequest('${u.id}')">➕ Agregar</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        openAccount();
+    } catch (e) { alert(e.message); }
+}
+
+async function openUserProfileCard(userId) {
+    currentCardUserId = userId;
+    const modal = document.getElementById("userProfileCardModal");
+    modal.style.display = "flex";
+
+    try {
+        const u = await request(`/api/users/profile/${userId}`);
+        document.getElementById("cardAvatar").src = u.avatar || "https://via.placeholder.com/110";
+        document.getElementById("cardUsername").textContent = u.username;
+        document.getElementById("cardLikesCount").textContent = u.likesCount || 0;
+        document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
+        document.getElementById("cardBio").textContent = u.bio || "Sin biografía.";
+
+        if (u.isAlert) document.getElementById("cardAlertBadge").classList.remove("hidden");
+        else document.getElementById("cardAlertBadge").classList.add("hidden");
+
+        const badgesDiv = document.getElementById("cardBadges");
+        badgesDiv.innerHTML = "";
+        (u.badges || []).forEach(b => {
+            const span = document.createElement("span");
+            span.className = "badge";
+            span.textContent = typeof b === 'object' ? b.name : b;
+            badgesDiv.appendChild(span);
+        });
+
+        const invDiv = document.getElementById("cardInventory");
+        invDiv.innerHTML = "";
+        (u.inventory || []).forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            card.innerHTML = `
+                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <div style="font-size:12px; font-weight:bold; margin-top:5px;">${escapeHTML(item.name)}</div>
+            `;
+            invDiv.appendChild(card);
+        });
+    } catch (e) { alert(e.message); }
+}
+
+function closeUserProfileCard() { document.getElementById("userProfileCardModal").style.display = "none"; }
+function outsideCloseUserCard(event) { if (event.target.id === "userProfileCardModal") closeUserProfileCard(); }
+
+async function likeUserCard() {
+    if (!currentCardUserId) return;
+    try {
+        const data = await request(`/api/users/${currentCardUserId}/like`, "POST");
+        document.getElementById("cardLikesCount").textContent = data.likes;
+        document.getElementById("cardDislikesCount").textContent = data.dislikes;
+    } catch (e) { alert(e.message); }
+}
+
+async function dislikeUserCard() {
+    if (!currentCardUserId) return;
+    try {
+        const data = await request(`/api/users/${currentCardUserId}/dislike`, "POST");
+        document.getElementById("cardLikesCount").textContent = data.likes;
+        document.getElementById("cardDislikesCount").textContent = data.dislikes;
+    } catch (e) { alert(e.message); }
+}
+
+async function reportUserCard() {
+    if (!currentCardUserId) return;
+    if (!confirm("¿Deseas reportar a este usuario?")) return;
+    try {
+        const data = await request(`/api/users/${currentCardUserId}/report`, "POST");
+        alert(data.message);
+    } catch (e) { alert(e.message); }
+}
+
+async function loadShopItems() {
+    const type = document.getElementById("catalogTypeSelect").value;
+    const filterContainer = document.getElementById("tshirtFilterContainer");
+    const container = document.getElementById("shopContainer");
+
+    if (type === "tshirt") filterContainer.classList.remove("hidden");
+    else filterContainer.classList.add("hidden");
+
+    try {
+        const data = await request("/api/accessories");
+        container.innerHTML = "";
+
+        const adminFilter = document.getElementById("tshirtAdminFilter").value;
+        const itemsFiltered = data.items.filter(item => {
+            if (item.type !== type) return false;
+            if (type === "tshirt" && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
+            return true;
+        });
+
+        if (itemsFiltered.length === 0) {
+            container.textContent = "No hay artículos disponibles.";
+            return;
+        }
+
+        itemsFiltered.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+
+            let tags = "";
+            if (item.limited) tags += ` <span style="color:#ffd700; font-size:10px;">[LIMITED]</span>`;
+            if (item.offsale) tags += ` <span style="color:#ff5555; font-size:10px;">[OFFSALE]</span>`;
+            if (item.onlyBlock) tags += ` <span style="color:#00d2ff; font-size:10px;">[BLOCK]</span>`;
+
+            card.innerHTML = `
+                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
+                <div class="item-id-label">ID: ${item.id}</div>
+                <div class="copies-sold-label">Vendidos: ${item.totalSold || 0}</div>
+                <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
+                ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
+            `;
+
+            const btn = document.createElement("button");
+            btn.className = "form-button";
+            btn.style.marginTop = "6px";
+            btn.style.padding = "6px";
+            btn.style.fontSize = "12px";
+            btn.textContent = item.offsale ? "Offsale" : "Comprar";
+            btn.disabled = item.offsale;
+            btn.onclick = () => buyAccessory(item.id);
+
+            card.appendChild(btn);
+            container.appendChild(card);
+        });
+    } catch (e) { container.textContent = "Error al cargar la tienda."; }
+}
+
+async function searchUserByName(username) {
+    document.getElementById("searchInput").value = username;
+    searchUsers();
+}
+
+async function buyAccessory(itemId) {
+    try {
+        const data = await request("/api/accessories/buy", "POST", { itemId });
+        alert("¡Compra realizada con éxito!");
+        document.getElementById("userCoinsText").textContent = data.newBalance;
+        loadMyInventory();
+        loadShopItems();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadMyInventory() {
+    const container = document.getElementById("myInventoryContainer");
+    try {
+        const [me, allAcc] = await Promise.all([
+            request("/api/me"),
+            request("/api/accessories/all")
+        ]);
+
+        container.innerHTML = "";
+        if (!me.inventory || me.inventory.length === 0) {
+            container.textContent = "Tu inventario está vacío.";
+            return;
+        }
+
+        const counts = {};
+        me.inventory.forEach(id => counts[id] = (counts[id] || 0) + 1);
+
+        Object.keys(counts).forEach(itemId => {
+            const item = allAcc.items.find(a => String(a.id) === String(itemId)) || {
+                id: itemId,
+                name: "Artículo #" + itemId,
+                imageUrl: "https://via.placeholder.com/80",
+                type: "hat"
+            };
+
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            const isEquipped = String(me.equippedAccessory) === String(itemId);
+
+            card.innerHTML = `
+                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)} (x${counts[itemId]})</div>
+                <div class="item-id-label">ID: ${item.id}</div>
+            `;
+
+            const btnEquip = document.createElement("button");
+            btnEquip.className = "form-button";
+            btnEquip.style.marginTop = "4px";
+            btnEquip.style.padding = "4px";
+            btnEquip.style.fontSize = "11px";
+            btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
+            btnEquip.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
+
+            const btnSell = document.createElement("button");
+            btnSell.className = "secondary-button";
+            btnSell.style.marginTop = "4px";
+            btnSell.style.padding = "4px";
+            btnSell.style.fontSize = "11px";
+            btnSell.textContent = "Vender (50%)";
+            btnSell.onclick = () => sellAccessory(item.id);
+
+            card.appendChild(btnEquip);
+            card.appendChild(btnSell);
+
+            if (item.limited && item.offsale) {
+                const btnResell = document.createElement("button");
+                btnResell.className = "admin-button";
+                btnResell.style.marginTop = "4px";
+                btnResell.style.padding = "4px";
+                btnResell.style.fontSize = "11px";
+                btnResell.textContent = "Revender";
+                btnResell.onclick = () => resellAccessory(item.id);
+                card.appendChild(btnResell);
+            }
+
+            container.appendChild(card);
+        });
+    } catch (e) { container.textContent = "Error al cargar el inventario."; }
+}
+
+async function equipAccessory(itemId) {
+    try {
+        const data = await request("/api/accessories/equip", "POST", { itemId });
+        applyProfileStyling(data.profileBgColor, data.profileSoundUrl);
+        const item = (await request("/api/accessories/all")).items.find(a => String(a.id) === String(itemId));
+        if (item && item.glbUrl) document.getElementById("accessoryViewer").src = item.glbUrl;
+        loadMyInventory();
+    } catch (e) { alert(e.message); }
+}
+
+async function unequipAccessory() {
+    try {
+        await request("/api/accessories/unequip", "POST");
+        applyProfileStyling(null, null);
+        document.getElementById("accessoryViewer").src = "";
+        loadMyInventory();
+    } catch (e) { alert(e.message); }
+}
+
+async function sellAccessory(itemId) {
+    if (!confirm("¿Deseas vender una copia por el 50% de su valor?")) return;
+    try {
+        const data = await request("/api/accessories/sell", "POST", { itemId });
+        alert(`Vendido por ${data.refundAmount} monedas.`);
+        updateAccount();
+    } catch (e) { alert(e.message); }
+}
+
+async function resellAccessory(itemId) {
+    const price = prompt("¿A qué precio en monedas deseas publicar este Limited Offsale?:");
+    if (!price) return;
+    try {
+        await request("/api/accessories/resell-list", "POST", { itemId, price });
+        alert("¡Publicado en el mercado de reventa!");
+        loadMyInventory();
+        loadResaleMarket();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadResaleMarket() {
+    const container = document.getElementById("resaleMarketContainer");
+    try {
+        const data = await request("/api/accessories/resale-market");
+        container.innerHTML = "";
+        if (data.listings.length === 0) {
+            container.textContent = "No hay ofertas de reventa.";
+            return;
+        }
+
+        data.listings.forEach(l => {
+            const item = l.item || { name: "Accesorio #" + l.itemId, imageUrl: "https://via.placeholder.com/80" };
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            card.innerHTML = `
+                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}</div>
+                <div style="font-size:11px; color:#aaa;">Vendedor: ${escapeHTML(l.sellerUsername)}</div>
+                <div style="font-size:12px; color:#ffd700; margin:4px 0;"> ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
+            `;
+            const btn = document.createElement("button");
+            btn.className = "form-button";
+            btn.style.padding = "5px";
+            btn.style.fontSize = "11px";
+            btn.textContent = "Comprar Reventa";
+            btn.onclick = () => buyResaleItem(l.id);
+
+            card.appendChild(btn);
+            container.appendChild(card);
+        });
+    } catch (e) { container.textContent = "Error al cargar reventas."; }
+}
+
+async function buyResaleItem(listingId) {
+    try {
+        const data = await request("/api/accessories/resell-buy", "POST", { listingId });
+        alert(data.message);
+        updateAccount();
+        loadResaleMarket();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadBanner() {
+    try {
+        const data = await request("/api/banner");
+        const container = document.getElementById("sidebarBannerContainer");
+        if (data.text) {
+            container.textContent = "📢 " + data.text;
+            container.classList.remove("hidden");
+        } else {
+            container.classList.add("hidden");
+        }
+    } catch (e) {}
+}
+
+async function loadFriendsAndRequests() {
+    try {
+        const [reqs, friends] = await Promise.all([
+            request("/api/friends/requests"),
+            request("/api/friends")
+        ]);
+
+        const reqDiv = document.getElementById("requests");
+        reqDiv.innerHTML = "";
+        if (reqs.requests.length === 0) {
+            reqDiv.textContent = "No tienes solicitudes de amistad pendientes.";
+        } else {
+            reqs.requests.forEach(r => {
+                const div = document.createElement("div");
+                div.className = "result";
+                div.innerHTML = `
+                    <span>Solicitud de <b>${escapeHTML(r.username)}</b></span>
+                    <button class="form-button" style="width:auto; padding:5px 10px;" onclick="acceptFriendRequest('${r.id}')">Aceptar</button>
+                `;
+                reqDiv.appendChild(div);
+            });
+        }
+
+        const fDiv = document.getElementById("friends");
+        fDiv.innerHTML = "";
+        if (friends.friends.length === 0) {
+            fDiv.textContent = "No tienes amigos agregados.";
+        } else {
+            friends.friends.forEach(f => {
+                const div = document.createElement("div");
+                div.className = "result";
+                div.innerHTML = `
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <img src="${f.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                            <b>${escapeHTML(f.username)}</b>
+                        </div>
+                        <div>
+                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openChatModal('${f.id}', '${escapeHTML(f.username)}')">💬 Chat</button>
+                            <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openTradeModal('${f.id}', '${escapeHTML(f.username)}')">🤝 Trade</button>
+                        </div>
+                    </div>
+                `;
+                fDiv.appendChild(div);
+            });
+        }
+    } catch (e) {}
+}
+
+async function sendFriendRequest(userId) {
+    try {
+        const data = await request("/api/friends/request", "POST", { userId });
+        alert(data.message);
+    } catch (e) { alert(e.message); }
+}
+
+async function acceptFriendRequest(requestId) {
+    try {
+        const data = await request("/api/friends/accept", "POST", { requestId });
+        alert(data.message);
+        loadFriendsAndRequests();
+    } catch (e) { alert(e.message); }
+}
+
+async function openTradeModal(targetUserId, username) {
+    currentTradeTargetId = targetUserId;
+    document.getElementById("tradeTargetTitle").textContent = "Intercambiar con " + username;
+    document.getElementById("tradeModal").style.display = "flex";
+
+    try {
+        const [me, target, allAcc] = await Promise.all([
+            request("/api/me"),
+            request(`/api/users/profile/${targetUserId}`),
+            request("/api/accessories/all")
+        ]);
+
+        const giveSelect = document.getElementById("tradeGiveSelect");
+        const getSelect = document.getElementById("tradeGetSelect");
+        giveSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
+        getSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
+
+        (me.inventory || []).forEach(itemId => {
+            const item = allAcc.items.find(a => String(a.id) === String(itemId));
+            if (item && item.limited && item.offsale) {
+                giveSelect.innerHTML += `<option value="${item.id}">${escapeHTML(item.name)}</option>`;
+            }
+        });
+
+        (target.inventory || []).forEach(itemObj => {
+            const item = allAcc.items.find(a => String(a.id) === String(itemObj.id));
+            if (item && item.limited && item.offsale) {
+                getSelect.innerHTML += `<option value="${item.id}">${escapeHTML(item.name)}</option>`;
+            }
+        });
+    } catch (e) { alert(e.message); }
+}
+
+function closeTradeModal() { document.getElementById("tradeModal").style.display = "none"; }
+
+async function sendTradeOffer() {
+    const offeredItemId = document.getElementById("tradeGiveSelect").value;
+    const offeredCoins = document.getElementById("tradeGiveCoins").value;
+    const requestedItemId = document.getElementById("tradeGetSelect").value;
+    const requestedCoins = document.getElementById("tradeGetCoins").value;
+
+    try {
+        const data = await request("/api/trade/offer", "POST", {
+            targetUserId: currentTradeTargetId,
+            offeredItemId,
+            offeredCoins,
+            requestedItemId,
+            requestedCoins
+        });
+        alert(data.message);
+        closeTradeModal();
+    } catch (e) { alert(e.message); }
+}
+
+async function loadTrades() {
+    const container = document.getElementById("tradesContainer");
+    try {
+        const data = await request("/api/trade/pending");
+        container.innerHTML = "";
+        if (data.trades.length === 0) {
+            container.textContent = "No tienes ofertas pendientes.";
+            return;
+        }
+        data.trades.forEach(t => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
+                <div><b>Ofrece:</b> ${t.offeredItemName} (+ ${t.offeredCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
+                <div><b>Pide:</b> ${t.requestedItemName} (+ ${t.requestedCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
+                <button class="form-button" style="background:#28a745; color:#fff;" onclick="acceptTrade('${t.id}')">Aceptar Intercambio</button>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar intercambios."; }
+}
+
+async function acceptTrade(tradeId) {
+    try {
+        const data = await request("/api/trade/accept", "POST", { tradeId });
+        alert(data.message);
+        updateAccount();
+        loadTrades();
+    } catch (e) { alert(e.message); }
+}
+
+function openChatModal(friendId, username) {
+    currentChatFriendId = friendId;
+    document.getElementById("chatWithTitle").textContent = "💬 Chat con " + username;
+    document.getElementById("chatModal").style.display = "flex";
+    request("/api/me").then(me => {
+        const btn = document.getElementById("chatImageButton");
+        if (btn) btn.style.display = me.hasBlockSub ? "inline-block" : "none";
+    }).catch(() => {});
+    loadChatMessages();
+}
+
+function closeChatModal() { document.getElementById("chatModal").style.display = "none"; }
+
+async function loadChatMessages() {
+    if (!currentChatFriendId) return;
+    const box = document.getElementById("chatMessagesBox");
+    try {
+        const me = await request("/api/me");
+        const data = await request(`/api/chat/${currentChatFriendId}`);
+        box.innerHTML = "";
+        if (data.messages.length === 0) {
+            box.textContent = "Sin mensajes aún.";
+            return;
+        }
+        data.messages.forEach(m => {
+            const div = document.createElement("div");
+            const isMe = String(m.senderId) === String(me.id);
+            div.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-them'}`;
+            if (m.text) {
+                const textDiv = document.createElement('div');
+                textDiv.textContent = m.text;
+                div.appendChild(textDiv);
+            }
+            if (m.imageUrl) {
+                const img = document.createElement('img');
+                img.src = m.imageUrl.startsWith('http') ? m.imageUrl : RENDER_API + m.imageUrl;
+                img.className = 'chat-image';
+                img.alt = 'Imagen enviada';
+                img.loading = 'lazy';
+                div.appendChild(img);
+            }
+            box.appendChild(div);
+        });
+        box.scrollTop = box.scrollHeight;
+    } catch (e) { box.textContent = "Error al cargar el chat."; }
+}
+
+async function sendChatMessage() {
+    const textInput = document.getElementById("chatInputText");
+    const text = textInput.value;
+    const errorMsg = document.getElementById("chatErrorMsg");
+    errorMsg.textContent = "";
+
+    if (!text.trim()) return;
+
+    try {
+        await request("/api/chat/send", "POST", { friendId: currentChatFriendId, text });
+        textInput.value = "";
+        loadChatMessages();
+    } catch (e) { errorMsg.textContent = e.message; }
+}
+
+async function sendChatImage() {
+    const input = document.getElementById("chatImageInput");
+    const errorMsg = document.getElementById("chatErrorMsg");
+    errorMsg.textContent = "";
+    if (!input.files[0] || !currentChatFriendId) return;
+
+    try {
+        const token = localStorage.getItem("gameblocks_token");
+        const formData = new FormData();
+        formData.append("friendId", currentChatFriendId);
+        formData.append("image", input.files[0]);
+
+        const response = await fetch(RENDER_API + "/api/chat/upload", {
+            method: "POST",
+            headers: token ? { Authorization: "Bearer " + token } : {},
+            body: formData
+        });
+        const raw = await response.text();
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
+        if (!response.ok) throw new Error(data.error || `Error del servidor (${response.status}).`);
+
+        input.value = "";
+        loadChatMessages();
+    } catch (e) {
+        input.value = "";
+        errorMsg.textContent = e.message;
+    }
+}
+
+function insertEmoji(emoji) {
+    const input = document.getElementById("chatInputText");
+    input.value += emoji;
+}
+
+// ADMIN Y REPORTES
+async function loadReportedUsersInbox() {
+    const container = document.getElementById("reportedUsersInbox");
+    try {
+        const data = await request("/api/admin/reports");
+        container.innerHTML = "";
+        if (data.reportedUsers.length === 0) {
+            container.textContent = "No hay usuarios reportados con 10 o más denuncias.";
+            return;
+        }
+
+        data.reportedUsers.forEach(u => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.style.borderColor = "#ff4444";
+            div.innerHTML = `
+                <div><b>Usuario:</b> ${escapeHTML(u.username)} (ID: ${u.id})</div>
+                <div><b>Total Denuncias:</b> <span style="color:#ff5555; font-weight:bold;">${u.reportsCount}</span></div>
+                <div><b>Estado:</b> ${u.banned ? 'BANEADO' : 'Activo'}</div>
+                <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
+                    <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre</button>
+                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Banear Cuenta</button>
+                    <button class="admin-button" style="padding:4px 8px;" onclick="adminClearReported('${u.id}')">Borrar Denuncias</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar reportes."; }
+}
+
+async function adminRenameReported(userId) {
+    try {
+        await request("/api/admin/reports/rename", "POST", { userId });
+        loadReportedUsersInbox();
+    } catch (e) { alert(e.message); }
+}
+
+async function adminBanReported(userId) {
+    try {
+        await request("/api/admin/reports/ban", "POST", { userId });
+        loadReportedUsersInbox();
+    } catch (e) { alert(e.message); }
+}
+
+async function adminClearReported(userId) {
+    try {
+        await request("/api/admin/reports/clear", "POST", { userId });
+        loadReportedUsersInbox();
+    } catch (e) { alert(e.message); }
+}
+
+async function adminSetBlockReward() {
+    const itemId = document.getElementById("adminBlockRewardItemId").value;
+    try {
+        await request("/api/admin/settings/block-reward", "POST", { itemId });
+        alert("ID de Regalo de Suscripción guardado.");
+    } catch (e) { alert(e.message); }
+}
+
+async function adminCreateCode() {
+    const code = document.getElementById("adminCodeName").value;
+    const coins = document.getElementById("adminCodeCoins").value;
+    const dollars = document.getElementById("adminCodeDollars").value;
+    const maxUses = document.getElementById("adminCodeMaxUses").value;
+    const expiresInDays = document.getElementById("adminCodeExpiresDays").value;
+    const rewardItemId = document.getElementById("adminCodeRewardItem").value;
+    const msg = document.getElementById("adminCodeMsg");
+
+    try {
+        await request("/api/admin/codes/create", "POST", { code, coins, dollars, maxUses, expiresInDays, rewardItemId });
+        msg.className = "success";
+        msg.textContent = "Código creado correctamente.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminUploadTshirt() {
+    const name = document.getElementById("adminTshirtName").value;
+    const limited = document.getElementById("adminTshirtIsLimited").value === "si";
+    const maxPerUser = document.getElementById("adminTshirtMaxUser").value;
+    const maxGlobal = document.getElementById("adminTshirtMaxGlobal").value;
+    const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
+    const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
+    const onlyBlock = document.getElementById("adminTshirtOnlyBlock").value === "true";
+    const imageUrl = document.getElementById("adminTshirtImgUrl").value;
+    const price = document.getElementById("adminTshirtPrice").value;
+    const msg = document.getElementById("adminTshirtMsg");
+
+    try {
+        await request("/api/admin/tshirts/upload", "POST", {
+            name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price
+        });
+        msg.className = "success";
+        msg.textContent = "Camiseta subida por Admin.";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminEditAccessory() {
+    const itemId = document.getElementById("editItemId").value;
+    const price = document.getElementById("editItemPrice").value;
+    const limited = document.getElementById("editItemLimited").value;
+    const offsale = document.getElementById("editItemOffsale").value;
+    const isGhost = document.getElementById("editItemIsGhost").value;
+    const onlyBlock = document.getElementById("editItemOnlyBlock").value;
+    const bgColor = document.getElementById("editItemBgColor").value;
+    const soundUrl = document.getElementById("editItemSoundUrl").value;
+
+    try {
+        await request("/api/admin/accessories/edit", "POST", {
+            itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl
+        });
+        alert("Artículo editado.");
+        loadShopItems();
+    } catch (e) { alert(e.message); }
+}
+
+async function uploadAccessory() {
+    const fileInput = document.getElementById("accessoryGlbFile");
+    const name = document.getElementById("accessoryName").value;
+    const limited = document.getElementById("accessoryIsLimited").value === "si";
+    const offsale = document.getElementById("accessoryIsOffsale").value === "si";
+    const onlyBlock = document.getElementById("accessoryOnlyBlock").value === "true";
+    const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
+    const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
+    const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
+    const bgColor = document.getElementById("accessoryBgColor").value;
+    const soundUrl = document.getElementById("accessorySoundUrl").value;
+    const price = document.getElementById("accessoryPrice").value;
+    const imageUrl = document.getElementById("accessoryPngUrl").value;
+    const msg = document.getElementById("accessoryUploadMsg");
+
+    if (!fileInput.files[0]) {
+        msg.className = "error";
+        msg.textContent = "Selecciona un archivo .GLB";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("glb", fileInput.files[0]);
+    formData.append("name", name);
+    formData.append("limited", limited);
+    formData.append("offsale", offsale);
+    formData.append("onlyBlock", onlyBlock);
+    formData.append("maxPerUser", maxPerUser);
+    formData.append("maxGlobal", maxGlobal);
+    formData.append("expiresInDays", expiresInDays);
+    formData.append("bgColor", bgColor);
+    formData.append("soundUrl", soundUrl);
+    formData.append("price", price);
+    formData.append("imageUrl", imageUrl);
+
+    try {
+        const token = localStorage.getItem("gameblocks_token");
+        const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+            body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        msg.className = "success";
+        msg.textContent = "Accesorio 3D subido con éxito.";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminRenameUser() {
+    const targetUsername = document.getElementById("adminRenameTarget").value;
+    const newName = document.getElementById("adminRenameNewName").value;
+    const msg = document.getElementById("adminRenameMsg");
+    try {
+        await request("/api/admin/users/rename", "POST", { targetUsername, newName });
+        msg.className = "success";
+        msg.textContent = "Nombre cambiado correctamente.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminAddBadgeFromPanel() {
+    const username = document.getElementById("adminRenameTarget").value;
+    const type = document.getElementById("adminBadgeType").value;
+    const custom = document.getElementById("adminBadgeCustom").value.trim();
+    const msg = document.getElementById("adminBadgeMsg");
+    const badgeName = type === "custom" ? custom : type;
+    if (!username.trim() || !badgeName.trim()) {
+        msg.className = "error";
+        msg.textContent = "Indica usuario e insignia.";
         return;
     }
     try {
-        const res = await octokit.gists.get({ gist_id: GIST_ID });
-        const file = res.data.files["database.json"];
-        if (file && file.content) {
-            const parsed = JSON.parse(file.content);
-            users = (parsed.users || []).map(u => ({
-                ...u,
-                password: u.password,
-                inventory: u.inventory || [],
-                badges: u.badges || [],
-                likes: u.likes || [],
-                dislikes: u.dislikes || [],
-                reports: u.reports || [],
-                coins: typeof u.coins === 'number' ? u.coins : 100,
-                dollars: typeof u.dollars === 'number' ? u.dollars : 0,
-                blockSubExpiresAt: u.blockSubExpiresAt || null,
-                equippedAccessory: u.equippedAccessory || null,
-                profileBgColor: u.profileBgColor || null,
-                profileSoundUrl: u.profileSoundUrl || null,
-                banned: u.banned || false,
-                lastDailyReward: u.lastDailyReward || 0
-            }));
-            friendships = parsed.friendships || [];
-            friendRequests = parsed.friendRequests || [];
-            accessories = (parsed.accessories || []).map(a => ({
-                ...a,
-                type: a.type || "hat",
-                isGhost: Boolean(a.isGhost),
-                onlyBlock: Boolean(a.onlyBlock)
-            }));
-            resaleListings = parsed.resaleListings || [];
-            tradeOffers = parsed.tradeOffers || [];
-            promoCodes = parsed.promoCodes || [];
-            bannerText = parsed.bannerText || "";
-            chatMessages = parsed.chatMessages || [];
-            groups = parsed.groups || [];
-            blockSubscriptionRewardItemId = parsed.blockSubscriptionRewardItemId || null;
-            console.log("✅ Datos cargados correctamente desde el Gist privado[cite: 5]."); 
-        } else {
-            loadLocalData();
-        }
-    } catch (err) {
-        console.log("⚠️ Error al cargar desde Gist, usando copia local:", err.message);
-        loadLocalData();
-    }
-}
-
-async function saveDataToGit() {
-    const dataObj = {
-        users,
-        friendships,
-        friendRequests,
-        accessories,
-        resaleListings,
-        tradeOffers,
-        promoCodes,
-        bannerText,
-        chatMessages,
-        groups,
-        blockSubscriptionRewardItemId
-    };
-    const dataToSave = JSON.stringify(dataObj, null, 2);
-
-    try {
-        fs.writeFileSync(LOCAL_DB_PATH, dataToSave, 'utf8');
+        await request("/api/admin/badges/add", "POST", { username, badgeName });
+        msg.className = "success";
+        msg.textContent = "Insignia añadida.";
+        updateAccount();
     } catch (e) {
-        console.error("❌ Error al guardar copia local:", e.message);
-    }
-
-    if (!octokit || !GIST_ID) return;
-    try {
-        await octokit.gists.update({
-            gist_id: GIST_ID,
-            files: { "database.json": { content: dataToSave } }
-        });
-        console.log("✅ Cambios sincronizados con Gist[cite: 5].");
-    } catch (err) {
-        console.error("❌ Error al guardar en Gist:", err.message);
+        msg.className = "error";
+        msg.textContent = e.message;
     }
 }
 
-setInterval(async () => {
-    await saveDataToGit();
-}, 20000);
-
-function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) return res.status(401).json({ error: "Acceso no autorizado." });
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: "Sesión expirada o inválida." });
-        
-        const foundUser = users.find(u => String(u.id) === String(user.id));
-        if (!foundUser) return res.status(404).json({ error: "Usuario no encontrado." });
-        
-        if (!foundUser.inventory) foundUser.inventory = [];
-        if (!foundUser.badges) foundUser.badges = [];
-        if (!foundUser.likes) foundUser.likes = [];
-        if (!foundUser.dislikes) foundUser.dislikes = [];
-        if (!foundUser.reports) foundUser.reports = [];
-
-        req.user = foundUser;
-        next();
-    });
-}
-
-function requireAdmin(req, res, next) {
-    if (!req.user) return res.status(403).json({ error: "Acceso denegado." });
-    
-    const hasAdminBadge = req.user.badges && req.user.badges.some(b => {
-        const name = typeof b === 'object' ? b.name : b;
-        return name === "🛡️admin" || name === "🛡️ admin" || name === "🛠️ Admin";
-    });
-
-    if (!req.user.admin && !req.user.owner && !hasAdminBadge) {
-        return res.status(403).json({ error: "Requiere permisos de administrador, Owner o la insignia 🛡️admin." });
-    }
-    next();
-}
-
-app.get('/api/ping', (req, res) => {
-    res.json({ message: "hola" });
-});
-
-const PORT = process.env.PORT || 3000;
-const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || `http://localhost:${PORT}`;
-
-setInterval(() => {
+async function adminAddCoins() {
+    const username = document.getElementById("coinTargetUser").value;
+    const amount = document.getElementById("coinAmount").value;
+    const msg = document.getElementById("coinAdminMsg");
     try {
-        if (typeof fetch !== 'function') return;
-        fetch(`${SELF_URL}/api/ping`).then(r => r.json()).catch(() => {});
-    } catch (err) {
-        console.error("⚠️ Error en auto-ping:", err.message);
-    }
-}, 40000);
-
-// AUTENTICACIÓN Y PERFIL
-app.post(['/api/register', '/register'], async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Completa todos los campos." });
-
-    const cleanUsername = username.trim();
-    const validRegex = /^[a-zA-Z0-9_]+$/;
-    if (!validRegex.test(cleanUsername)) {
-        return res.status(400).json({ error: "El usuario solo puede tener letras, números y _" });
-    }
-
-    const existing = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
-    if (existing) return res.status(400).json({ error: "El usuario ya existe." });
-
-    const isOwner = users.length === 0;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = {
-        id: Date.now().toString(),
-        username: cleanUsername,
-        password: hashedPassword,
-        avatar: "https://via.placeholder.com/110",
-        bio: "",
-        badges: isOwner ? ["🛠️ Admin", "🎮 Owner", "🛡️admin"] : [],
-        coins: 0, // Empezar con 100 monedas para que puedan crear grupo fácilmente
-        dollars: 3,
-        inventory: [],
-        likes: [],
-        dislikes: [],
-        reports: [],
-        blockSubExpiresAt: null,
-        equippedAccessory: null,
-        profileBgColor: null,
-        profileSoundUrl: null,
-        admin: isOwner,
-        owner: isOwner,
-        banned: false,
-        lastDailyReward: Date.now()
-    };
-
-    users.push(newUser);
-    await saveDataToGit();
-
-    const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET);
-    res.json({ success: true, token });
-});
-
-app.post(['/api/login', '/login'], async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Introduce usuario y contraseña." });
-
-    const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!user) return res.status(400).json({ error: "Credenciales incorrectas." });
-
-    const isPasswordValid = await bcrypt.compare(password, user.password).catch(() => user.password === password);
-    if (!isPasswordValid) return res.status(400).json({ error: "Credenciales incorrectas." });
-
-    if (user.banned) {
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
-        return res.status(403).json({ banned: true, token, error: "Has sido baneado de Game Blocks." });
-    }
-
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
-    res.json({ success: true, token });
-});
-
-app.get('/api/me', authenticateToken, async (req, res) => {
-    if (req.user.banned) {
-        return res.status(403).json({ banned: true, error: "Has sido baneado de Game Blocks." });
-    }
-
-    const NOW = Date.now();
-    const DAY_MS = 86400000;
-    let dailyClaimed = false;
-    const isBlockSub = hasActiveBlockSub(req.user);
-    const dailyAmount = isBlockSub ? 34 : 10;
-
-    if (!req.user.lastDailyReward || (NOW - req.user.lastDailyReward) >= DAY_MS) {
-        req.user.coins = (req.user.coins || 0) + dailyAmount;
-        req.user.lastDailyReward = NOW;
-        dailyClaimed = true;
-        await saveDataToGit();
-    }
-
-    const { password, ...safeUserData } = req.user;
-    res.json({ 
-        ...safeUserData, 
-        dailyClaimed, 
-        dailyAmount,
-        hasBlockSub: isBlockSub 
-    });
-});
-
-app.post('/api/logout', (req, res) => res.json({ success: true }));
-
-app.post('/api/profile/avatar', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    if (!req.body.avatar) return res.status(400).json({ error: "Avatar requerido." });
-    req.user.avatar = req.body.avatar;
-    await saveDataToGit();
-    res.json({ success: true, avatar: req.user.avatar });
-});
-
-app.post('/api/profile/bio', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    req.user.bio = sanitizeText(req.body.bio || "");
-    await saveDataToGit();
-    res.json({ success: true, bio: req.user.bio });
-});
-
-// ==========================================
-// NUEVO: SISTEMA DE GRUPOS (CLANES)
-// ==========================================
-
-// Crear grupo (Cuesta 100 monedas)
-app.post('/api/groups/create', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const { name, description } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ error: "El nombre del grupo es obligatorio." });
-
-    if ((req.user.coins || 0) < 100) {
-        return res.status(400).json({ error: "Necesitas 100 monedas para crear un grupo." });
-    }
-
-    req.user.coins -= 100;
-
-    const newGroup = {
-        id: Date.now().toString(),
-        name: sanitizeText(name.trim()),
-        description: sanitizeText(description || ""),
-        ownerId: req.user.id,
-        admins: [req.user.id],
-        members: [req.user.id],
-        bannedMembers: [],
-        chatEnabled: true,
-        forumEnabled: true,
-        pinned: false,
-        newsMessages: [],
-        groupChatMessages: [],
-        forumPosts: []
-    };
-
-    groups.push(newGroup);
-    await saveDataToGit();
-    res.json({ success: true, group: newGroup, newBalance: req.user.coins });
-});
-
-// Listar todos los grupos (con pines primero)
-app.get('/api/groups', (req, res) => {
-    const sortedGroups = [...groups].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-    res.json({ groups: sortedGroups });
-});
-
-// Ver detalle de un grupo
-app.get('/api/groups/:id', (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    // Enriquecer miembros con datos de usuario
-    const enrichedMembers = group.members.map(mId => {
-        const u = users.find(usr => String(usr.id) === String(mId));
-        return u ? { id: u.id, username: u.username, avatar: u.avatar } : null;
-    }).filter(Boolean);
-
-    res.json({ ...group, enrichedMembers });
-});
-
-// Unirse a un grupo
-app.post('/api/groups/:id/join', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (group.bannedMembers.includes(req.user.id)) {
-        return res.status(403).json({ error: "Has sido baneado de este grupo." });
-    }
-
-    if (!group.members.includes(req.user.id)) {
-        group.members.push(req.user.id);
-        await saveDataToGit();
-    }
-    res.json({ success: true, message: "Te has unido al grupo." });
-});
-
-// Salir de un grupo
-app.post('/api/groups/:id/leave', authenticateToken, async (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (String(group.ownerId) === String(req.user.id)) {
-        return res.status(400).json({ error: "El owner no puede abandonar el grupo." });
-    }
-
-    group.members = group.members.filter(mId => String(mId) !== String(req.user.id));
-    group.admins = group.admins.filter(aId => String(aId) !== String(req.user.id));
-    await saveDataToGit();
-    res.json({ success: true, message: "Has salido del grupo." });
-});
-
-// Configurar foros o chat (Owner)
-app.post('/api/groups/:id/settings', authenticateToken, async (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (String(group.ownerId) !== String(req.user.id)) {
-        return res.status(403).json({ error: "Solo el owner puede modificar la configuración." });
-    }
-
-    const { chatEnabled, forumEnabled } = req.body;
-    if (chatEnabled !== undefined) group.chatEnabled = Boolean(chatEnabled);
-    if (forumEnabled !== undefined) group.forumEnabled = Boolean(forumEnabled);
-
-    await saveDataToGit();
-    res.json({ success: true, chatEnabled: group.chatEnabled, forumEnabled: group.forumEnabled });
-});
-
-// Banear miembro del grupo (Owner o Admin)
-app.post('/api/groups/:id/ban-member', authenticateToken, async (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    const isOwner = String(group.ownerId) === String(req.user.id);
-    const isAdmin = group.admins.includes(req.user.id);
-
-    if (!isOwner && !isAdmin) {
-        return res.status(403).json({ error: "No tienes permisos de administración en este grupo." });
-    }
-
-    const { memberId } = req.body;
-    if (String(memberId) === String(group.ownerId)) {
-        return res.status(400).json({ error: "No puedes banear al owner." });
-    }
-
-    group.members = group.members.filter(m => String(m) !== String(memberId));
-    group.admins = group.admins.filter(a => String(a) !== String(memberId));
-    if (!group.bannedMembers.includes(memberId)) {
-        group.bannedMembers.push(memberId);
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, message: "Miembro baneado del grupo." });
-});
-
-// Poner / Quitar Admins en el grupo (Owner)
-app.post('/api/groups/:id/admins', authenticateToken, async (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (String(group.ownerId) !== String(req.user.id)) {
-        return res.status(403).json({ error: "Solo el owner puede gestionar administradores." });
-    }
-
-    const { memberId, action } = req.body; // action: 'add' o 'remove'
-    if (!group.members.includes(memberId)) {
-        return res.status(400).json({ error: "El usuario debe ser miembro del grupo." });
-    }
-
-    if (action === 'add') {
-        if (!group.admins.includes(memberId)) group.admins.push(memberId);
-    } else if (action === 'remove') {
-        if (String(memberId) !== String(group.ownerId)) {
-            group.admins = group.admins.filter(a => String(a) !== String(memberId));
-        }
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, admins: group.admins });
-});
-
-// Chat de noticias (Solo Admins del grupo)
-await request(`/api/groups/${currentOpenGroupId}/news/send`, "POST", { text });
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    const isOwner = String(group.ownerId) === String(req.user.id);
-    const isAdmin = group.admins.includes(req.user.id);
-    if (!isOwner && !isAdmin) {
-        return res.status(403).json({ error: "Solo los administradores pueden publicar en el chat de noticias." });
-    }
-
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
-
-    const newsMsg = {
-        id: Date.now().toString(),
-        senderId: req.user.id,
-        senderUsername: req.user.username,
-        text: sanitizeText(text.trim()),
-        timestamp: Date.now()
-    };
-
-    group.newsMessages.push(newsMsg);
-    await saveDataToGit();
-    res.json({ success: true, message: newsMsg });
-});
-
-// Chat de grupo (Miembros)
-await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (!group.chatEnabled) {
-        return res.status(403).json({ error: "El chat de grupo está desactivado por el owner." });
-    }
-
-    if (!group.members.includes(req.user.id)) {
-        return res.status(403).json({ error: "Debes unirte al grupo para chatear." });
-    }
-
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
-
-    const chatMsg = {
-        id: Date.now().toString(),
-        senderId: req.user.id,
-        senderUsername: req.user.username,
-        text: sanitizeText(text.trim()),
-        timestamp: Date.now()
-    };
-
-    group.groupChatMessages.push(chatMsg);
-    await saveDataToGit();
-    res.json({ success: true, message: chatMsg });
-});
-
-// Foros de grupo (Si están activos)
-app.post('/api/groups/:id/forum', authenticateToken, async (req, res) => {
-    const group = groups.find(g => String(g.id) === String(req.params.id));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    if (!group.forumEnabled) {
-        return res.status(403).json({ error: "Los foros están desactivados por el owner." });
-    }
-
-    if (!group.members.includes(req.user.id)) {
-        return res.status(403).json({ error: "Debes unirte al grupo para publicar en el foro." });
-    }
-
-    const { title, content } = req.body;
-    if (!title || !content) return res.status(400).json({ error: "Título y contenido requeridos." });
-
-    const post = {
-        id: Date.now().toString(),
-        title: sanitizeText(title.trim()),
-        content: sanitizeText(content.trim()),
-        authorId: req.user.id,
-        authorUsername: req.user.username,
-        timestamp: Date.now(),
-        comments: []
-    };
-
-    group.forumPosts.push(post);
-    await saveDataToGit();
-    res.json({ success: true, post });
-});
-
-// Panel Admin: Fijar grupo por ID
-app.post('/api/admin/groups/pin', authenticateToken, requireAdmin, async (req, res) => {
-    const { groupId, pinned } = req.body;
-    const group = groups.find(g => String(g.id) === String(groupId));
-    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-
-    group.pinned = Boolean(pinned);
-    await saveDataToGit();
-    res.json({ success: true, pinned: group.pinned });
-});
-
-// LIKES, DISLIKES Y REPORTES
-app.post('/api/users/:id/like', authenticateToken, async (req, res) => {
-    const target = users.find(u => String(u.id) === String(req.params.id));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    if (!target.likes) target.likes = [];
-    if (!target.dislikes) target.dislikes = [];
-
-    const myId = req.user.id;
-    target.dislikes = target.dislikes.filter(id => String(id) !== String(myId));
-
-    const idx = target.likes.findIndex(id => String(id) === String(myId));
-    if (idx !== -1) {
-        target.likes.splice(idx, 1);
-    } else {
-        target.likes.push(myId);
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, likes: target.likes.length, dislikes: target.dislikes.length });
-});
-
-app.post('/api/users/:id/dislike', authenticateToken, async (req, res) => {
-    const target = users.find(u => String(u.id) === String(req.params.id));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    if (!target.likes) target.likes = [];
-    if (!target.dislikes) target.dislikes = [];
-
-    const myId = req.user.id;
-    target.likes = target.likes.filter(id => String(id) !== String(myId));
-
-    const idx = target.dislikes.findIndex(id => String(id) === String(myId));
-    if (idx !== -1) {
-        target.dislikes.splice(idx, 1);
-    } else {
-        target.dislikes.push(myId);
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, likes: target.likes.length, dislikes: target.dislikes.length });
-});
-
-app.post('/api/users/:id/report', authenticateToken, async (req, res) => {
-    const target = users.find(u => String(u.id) === String(req.params.id));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-    if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes denunciarte a ti mismo." });
-
-    if (!target.reports) target.reports = [];
-    if (target.reports.includes(req.user.id)) {
-        return res.status(400).json({ error: "Ya has denunciado a este usuario." });
-    }
-
-    target.reports.push(req.user.id);
-    await saveDataToGit();
-    res.json({ success: true, message: "Denuncia enviada.", totalReports: target.reports.length });
-});
-
-// SUSCRIPCIÓN BLOCK
-app.post('/api/subscription/buy-block', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
-    const currentDollars = req.user.dollars || 0;
-    if (currentDollars < 5) {
-        return res.status(400).json({ error: "Necesitas al menos 5 💲 para la Suscripción Block." });
-    }
-
-    req.user.dollars = currentDollars - 5;
-    const monthMs = 30 * 86400000;
-    const currentSubEnd = (req.user.blockSubExpiresAt && req.user.blockSubExpiresAt > Date.now()) 
-        ? req.user.blockSubExpiresAt 
-        : Date.now();
-
-    req.user.blockSubExpiresAt = currentSubEnd + monthMs;
-
-    let freeItemGiven = null;
-    if (blockSubscriptionRewardItemId) {
-        const rewardItem = accessories.find(a => String(a.id) === String(blockSubscriptionRewardItemId));
-        if (rewardItem) {
-            req.user.inventory.push(rewardItem.id);
-            freeItemGiven = rewardItem.name;
-        }
-    }
-
-    await saveDataToGit();
-    res.json({
-        success: true,
-        message: "¡Te has suscrito a Block con éxito!",
-        dollars: req.user.dollars,
-        blockSubExpiresAt: req.user.blockSubExpiresAt,
-        freeItemGiven
-    });
-});
-
-// CHAT CON AMIGOS
-app.get('/api/chat/:friendId', authenticateToken, (req, res) => {
-    const friendId = String(req.params.friendId);
-    const myId = String(req.user.id);
-
-    const isFriend = friendships.some(f => 
-        (String(f.user1) === myId && String(f.user2) === friendId) ||
-        (String(f.user2) === myId && String(f.user1) === friendId)
-    );
-
-    if (!isFriend) return res.status(403).json({ error: "Solo puedes chatear con amigos." });
-
-    const msgs = chatMessages.filter(m => 
-        (String(m.senderId) === myId && String(m.receiverId) === friendId) ||
-        (String(m.senderId) === friendId && String(m.receiverId) === myId)
-    );
-
-    res.json({ messages: msgs });
-});
-
-app.post('/api/chat/send', authenticateToken, async (req, res) => {
-    const { friendId, text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
-
-    const myId = String(req.user.id);
-    const targetId = String(friendId);
-
-    const isFriend = friendships.some(f => 
-        (String(f.user1) === myId && String(f.user2) === targetId) ||
-        (String(f.user2) === myId && String(f.user1) === targetId)
-    );
-
-    if (!isFriend) return res.status(403).json({ error: "Solo puedes enviar mensajes a amigos." });
-
-    const containsEmoji = /(\p{Extended_Pictographic}|\p{Emoji_Presentation})/u.test(text);
-    if (containsEmoji && !hasActiveBlockSub(req.user)) {
-        return res.status(403).json({ 
-            error: "🔒 Emojis bloqueados. Requiere la Suscripción Block (5 💲/mes) para usarlos o pegarlos." 
-        });
-    }
-
-    const newMessage = {
-        id: Date.now().toString(),
-        senderId: req.user.id,
-        senderUsername: req.user.username,
-        receiverId: targetId,
-        text: sanitizeText(text.trim()),
-        timestamp: Date.now()
-    };
-
-    chatMessages.push(newMessage);
-    await saveDataToGit();
-    res.json({ success: true, message: newMessage });
-});
-
-app.get('/api/badges/me', authenticateToken, (req, res) => {
-    res.json({ badges: req.user.badges || [] });
-});
-
-app.get('/api/users/search', (req, res) => {
-    const q = (req.query.q || "").toLowerCase();
-    const matches = users
-        .filter(u => u.username.toLowerCase().includes(q) && !u.banned)
-        .map(u => ({ id: u.id, username: u.username, avatar: u.avatar, bio: u.bio, badges: u.badges || [], inventory: u.inventory || [] }));
-    res.json({ users: matches });
-});
-
-app.get('/api/users/profile/:id', (req, res) => {
-    const target = users.find(u => String(u.id) === String(req.params.id));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    const userInventory = (target.inventory || []).map(itemId => {
-        const item = accessories.find(a => String(a.id) === String(itemId));
-        return item ? { id: item.id, name: item.name, imageUrl: item.imageUrl, type: item.type } : { id: itemId, name: "Objeto #" + itemId, imageUrl: "https://via.placeholder.com/80" };
-    });
-
-    res.json({
-        id: target.id,
-        username: target.username,
-        avatar: target.avatar,
-        bio: target.bio,
-        badges: target.badges || [],
-        inventory: userInventory,
-        profileBgColor: target.profileBgColor || null,
-        profileSoundUrl: target.profileSoundUrl || null,
-        likesCount: (target.likes || []).length,
-        dislikesCount: (target.dislikes || []).length,
-        reportsCount: (target.reports || []).length,
-        isAlert: (target.reports || []).length >= 5
-    });
-});
-
-// CANJEAR CÓDIGOS
-app.post('/api/codes/redeem', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: "Ingresa un código." });
-
-    const cleanCode = code.trim().toUpperCase();
-    const promo = promoCodes.find(c => c.code.toUpperCase() === cleanCode);
-
-    if (!promo) return res.status(404).json({ error: "Código inválido o inexistente." });
-
-    if (promo.expiresAt && Date.now() > promo.expiresAt) {
-        return res.status(400).json({ error: "El código ha expirado." });
-    }
-
-    if (promo.maxUses !== null && promo.currentUses >= promo.maxUses) {
-        return res.status(400).json({ error: "El código ha alcanzado el límite máximo de usos." });
-    }
-
-    if (!promo.usedBy) promo.usedBy = [];
-    if (promo.usedBy.includes(req.user.id)) {
-        return res.status(400).json({ error: "Ya has canjeado este código anteriormente." });
-    }
-
-    promo.currentUses = (promo.currentUses || 0) + 1;
-    promo.usedBy.push(req.user.id);
-
-    req.user.coins = (req.user.coins || 0) + (promo.coins || 0);
-    req.user.dollars = (req.user.dollars || 0) + (promo.dollars || 0);
-
-    let rewardItemName = null;
-    if (promo.rewardItemId) {
-        const rewardItem = accessories.find(a => String(a.id) === String(promo.rewardItemId));
-        if (rewardItem) {
-            req.user.inventory.push(rewardItem.id);
-            rewardItemName = rewardItem.name;
-        }
-    }
-
-    await saveDataToGit();
-
-    let msg = `¡Código canjeado! Ganaste ${promo.coins || 0} monedas`;
-    if (promo.dollars) msg += ` y ${promo.dollars} 💲`;
-    msg += ".";
-    if (rewardItemName) msg += ` Además obtuviste el objeto: ${rewardItemName}.`;
-
-    res.json({
-        success: true,
-        message: msg,
-        newBalance: req.user.coins,
-        newDollars: req.user.dollars || 0
-    });
-});
-
-app.post('/api/account/delete-banned', authenticateToken, async (req, res) => {
-    if (!req.user.banned) {
-        return res.status(400).json({ error: "Solo los usuarios baneados pueden borrar su cuenta con esta opción." });
-    }
-
-    const deleteId = req.user.id;
-    users = users.filter(u => String(u.id) !== String(deleteId));
-    friendships = friendships.filter(f => String(f.user1) !== String(deleteId) && String(f.user2) !== String(deleteId));
-    friendRequests = friendRequests.filter(r => String(r.senderId) !== String(deleteId) && String(r.receiverId) !== String(deleteId));
-    tradeOffers = tradeOffers.filter(t => String(t.senderId) !== String(deleteId) && String(t.targetUserId) !== String(deleteId));
-    resaleListings = resaleListings.filter(l => String(l.sellerId) !== String(deleteId));
-
-    await saveDataToGit();
-    res.json({ success: true, message: "Tu cuenta ha sido eliminada permanentemente." });
-});
-
-app.post('/api/friends/request', authenticateToken, (req, res) => {
-    const { userId } = req.body;
-    if (String(userId) === String(req.user.id)) return res.status(400).json({ error: "No puedes agregarte a ti mismo." });
-    
-    const exists = friendRequests.some(r => String(r.senderId) === String(req.user.id) && String(r.receiverId) === String(userId));
-    if (exists) return res.status(400).json({ error: "Ya enviaste una solicitud a este usuario." });
-
-    friendRequests.push({ id: Date.now().toString(), senderId: req.user.id, receiverId: userId });
-    res.json({ success: true, message: "Solicitud enviada." });
-});
-
-app.post('/api/friends/accept', authenticateToken, async (req, res) => {
-    const { requestId } = req.body;
-    const reqIndex = friendRequests.findIndex(r => String(r.id) === String(requestId) && String(r.receiverId) === String(req.user.id));
-
-    if (reqIndex === -1) return res.status(404).json({ error: "Solicitud no encontrada." });
-
-    const requestObj = friendRequests[reqIndex];
-    friendships.push({
-        id: Date.now().toString(),
-        user1: requestObj.senderId,
-        user2: requestObj.receiverId
-    });
-
-    friendRequests.splice(reqIndex, 1);
-    await saveDataToGit();
-    res.json({ success: true, message: "Solicitud de amistad aceptada." });
-});
-
-app.get('/api/friends/requests', authenticateToken, (req, res) => {
-    const reqs = friendRequests
-        .filter(r => String(r.receiverId) === String(req.user.id))
-        .map(r => ({ id: r.id, username: (users.find(u => String(u.id) === String(r.senderId)) || {}).username || "Desconocido" }));
-    res.json({ requests: reqs });
-});
-
-app.get('/api/friends', authenticateToken, (req, res) => {
-    const myFriends = friendships
-        .filter(f => String(f.user1) === String(req.user.id) || String(f.user2) === String(req.user.id))
-        .map(f => {
-            const friendId = String(f.user1) === String(req.user.id) ? f.user2 : f.user1;
-            const friendUser = users.find(u => String(u.id) === String(friendId));
-            return friendUser ? { id: friendUser.id, username: friendUser.username, avatar: friendUser.avatar } : null;
-        }).filter(Boolean);
-    res.json({ friends: myFriends });
-});
-
-app.post('/api/game/create-code', authenticateToken, (req, res) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    gameCodes[code] = req.user.id;
-    res.json({ success: true, code });
-});
-
-app.get(['/api/accessories', '/api/shop', '/api/store'], (req, res) => {
-    const enrichedItems = accessories
-        .filter(item => !item.isGhost)
-        .map(item => {
-            let totalSold = 0;
-            users.forEach(u => {
-                totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
-            });
-            resaleListings.forEach(r => {
-                if (String(r.itemId) === String(item.id)) totalSold += 1;
-            });
-            return { ...item, totalSold, type: item.type || "hat" };
-        });
-    res.json({ items: enrichedItems });
-});
-
-app.get('/api/accessories/all', (req, res) => {
-    const enrichedItems = accessories.map(item => {
-        let totalSold = 0;
-        users.forEach(u => {
-            totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
-        });
-        resaleListings.forEach(r => {
-            if (String(r.itemId) === String(item.id)) totalSold += 1;
-        });
-        return { ...item, totalSold, type: item.type || "hat" };
-    });
-    res.json({ items: enrichedItems });
-});
-
-app.post('/api/tshirts/upload', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
-    const { name, imageUrl, price, onlyBlock } = req.body;
-    if (!name || !imageUrl || price === undefined) {
-        return res.status(400).json({ error: "Completa el nombre, imagen y precio." });
-    }
-
-    const cost = parseInt(price);
-    if (isNaN(cost) || cost < 1) {
-        return res.status(400).json({ error: "El precio debe ser de al menos 1 moneda." });
-    }
-
-    const newTshirt = {
-        id: Date.now().toString(),
-        name: sanitizeText(name),
-        type: "tshirt",
-        imageUrl: imageUrl.trim(),
-        glbUrl: null,
-        price: cost,
-        limited: false,
-        offsale: false,
-        isGhost: false,
-        onlyBlock: Boolean(onlyBlock),
-        bgColor: null,
-        soundUrl: null,
-        creatorId: req.user.id,
-        creatorUsername: req.user.username,
-        createdByAdmin: false
-    };
-
-    accessories.push(newTshirt);
-    await saveDataToGit();
-    res.json({ success: true, tshirt: newTshirt });
-});
-
-app.post('/api/accessories/buy', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const itemId = req.body.itemId || req.body.id;
-    const item = accessories.find(a => String(a.id) === String(itemId));
-
-    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-    if (item.offsale) return res.status(400).json({ error: "Este artículo está Offsale." });
-
-    if (item.onlyBlock && !hasActiveBlockSub(req.user)) {
-        return res.status(400).json({ error: "Este accesorio es exclusivo para usuarios con Suscripción Block." });
-    }
-
-    if (item.expiresAt && Date.now() > item.expiresAt) {
-        return res.status(400).json({ error: "Este artículo ha expirado y ya no se puede comprar." });
-    }
-
-    let totalSold = 0;
-    users.forEach(u => {
-        totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
-    });
-    resaleListings.forEach(r => {
-        if (String(r.itemId) === String(item.id)) totalSold += 1;
-    });
-
-    if (item.maxGlobal && totalSold >= item.maxGlobal) {
-        return res.status(400).json({ error: "Se ha agotado el stock global de este artículo." });
-    }
-
-    const userOwnedCount = (req.user.inventory || []).filter(id => String(id) === String(item.id)).length;
-    if (item.maxPerUser && userOwnedCount >= item.maxPerUser) {
-        return res.status(400).json({ error: `Alcanzaste el límite de ${item.maxPerUser} copia(s) por usuario.` });
-    }
-
-    if ((req.user.coins || 0) < item.price) {
-        return res.status(400).json({ error: "Monedas insuficientes." });
-    }
-
-    req.user.coins -= item.price;
-    req.user.inventory.push(item.id);
-
-    if (!item.createdByAdmin && item.creatorId && String(item.creatorId) !== String(req.user.id)) {
-        const creator = users.find(u => String(u.id) === String(item.creatorId));
-        if (creator) {
-            creator.coins = (creator.coins || 0) + item.price;
-        }
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, newBalance: req.user.coins, inventory: req.user.inventory });
-});
-
-app.post('/api/accessories/sell', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const { itemId } = req.body;
-    const item = accessories.find(a => String(a.id) === String(itemId));
-
-    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-
-    const index = req.user.inventory.indexOf(itemId);
-    if (index === -1) return res.status(400).json({ error: "No posees este accesorio." });
-
-    req.user.inventory.splice(index, 1);
-    const refundAmount = Math.floor(item.price * 0.5);
-    req.user.coins += refundAmount;
-
-    if (String(req.user.equippedAccessory) === String(itemId)) {
-        req.user.equippedAccessory = null;
-        req.user.profileBgColor = null;
-        req.user.profileSoundUrl = null;
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, newBalance: req.user.coins, refundAmount });
-});
-
-app.post(['/api/accessories/equip', '/api/equip'], authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const itemId = req.body.itemId || req.body.id;
-    if (!req.user.inventory.includes(itemId)) return res.status(403).json({ error: "No posees este accesorio." });
-
-    const item = accessories.find(a => String(a.id) === String(itemId));
-    if (item && item.onlyBlock && !hasActiveBlockSub(req.user)) {
-        return res.status(400).json({ error: "Este accesorio es exclusivo de la Suscripción Block." });
-    }
-    
-    req.user.equippedAccessory = itemId;
-    
-    if (item) {
-        if (item.type === "tshirt") {
-            req.user.profileBgColor = null;
-            req.user.profileSoundUrl = null;
-        } else {
-            req.user.profileBgColor = item.bgColor || null;
-            req.user.profileSoundUrl = item.soundUrl || null;
-        }
-    }
-
-    await saveDataToGit();
-    res.json({ 
-        success: true, 
-        equipped: itemId, 
-        profileBgColor: req.user.profileBgColor, 
-        profileSoundUrl: req.user.profileSoundUrl 
-    });
-});
-
-app.post(['/api/accessories/unequip', '/api/unequip'], authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    req.user.equippedAccessory = null;
-    req.user.profileBgColor = null;
-    req.user.profileSoundUrl = null;
-    await saveDataToGit();
-    res.json({ success: true });
-});
-
-app.post('/api/trade/offer', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
-    const { targetUserId, offeredItemId, offeredCoins, requestedItemId, requestedCoins } = req.body;
-    const target = users.find(u => String(u.id) === String(targetUserId));
-
-    if (!target) return res.status(404).json({ error: "Usuario destino no encontrado." });
-    if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes tradear contigo mismo." });
-
-    let offeredItemObj = null;
-    if (offeredItemId) {
-        offeredItemObj = accessories.find(a => String(a.id) === String(offeredItemId));
-        if (!offeredItemObj) return res.status(404).json({ error: "Artículo ofrecido no existe." });
-        if (!offeredItemObj.limited || !offeredItemObj.offsale) {
-            return res.status(400).json({ error: "Solo se pueden intercambiar artículos LIMITEDS y OFFSALE." });
-        }
-        if (!req.user.inventory.includes(offeredItemId)) {
-            return res.status(400).json({ error: "No posees el ítem ofrecido." });
-        }
-    }
-
-    let requestedItemObj = null;
-    if (requestedItemId) {
-        requestedItemObj = accessories.find(a => String(a.id) === String(requestedItemId));
-        if (!requestedItemObj) return res.status(404).json({ error: "Artículo solicitado no existe." });
-        if (!requestedItemObj.limited || !requestedItemObj.offsale) {
-            return res.status(400).json({ error: "Solo puedes solicitar artículos LIMITEDS y OFFSALE." });
-        }
-        if (!target.inventory.includes(requestedItemId)) {
-            return res.status(400).json({ error: "El usuario destino no posee el ítem solicitado." });
-        }
-    }
-
-    const offerCoinsParsed = parseInt(offeredCoins) || 0;
-    const reqCoinsParsed = parseInt(requestedCoins) || 0;
-
-    if (offerCoinsParsed > 0 && (req.user.coins || 0) < offerCoinsParsed) {
-        return res.status(400).json({ error: "No tienes suficientes monedas para ofrecer." });
-    }
-
-    const trade = {
-        id: Date.now().toString(),
-        senderId: req.user.id,
-        senderUsername: req.user.username,
-        targetUserId: target.id,
-        offeredItemId: offeredItemId || null,
-        offeredItemName: offeredItemObj ? offeredItemObj.name : null,
-        offeredCoins: offerCoinsParsed,
-        requestedItemId: requestedItemId || null,
-        requestedItemName: requestedItemObj ? requestedItemObj.name : null,
-        requestedCoins: reqCoinsParsed
-    };
-
-    tradeOffers.push(trade);
-    await saveDataToGit();
-    res.json({ success: true, message: "Oferta de intercambio enviada." });
-});
-
-app.get('/api/trade/pending', authenticateToken, (req, res) => {
-    const pending = tradeOffers
-        .filter(t => String(t.targetUserId) === String(req.user.id))
-        .map(t => {
-            const offItem = accessories.find(a => String(a.id) === String(t.offeredItemId));
-            const reqItem = accessories.find(a => String(a.id) === String(t.requestedItemId));
-            return {
-                ...t,
-                offeredItemName: offItem ? offItem.name : t.offeredItemName || "Ninguno",
-                requestedItemName: reqItem ? reqItem.name : t.requestedItemName || "Ninguno"
-            };
-        });
-    res.json({ trades: pending });
-});
-
-app.post('/api/trade/accept', authenticateToken, async (req, res) => {
-    const { tradeId } = req.body;
-    const tradeIndex = tradeOffers.findIndex(t => String(t.id) === String(tradeId) && String(t.targetUserId) === String(req.user.id));
-    if (tradeIndex === -1) return res.status(404).json({ error: "Oferta de intercambio no encontrada." });
-
-    const trade = tradeOffers[tradeIndex];
-    const sender = users.find(u => String(u.id) === String(trade.senderId));
-    if (!sender) return res.status(404).json({ error: "El usuario que envió la oferta ya no existe." });
-
-    if (trade.offeredCoins > 0 && (sender.coins || 0) < trade.offeredCoins) {
-        return res.status(400).json({ error: "El emisor ya no tiene suficientes monedas." });
-    }
-    if (trade.offeredItemId && !sender.inventory.includes(trade.offeredItemId)) {
-        return res.status(400).json({ error: "El emisor ya no posee el objeto ofrecido." });
-    }
-
-    if (trade.requestedCoins > 0 && (req.user.coins || 0) < trade.requestedCoins) {
-        return res.status(400).json({ error: "No tienes suficientes monedas para aceptar el intercambio." });
-    }
-    if (trade.requestedItemId && !req.user.inventory.includes(trade.requestedItemId)) {
-        return res.status(400).json({ error: "Ya no posees el objeto solicitado." });
-    }
-
-    if (trade.offeredCoins > 0) {
-        sender.coins -= trade.offeredCoins;
-        req.user.coins = (req.user.coins || 0) + trade.offeredCoins;
-    }
-    if (trade.requestedCoins > 0) {
-        req.user.coins -= trade.requestedCoins;
-        sender.coins = (sender.coins || 0) + trade.requestedCoins;
-    }
-
-    if (trade.offeredItemId) {
-        const idx = sender.inventory.indexOf(trade.offeredItemId);
-        if (idx !== -1) sender.inventory.splice(idx, 1);
-        req.user.inventory.push(trade.offeredItemId);
-    }
-
-    if (trade.requestedItemId) {
-        const idx = req.user.inventory.indexOf(trade.requestedItemId);
-        if (idx !== -1) req.user.inventory.splice(idx, 1);
-        sender.inventory.push(trade.requestedItemId);
-    }
-
-    tradeOffers.splice(tradeIndex, 1);
-    await saveDataToGit();
-    res.json({ success: true, message: "Intercambio completado." });
-});
-
-app.post('/api/accessories/resell-list', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const { itemId, price } = req.body;
-    const numericPrice = parseInt(price);
-    if (isNaN(numericPrice) || numericPrice < 1) {
-        return res.status(400).json({ error: "Precio inválido." });
-    }
-
-    const item = accessories.find(a => String(a.id) === String(itemId));
-    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-    if (!item.limited || !item.offsale) {
-        return res.status(400).json({ error: "Solo puedes poner en reventa artículos LIMITEDS y OFFSALE." });
-    }
-
-    const invIndex = req.user.inventory.indexOf(itemId);
-    if (invIndex === -1) {
-        return res.status(400).json({ error: "No posees este artículo en tu inventario." });
-    }
-
-    req.user.inventory.splice(invIndex, 1);
-    if (String(req.user.equippedAccessory) === String(itemId)) {
-        req.user.equippedAccessory = null;
-        req.user.profileBgColor = null;
-        req.user.profileSoundUrl = null;
-    }
-
-    const listing = {
-        id: Date.now().toString(),
-        sellerId: req.user.id,
-        sellerUsername: req.user.username,
-        itemId: item.id,
-        price: numericPrice
-    };
-
-    resaleListings.push(listing);
-    await saveDataToGit();
-    res.json({ success: true, listing });
-});
-
-app.get('/api/accessories/resale-market', (req, res) => {
-    const listingsEnriched = resaleListings.map(listing => {
-        const item = accessories.find(a => String(a.id) === String(listing.itemId));
-        let totalSold = 0;
-        if (item) {
-            users.forEach(u => {
-                totalSold += (u.inventory || []).filter(id => String(id) === String(item.id)).length;
-            });
-            resaleListings.forEach(r => {
-                if (String(r.itemId) === String(item.id)) totalSold += 1;
-            });
-        }
-        return {
-            ...listing,
-            item: item ? { ...item, totalSold } : null
-        };
-    });
-    res.json({ listings: listingsEnriched });
-});
-
-app.post('/api/accessories/resell-buy', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-    const { listingId } = req.body;
-    const listingIndex = resaleListings.findIndex(l => String(l.id) === String(listingId));
-
-    if (listingIndex === -1) return res.status(404).json({ error: "Publicación de reventa no encontrada." });
-
-    const listing = resaleListings[listingIndex];
-    const isSelfBuy = String(listing.sellerId) === String(req.user.id);
-
-    if (isSelfBuy) {
-        req.user.inventory.push(listing.itemId);
-        resaleListings.splice(listingIndex, 1);
-        await saveDataToGit();
-        return res.json({ success: true, message: "Has retirado/comprado de vuelta tu propia oferta." });
-    }
-
-    const seller = users.find(u => String(u.id) === String(listing.sellerId));
-    if (!seller) {
-        resaleListings.splice(listingIndex, 1);
-        await saveDataToGit();
-        return res.status(400).json({ error: "El vendedor ya no existe." });
-    }
-
-    if ((req.user.coins || 0) < listing.price) {
-        return res.status(400).json({ error: "Monedas insuficientes." });
-    }
-
-    req.user.coins -= listing.price;
-    seller.coins = (seller.coins || 0) + listing.price;
-    req.user.inventory.push(listing.itemId);
-
-    resaleListings.splice(listingIndex, 1);
-    await saveDataToGit();
-    res.json({ success: true, message: "¡Compra de reventa realizada!" });
-});
-
-app.get('/api/coins/packages', (req, res) => {
-    res.json({ packages: currencyPackages });
-});
-
-app.post('/api/coins/purchase', authenticateToken, async (req, res) => {
-    if (req.user.banned) return res.status(403).json({ error: "Cuenta baneada." });
-
-    const coinsToBuy = parseInt(req.body.coins);
-    const pkg = currencyPackages.find(p => p.coins === coinsToBuy);
-
-    if (!pkg) return res.status(400).json({ error: "Paquete de monedas no válido." });
-
-    const currentDollars = req.user.dollars || 0;
-    if (currentDollars < pkg.dollars) {
-        return res.status(400).json({ error: `Necesitas ${pkg.dollars} 💲 para comprar ${pkg.coins} monedas.` });
-    }
-
-    req.user.dollars = currentDollars - pkg.dollars;
-    req.user.coins = (req.user.coins || 0) + pkg.coins;
-
-    await saveDataToGit();
-
-    res.json({
-        success: true,
-        coins: req.user.coins,
-        dollars: req.user.dollars
-    });
-});
-
-app.get('/api/admin/reports', authenticateToken, requireAdmin, (req, res) => {
-    const reportedUsers = users
-        .filter(u => (u.reports || []).length >= 10)
-        .map(u => ({
-            id: u.id,
-            username: u.username,
-            avatar: u.avatar,
-            reportsCount: u.reports.length,
-            banned: u.banned
-        }));
-    res.json({ reportedUsers });
-});
-
-app.post('/api/admin/reports/rename', authenticateToken, requireAdmin, async (req, res) => {
-    const { userId } = req.body;
-    const target = users.find(u => String(u.id) === String(userId));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.username = "[contenido baneado]";
-    await saveDataToGit();
-    res.json({ success: true, message: "Nombre cambiado a [contenido baneado]." });
-});
-
-app.post('/api/admin/reports/ban', authenticateToken, requireAdmin, async (req, res) => {
-    const { userId } = req.body;
-    const target = users.find(u => String(u.id) === String(userId));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.banned = true;
-    await saveDataToGit();
-    res.json({ success: true, message: "Usuario baneado." });
-});
-
-app.post('/api/admin/reports/clear', authenticateToken, requireAdmin, async (req, res) => {
-    const { userId } = req.body;
-    const target = users.find(u => String(u.id) === String(userId));
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.reports = [];
-    await saveDataToGit();
-    res.json({ success: true, message: "Denuncias borradas y usuario removido de la bandeja." });
-});
-
-app.post('/api/admin/settings/block-reward', authenticateToken, requireAdmin, async (req, res) => {
-    const { itemId } = req.body;
-    blockSubscriptionRewardItemId = itemId || null;
-    await saveDataToGit();
-    res.json({ success: true, blockSubscriptionRewardItemId });
-});
-
-app.post('/api/admin/codes/create', authenticateToken, requireAdmin, async (req, res) => {
-    const { code, coins, dollars, maxUses, expiresInDays, rewardItemId } = req.body;
-    if (!code) return res.status(400).json({ error: "Nombre del código requerido." });
-
-    const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
-
-    const newCode = {
-        id: Date.now().toString(),
-        code: code.trim().toUpperCase(),
-        coins: parseInt(coins) || 0,
-        dollars: parseInt(dollars) || 0,
-        maxUses: maxUses ? parseInt(maxUses) : null,
-        currentUses: 0,
-        expiresAt,
-        rewardItemId: rewardItemId || null,
-        usedBy: []
-    };
-
-    promoCodes.push(newCode);
-    await saveDataToGit();
-    res.json({ success: true, code: newCode });
-});
-
-app.post('/api/admin/tshirts/upload', authenticateToken, requireAdmin, async (req, res) => {
-    const { name, imageUrl, price, limited, offsale, onlyBlock, maxPerUser, maxGlobal, expiresInDays } = req.body;
-    if (!name || !imageUrl || price === undefined) {
-        return res.status(400).json({ error: "Nombre, imagen y precio requeridos." });
-    }
-
-    const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
-
-    const newTshirt = {
-        id: Date.now().toString(),
-        name: sanitizeText(name),
-        type: "tshirt",
-        imageUrl: imageUrl.trim(),
-        glbUrl: null,
-        price: parseInt(price) || 0,
-        limited: Boolean(limited),
-        offsale: Boolean(offsale),
-        isGhost: false,
-        onlyBlock: Boolean(onlyBlock),
-        maxPerUser: maxPerUser ? parseInt(maxPerUser) : null,
-        maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
-        expiresAt,
-        bgColor: null,
-        soundUrl: null,
-        creatorId: req.user.id,
-        creatorUsername: req.user.username,
-        createdByAdmin: true
-    };
-
-    accessories.push(newTshirt);
-    await saveDataToGit();
-    res.json({ success: true, tshirt: newTshirt });
-});
-
-app.post('/api/admin/accessories/upload', authenticateToken, requireAdmin, upload.single('glb'), async (req, res) => {
-    try {
-        const { name, limited, offsale, onlyBlock, maxPerUser, maxGlobal, expiresInDays, bgColor, soundUrl, price, imageUrl } = req.body;
-        
-        if (!req.file || !price || !imageUrl) {
-            return res.status(400).json({ error: "Completa el archivo GLB, Precio e Imagen PNG." });
-        }
-
-        const glbUrl = '/uploads/' + req.file.filename;
-        const expiresAt = expiresInDays ? Date.now() + (parseInt(expiresInDays) * 86400000) : null;
-
-        const newAccessory = {
-            id: Date.now().toString(),
-            name: sanitizeText(name || "Accesorio 3D"),
-            type: "hat",
-            imageUrl: imageUrl.trim(),
-            glbUrl,
-            price: parseInt(price) || 0,
-            limited: limited === 'true' || limited === true,
-            offsale: offsale === 'true' || offsale === true,
-            isGhost: false,
-            onlyBlock: onlyBlock === 'true' || onlyBlock === true,
-            maxPerUser: maxPerUser ? parseInt(maxPerUser) : 1,
-            maxGlobal: maxGlobal ? parseInt(maxGlobal) : null,
-            expiresAt,
-            bgColor: bgColor ? bgColor.trim() : null,
-            soundUrl: soundUrl ? soundUrl.trim() : null,
-            creatorId: req.user.id,
-            creatorUsername: req.user.username,
-            createdByAdmin: true
-        };
-
-        accessories.push(newAccessory);
-        await saveDataToGit();
-        res.json({ success: true, accessory: newAccessory });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/admin/badges/add', authenticateToken, requireAdmin, async (req, res) => {
-    const { username, badgeName } = req.body;
-    if (!username || !badgeName) return res.status(400).json({ error: "Usuario e insignia requeridos." });
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    if (!target.badges) target.badges = [];
-    if (!target.badges.includes(badgeName.trim())) {
-        target.badges.push(badgeName.trim());
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, message: "Insignia añadida." });
-});
-
-app.post('/api/admin/badges/remove', authenticateToken, requireAdmin, async (req, res) => {
-    const { username, badgeName } = req.body;
-    if (!username || !badgeName) return res.status(400).json({ error: "Usuario e insignia requeridos." });
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    if (target.badges) {
-        target.badges = target.badges.filter(b => (typeof b === 'object' ? b.name : b) !== badgeName.trim());
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, message: "Insignia quitada." });
-});
-
-app.post('/api/admin/users/rename', authenticateToken, requireAdmin, async (req, res) => {
-    const { targetUsername, newName } = req.body;
-    if (!newName) return res.status(400).json({ error: "Nuevo nombre requerido." });
-
-    const target = users.find(u => u.username.toLowerCase() === (targetUsername || "").trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    const cleanNewName = newName.trim();
-    const existing = users.find(u => u.username.toLowerCase() === cleanNewName.toLowerCase() && String(u.id) !== String(target.id));
-    if (existing) return res.status(400).json({ error: "Ese nombre ya está en uso." });
-
-    target.username = cleanNewName;
-    await saveDataToGit();
-    res.json({ success: true, message: "Nombre actualizado." });
-});
-
-app.post('/api/admin/users/ban', authenticateToken, requireAdmin, async (req, res) => {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: "Nombre de usuario requerido." });
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.banned = true;
-    await saveDataToGit();
-    res.json({ success: true, message: "Usuario baneado." });
-});
-
-app.post('/api/admin/accessories/edit', authenticateToken, requireAdmin, async (req, res) => {
-    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl } = req.body;
-    if (!itemId) return res.status(400).json({ error: "ID del accesorio requerido." });
-
-    const item = accessories.find(a => String(a.id) === String(itemId));
-    if (!item) return res.status(404).json({ error: "Accesorio no encontrado." });
-
-    if (price !== undefined && price !== "") item.price = parseInt(price);
-    if (limited !== undefined && limited !== "") item.limited = (limited === 'true' || limited === true);
-    if (offsale !== undefined && offsale !== "") item.offsale = (offsale === 'true' || offsale === true);
-    if (isGhost !== undefined && isGhost !== "") item.isGhost = (isGhost === 'true' || isGhost === true);
-    if (onlyBlock !== undefined && onlyBlock !== "") item.onlyBlock = (onlyBlock === 'true' || onlyBlock === true);
-
-    if (item.type === "tshirt") {
-        item.bgColor = null;
-        item.soundUrl = null;
-    } else {
-        if (bgColor !== undefined && bgColor !== "") item.bgColor = bgColor;
-        if (soundUrl !== undefined && soundUrl !== "") item.soundUrl = soundUrl;
-    }
-
-    await saveDataToGit();
-    res.json({ success: true, item });
-});
-
-app.post('/api/admin/coins/add', authenticateToken, requireAdmin, async (req, res) => {
-    const { username, amount } = req.body;
-    if (!username || !amount) return res.status(400).json({ error: "Usuario y cantidad requeridos." });
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.coins = (target.coins || 0) + parseInt(amount);
-    await saveDataToGit();
-    res.json({ success: true, newBalance: target.coins });
-});
-
-app.post('/api/admin/dollars/add', authenticateToken, requireAdmin, async (req, res) => {
-    const { username, amount } = req.body;
-    const parsedAmount = parseInt(amount);
-    if (!username || !parsedAmount || parsedAmount < 1) {
-        return res.status(400).json({ error: "Usuario y cantidad válida requeridos." });
-    }
-
-    const target = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
-
-    target.dollars = (target.dollars || 0) + parsedAmount;
-    await saveDataToGit();
-    res.json({ success: true, newBalance: target.dollars });
-});
-
-app.post('/api/admin/banner', authenticateToken, requireAdmin, async (req, res) => {
-    bannerText = req.body.text || "";
-    await saveDataToGit();
-    res.json({ success: true, bannerText });
-});
-
-app.get('/api/banner', (req, res) => {
-    res.json({ text: bannerText });
-});
-
-app.use('/api/*', (req, res) => {
-    res.status(404).json({ error: "Ruta de API no encontrada." });
-});
-
-app.use((err, req, res, next) => {
-    console.error("❌ Error en servidor:", err);
-    res.status(err.status || 500).json({ error: err.message || "Error interno del servidor." });
-});
-
-function saveLocalDataSync() {
-    try {
-        const dataObj = {
-            users,
-            friendships,
-            friendRequests,
-            accessories,
-            resaleListings,
-            tradeOffers,
-            promoCodes,
-            bannerText,
-            chatMessages,
-            groups,
-            blockSubscriptionRewardItemId
-        };
-        fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(dataObj, null, 2), 'utf8');
-        console.log("💾 Datos guardados localmente antes del apagado.");
-    } catch (err) {
-        console.error("❌ No se pudo guardar database.json al apagar:", err.message);
+        await request("/api/admin/coins/add", "POST", { username, amount });
+        msg.className = "success";
+        msg.textContent = "Monedas otorgadas.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
     }
 }
 
-process.on('SIGINT', () => {
-    saveLocalDataSync();
-    process.exit(0);
-});
+async function adminAddDollars() {
+    const username = document.getElementById("dollarTargetUser").value;
+    const amount = document.getElementById("dollarAmount").value;
+    const msg = document.getElementById("dollarAdminMsg");
+    try {
+        await request("/api/admin/dollars/add", "POST", { username, amount });
+        msg.className = "success";
+        msg.textContent = "💲 otorgados.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
 
-process.on('SIGTERM', () => {
-    saveLocalDataSync();
-    process.exit(0);
-});
+async function saveOwnerBanner() {
+    const text = document.getElementById("bannerTextInput").value;
+    const msg = document.getElementById("bannerMsg");
+    try {
+        await request("/api/admin/banner", "POST", { text });
+        msg.className = "success";
+        msg.textContent = "Banner actualizado.";
+        loadBanner();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
 
-app.listen(PORT, async () => {
-    await loadDataFromGit();
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-});
+window.onload = () => {
+    const badgeType = document.getElementById("adminBadgeType");
+    if (badgeType) {
+        badgeType.addEventListener("change", () => {
+            const custom = document.getElementById("adminBadgeCustom");
+            if (custom) custom.classList.toggle("hidden", badgeType.value !== "custom");
+        });
+    }
+    loadSavedHomeBgColor();
+    if (localStorage.getItem("gameblocks_token")) {
+        updateAccount();
+    }
+};
+</script>
+</body>
+</html>
