@@ -132,6 +132,45 @@ body {
     margin-bottom: 8px;
 }
 
+.currency-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    vertical-align: middle;
+    display: inline-block;
+}
+
+.currency-icon-small {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    vertical-align: -3px;
+    display: inline-block;
+}
+
+.currency-banner {
+    width: 100%;
+    max-height: 150px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 15px;
+    border: 1px solid #333;
+    background: #050505;
+    border-radius: 6px;
+}
+
+.chat-image {
+    display: block;
+    max-width: 240px;
+    max-height: 180px;
+    width: auto;
+    height: auto;
+    margin-top: 5px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    object-fit: contain;
+}
+
 .hero {
     min-height: 100vh;
     display: flex;
@@ -556,7 +595,7 @@ model-viewer {
     </div>
     <div class="topbar-right">
         <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="openCurrencyModal()">
-            🪙 <span id="userCoinsText">0</span>
+            <img src="dineros.png" class="currency-icon" alt="Monedas"> <span id="userCoinsText">0</span>
         </div>
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
             💲 <span id="userDollarsText">0</span>
@@ -597,7 +636,7 @@ model-viewer {
         <h2 style="color: #ff8800; margin-top:0;">👥 Grupos de Game Blocks (2007)</h2>
         
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button class="form-button" style="background: #ff8800; color: #000;" onclick="openCreateGroupModal()">➕ Crear Grupo (100 🪙)</button>
+            <button class="form-button" style="background: #ff8800; color: #000;" onclick="openCreateGroupModal()">➕ Crear Grupo (100 <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</button>
             <button class="secondary-button" style="margin:0;" onclick="loadAllGroups()">🔄 Actualizar Lista</button>
         </div>
 
@@ -610,10 +649,10 @@ model-viewer {
     <div class="modal-box" style="max-width: 450px;">
         <button class="close" onclick="closeCreateGroupModal()">×</button>
         <h3 style="margin-top:0;">🛠️ Crear Nuevo Grupo</h3>
-        <p style="font-size: 13px; color: #aaa;">Crear un grupo cuesta 100 monedas (🪙).</p>
+        <p style="font-size: 13px; color: #aaa;">Crear un grupo cuesta 100 monedas (<img src="dineros.png" class="currency-icon-small" alt="Monedas">).</p>
         <input type="text" id="newGroupName" placeholder="Nombre del Grupo" maxlength="30">
         <textarea id="newGroupDesc" placeholder="Descripción del grupo..."></textarea>
-        <button class="form-button" style="background: #ff8800; color: #000;" onclick="submitCreateGroup()">Pagar 100 🪙 y Crear</button>
+        <button class="form-button" style="background: #ff8800; color: #000;" onclick="submitCreateGroup()">Pagar 100 <img src="dineros.png" class="currency-icon-small" alt="Monedas"> y Crear</button>
         <p id="createGroupMsg" style="margin-top: 10px;"></p>
     </div>
 </div>
@@ -638,7 +677,7 @@ model-viewer {
 
         <!-- PESTAÑAS DEL GRUPO -->
         <div class="group-tabs" style="margin-top: 20px;">
-            <button class="group-tab-btn active" onclick="switchGroupTab('members')">Miembros</button>
+            <button id="tabBtnMembers" class="group-tab-btn active" onclick="switchGroupTab('members')">Miembros</button>
             <button id="tabBtnForums" class="group-tab-btn hidden" onclick="switchGroupTab('forums')">Foros</button>
             <button id="tabBtnChats" class="group-tab-btn hidden" onclick="switchGroupTab('chats')">Chats</button>
         </div>
@@ -673,6 +712,7 @@ model-viewer {
             <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
                 <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('forumEnabled')">🔄 Activar/Desactivar Foros</button>
                 <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('chatEnabled')">🔄 Activar/Desactivar Chat</button>
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('membersEnabled')">👥 Mostrar/Ocultar Miembros</button>
             </div>
         </div>
     </div>
@@ -689,7 +729,7 @@ model-viewer {
             <p>✨ <b>Beneficios Exclusivos:</b></p>
             <ul>
                 <li>😃 <b>Usar y pegar emojis</b> en el chat con tus amigos.</li>
-                <li>🪙 <b>34 Monedas diarias</b> (en lugar de 10) basadas en la hora del servidor.</li>
+                <li><img src="dineros.png" class="currency-icon-small" alt="Monedas"> <b>34 Monedas diarias</b> (en lugar de 10) basadas en la hora del servidor.</li>
                 <li>🛍️ Comprar y equipar accesorios marcados como <b>Solo Block</b>.</li>
                 <li>🎁 <b>1 Accesorio gratis</b> exclusivo al suscribirte (¡no se quita al vencer!).</li>
             </ul>
@@ -704,6 +744,7 @@ model-viewer {
 <div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
     <div class="modal-box" style="max-width: 720px;">
         <button class="close" onclick="closeCurrencyModal()">×</button>
+        <img src="banner compra.png" class="currency-banner" alt="Comprar monedas">
         <h2>💲 Comprar monedas</h2>
         <p style="color:#aaa;">Usa tus 💲 para obtener monedas de Game Blocks.</p>
         <div id="currencyBalance" class="result" style="text-align:center;">
@@ -808,6 +849,26 @@ model-viewer {
 
     <div id="adminPanel" class="admin-panel hidden">
         <h2>🛠️ Panel de Administración</h2>
+
+        <div class="section" style="border: 2px solid #7a4cff; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#b99cff; margin-top:0;">👤 Gestionar Usuario</h3>
+            <input type="text" id="adminRenameTarget" placeholder="Usuario actual">
+            <input type="text" id="adminRenameNewName" placeholder="Nuevo nombre (sin las limitaciones de registro)">
+            <button class="admin-button" style="width:100%;" onclick="adminRenameUser()">Cambiar Nombre</button>
+            <p id="adminRenameMsg"></p>
+
+            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+                <label style="font-size:12px;color:#aaa;">Añadir insignia:</label>
+                <select id="adminBadgeType">
+                    <option value="admin">🛡️ Admin</option>
+                    <option value="booster">🚀 Booster</option>
+                    <option value="custom">✏️ Personalizada</option>
+                </select>
+                <input type="text" id="adminBadgeCustom" placeholder="Texto de la insignia personalizada" class="hidden">
+                <button class="admin-button" style="width:100%;" onclick="adminAddBadgeFromPanel()">Añadir Insignia</button>
+                <p id="adminBadgeMsg"></p>
+            </div>
+        </div>
 
         <div class="section" style="border: 2px solid #ff8800; padding: 12px; border-radius: 8px;">
             <h3 style="color: #ff8800; margin-top:0;">📌 Fijar / Desfijar Grupo por ID</h3>
@@ -928,7 +989,7 @@ model-viewer {
         </div>
 
         <div class="section">
-            <h3>🪙 Añadir Monedas</h3>
+            <h3><img src="dineros.png" class="currency-icon-small" alt="Monedas"> Añadir Monedas</h3>
             <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
             <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
             <button class="admin-button" style="width:100%;" onclick="adminAddCoins()">Añadir Monedas</button>
@@ -1072,8 +1133,10 @@ model-viewer {
             <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
         </div>
 
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; align-items:center;">
             <input type="text" id="chatInputText" placeholder="Escribe un mensaje..." style="margin:0;">
+            <button id="chatImageButton" class="secondary-button" style="width:auto; margin:0; white-space:nowrap;" onclick="document.getElementById('chatImageInput').click()">🖼️ Imagen</button>
+            <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="sendChatImage()">
             <button class="form-button" style="width:auto; padding:0 20px; background:#007bff; color:#fff;" onclick="sendChatMessage()">Enviar</button>
         </div>
         <p id="chatErrorMsg" class="error" style="margin-top:5px; font-size:12px;"></p>
@@ -1348,7 +1411,7 @@ async function loadGroupData() {
         }
 
         const isOwner = String(group.ownerId) === String(me.id);
-        const isAdmin = group.admins && group.admins.includes(me.id);
+        const isAdmin = group.admins && group.admins.some(id => String(id) === String(me.id));
 
         if (isOwner || isAdmin) {
             document.getElementById("groupNewsInputArea").classList.remove("hidden");
@@ -1356,10 +1419,21 @@ async function loadGroupData() {
             document.getElementById("groupNewsInputArea").classList.add("hidden");
         }
 
-        if (isOwner) {
+        if (isOwner || isAdmin) {
             document.getElementById("groupOwnerAdminPanel").classList.remove("hidden");
         } else {
             document.getElementById("groupOwnerAdminPanel").classList.add("hidden");
+        }
+
+        const membersEnabled = group.membersEnabled !== false;
+        const membersTabBtn = document.getElementById("tabBtnMembers");
+        const membersTab = document.getElementById("groupTabMembers");
+        if (membersEnabled) {
+            membersTabBtn.classList.remove("hidden");
+            membersTab.classList.remove("hidden");
+        } else {
+            membersTabBtn.classList.add("hidden");
+            membersTab.classList.add("hidden");
         }
 
         // Pestañas dinámicas según configuración del owner
@@ -1383,7 +1457,7 @@ async function loadGroupData() {
         membersDiv.innerHTML = "";
         group.enrichedMembers.forEach(m => {
             const mIsOwner = String(m.id) === String(group.ownerId);
-            const mIsAdmin = group.admins.includes(m.id);
+            const mIsAdmin = (group.admins || []).some(id => String(id) === String(m.id));
             const div = document.createElement("div");
             div.className = "result";
             div.innerHTML = `
@@ -1406,6 +1480,10 @@ async function loadGroupData() {
         // Cargar Foros y Chat si están activos
         if (group.forumEnabled) loadGroupForums(group);
         if (group.chatEnabled) loadGroupChat(group);
+        if (group.membersEnabled === false) {
+            if (group.forumEnabled) switchGroupTab('forums');
+            else if (group.chatEnabled) switchGroupTab('chats');
+        }
 
     } catch (e) {
         alert(e.message);
@@ -1417,8 +1495,10 @@ function switchGroupTab(tabName) {
     document.querySelectorAll('.group-tab-btn').forEach(el => el.classList.remove('active'));
 
     if (tabName === 'members') {
+        const btn = document.getElementById('tabBtnMembers');
+        if (btn && btn.classList.contains('hidden')) return;
         document.getElementById('groupTabMembers').classList.remove('hidden');
-        document.querySelectorAll('.group-tab-btn')[0].classList.add('active');
+        btn.classList.add('active');
     } else if (tabName === 'forums') {
         document.getElementById('groupTabForums').classList.remove('hidden');
         document.getElementById('tabBtnForums').classList.add('active');
@@ -1432,7 +1512,7 @@ async function sendGroupNews() {
     const text = document.getElementById("groupNewsText").value;
     if (!text.trim()) return;
     try {
-        await request(`/api/groups/${currentOpenGroupId}/news`, "POST", { text });
+        await request(`/api/groups/${currentOpenGroupId}/news/send`, "POST", { text });
         document.getElementById("groupNewsText").value = "";
         loadGroupData();
     } catch (e) { alert(e.message); }
@@ -1452,7 +1532,9 @@ async function toggleGroupSetting(settingName) {
 
 async function toggleGroupAdmin(memberId) {
     try {
-        await request(`/api/groups/${currentOpenGroupId}/admin`, "POST", { memberId });
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        const isAdmin = (group.admins || []).some(id => String(id) === String(memberId));
+        await request(`/api/groups/${currentOpenGroupId}/admins`, "POST", { memberId, action: isAdmin ? "remove" : "add" });
         loadGroupData();
     } catch (e) { alert(e.message); }
 }
@@ -1517,7 +1599,7 @@ async function sendGroupChatMessage() {
     const text = textInput.value;
     if (!text.trim()) return;
     try {
-        await request(`/api/groups/${currentOpenGroupId}/chat`, "POST", { text });
+        await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
         textInput.value = "";
         const group = await request(`/api/groups/${currentOpenGroupId}`);
         loadGroupChat(group);
@@ -1589,10 +1671,11 @@ async function loadCurrencyPackages() {
         document.getElementById("userDollarsText").textContent = me.dollars || 0;
         container.innerHTML = "";
 
-        packagesData.packages.forEach(pkg => {
+        packagesData.packages.forEach((pkg, index) => {
             const card = document.createElement("div");
             card.className = "currency-package";
-            card.innerHTML = `<strong>${pkg.coins.toLocaleString()} 🪙</strong><div>${pkg.dollars} 💲</div>`;
+            const packImage = `pack${index + 1}.png`;
+            card.innerHTML = `<img src="${packImage}" alt="Pack ${index + 1}" style="width:100%; height:85px; object-fit:contain; margin-bottom:8px;"><strong>${pkg.coins.toLocaleString()} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></strong><div>${pkg.dollars} 💲</div>`;
             const btn = document.createElement("button");
             btn.className = "form-button";
             btn.style.marginTop = "10px";
@@ -1617,7 +1700,7 @@ async function purchaseCoinPackage(coins) {
         document.getElementById("userDollarsText").textContent = data.dollars;
         document.getElementById("currencyDollarsModal").textContent = data.dollars;
         msg.className = "success";
-        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} 🪙.`;
+        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
     } catch (e) {
         msg.className = "error";
         msg.textContent = e.message;
@@ -2016,7 +2099,7 @@ async function loadShopItems() {
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
                 <div class="item-id-label">ID: ${item.id}</div>
                 <div class="copies-sold-label">Vendidos: ${item.totalSold || 0}</div>
-                <div style="font-size:12px; margin:4px 0;">🪙 ${item.price}</div>
+                <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
                 ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
             `;
 
@@ -2177,7 +2260,7 @@ async function loadResaleMarket() {
                 <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}</div>
                 <div style="font-size:11px; color:#aaa;">Vendedor: ${escapeHTML(l.sellerUsername)}</div>
-                <div style="font-size:12px; color:#ffd700; margin:4px 0;">🪙 ${l.price}</div>
+                <div style="font-size:12px; color:#ffd700; margin:4px 0;"> ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
             `;
             const btn = document.createElement("button");
             btn.className = "form-button";
@@ -2346,8 +2429,8 @@ async function loadTrades() {
             div.className = "result";
             div.innerHTML = `
                 <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
-                <div><b>Ofrece:</b> ${t.offeredItemName} (+ ${t.offeredCoins} 🪙)</div>
-                <div><b>Pide:</b> ${t.requestedItemName} (+ ${t.requestedCoins} 🪙)</div>
+                <div><b>Ofrece:</b> ${t.offeredItemName} (+ ${t.offeredCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
+                <div><b>Pide:</b> ${t.requestedItemName} (+ ${t.requestedCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
                 <button class="form-button" style="background:#28a745; color:#fff;" onclick="acceptTrade('${t.id}')">Aceptar Intercambio</button>
             `;
             container.appendChild(div);
@@ -2368,6 +2451,10 @@ function openChatModal(friendId, username) {
     currentChatFriendId = friendId;
     document.getElementById("chatWithTitle").textContent = "💬 Chat con " + username;
     document.getElementById("chatModal").style.display = "flex";
+    request("/api/me").then(me => {
+        const btn = document.getElementById("chatImageButton");
+        if (btn) btn.style.display = me.hasBlockSub ? "inline-block" : "none";
+    }).catch(() => {});
     loadChatMessages();
 }
 
@@ -2388,7 +2475,19 @@ async function loadChatMessages() {
             const div = document.createElement("div");
             const isMe = String(m.senderId) === String(me.id);
             div.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-them'}`;
-            div.textContent = m.text;
+            if (m.text) {
+                const textDiv = document.createElement('div');
+                textDiv.textContent = m.text;
+                div.appendChild(textDiv);
+            }
+            if (m.imageUrl) {
+                const img = document.createElement('img');
+                img.src = m.imageUrl.startsWith('http') ? m.imageUrl : RENDER_API + m.imageUrl;
+                img.className = 'chat-image';
+                img.alt = 'Imagen enviada';
+                img.loading = 'lazy';
+                div.appendChild(img);
+            }
             box.appendChild(div);
         });
         box.scrollTop = box.scrollHeight;
@@ -2408,6 +2507,36 @@ async function sendChatMessage() {
         textInput.value = "";
         loadChatMessages();
     } catch (e) { errorMsg.textContent = e.message; }
+}
+
+async function sendChatImage() {
+    const input = document.getElementById("chatImageInput");
+    const errorMsg = document.getElementById("chatErrorMsg");
+    errorMsg.textContent = "";
+    if (!input.files[0] || !currentChatFriendId) return;
+
+    try {
+        const token = localStorage.getItem("gameblocks_token");
+        const formData = new FormData();
+        formData.append("friendId", currentChatFriendId);
+        formData.append("image", input.files[0]);
+
+        const response = await fetch(RENDER_API + "/api/chat/upload", {
+            method: "POST",
+            headers: token ? { Authorization: "Bearer " + token } : {},
+            body: formData
+        });
+        const raw = await response.text();
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
+        if (!response.ok) throw new Error(data.error || `Error del servidor (${response.status}).`);
+
+        input.value = "";
+        loadChatMessages();
+    } catch (e) {
+        input.value = "";
+        errorMsg.textContent = e.message;
+    }
 }
 
 function insertEmoji(emoji) {
@@ -2590,6 +2719,43 @@ async function uploadAccessory() {
     }
 }
 
+async function adminRenameUser() {
+    const targetUsername = document.getElementById("adminRenameTarget").value;
+    const newName = document.getElementById("adminRenameNewName").value;
+    const msg = document.getElementById("adminRenameMsg");
+    try {
+        await request("/api/admin/users/rename", "POST", { targetUsername, newName });
+        msg.className = "success";
+        msg.textContent = "Nombre cambiado correctamente.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminAddBadgeFromPanel() {
+    const username = document.getElementById("adminRenameTarget").value;
+    const type = document.getElementById("adminBadgeType").value;
+    const custom = document.getElementById("adminBadgeCustom").value.trim();
+    const msg = document.getElementById("adminBadgeMsg");
+    const badgeName = type === "custom" ? custom : type;
+    if (!username.trim() || !badgeName.trim()) {
+        msg.className = "error";
+        msg.textContent = "Indica usuario e insignia.";
+        return;
+    }
+    try {
+        await request("/api/admin/badges/add", "POST", { username, badgeName });
+        msg.className = "success";
+        msg.textContent = "Insignia añadida.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value;
     const amount = document.getElementById("coinAmount").value;
@@ -2633,6 +2799,13 @@ async function saveOwnerBanner() {
 }
 
 window.onload = () => {
+    const badgeType = document.getElementById("adminBadgeType");
+    if (badgeType) {
+        badgeType.addEventListener("change", () => {
+            const custom = document.getElementById("adminBadgeCustom");
+            if (custom) custom.classList.toggle("hidden", badgeType.value !== "custom");
+        });
+    }
     loadSavedHomeBgColor();
     if (localStorage.getItem("gameblocks_token")) {
         updateAccount();
