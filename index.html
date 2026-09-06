@@ -602,6 +602,7 @@ model-viewer {
         </div>
         <button class="top-button" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥 Grupos</button>
         <button class="top-button" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡ Block Sub</button>
+        <button class="top-button" style="background: linear-gradient(90deg,#ff00cc,#3333ff); color: #fff;" onclick="openTurboBlockModal()">🚀 Turbo Block</button>
         <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
         <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver mi cuenta</button>
@@ -626,6 +627,12 @@ model-viewer {
         <a class="button discord-button" href="https://discord.gg/Up24N45SK3" target="_blank">💬 Discord</a>
         <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">⬇️ Descargar</a>
         <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
+    </div>
+
+    <div id="eventSection" style="margin-top:40px; width:100%; max-width:800px; padding:0 20px;">
+        <div id="eventContent" style="background:#111; border:1px solid #333; border-radius:8px; padding:20px;">
+            Cargando evento...
+        </div>
     </div>
 </section>
 
@@ -695,10 +702,27 @@ model-viewer {
                 <textarea id="forumPostContent" placeholder="Escribe tu mensaje en el foro..."></textarea>
                 <button class="form-button" onclick="createForumPost()">Crear Tema de Foro</button>
             </div>
+
+            <!-- HILO DE FORO CON CHAT -->
+            <div id="forumThreadPanel" class="hidden" style="margin-top:15px; border-top:2px solid #333; padding-top:15px;">
+                <button class="secondary-button" style="width:auto;" onclick="closeForumThread()">⬅️ Volver a los temas</button>
+                <h3 id="forumThreadTitle" style="color:#ffd700; margin:10px 0 2px;"></h3>
+                <p id="forumThreadContent" style="color:#ccc;"></p>
+                <div id="forumThreadChatBox" class="chat-box" style="height:180px;">Cargando chat del tema...</div>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="forumThreadChatInput" placeholder="Responder en este tema..." style="margin:0;">
+                    <button class="form-button" style="width:auto; background:#007bff;" onclick="sendForumThreadMessage()">Enviar</button>
+                </div>
+            </div>
         </div>
 
         <!-- CONTENIDO PESTAÑA: CHATS -->
         <div id="groupTabChats" class="group-tab-content hidden">
+            <div id="groupChatSectionsBar" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;"></div>
+            <div id="groupChatAddSection" class="hidden" style="display:flex; gap:5px; margin-bottom:10px;">
+                <input type="text" id="newGroupChatSectionName" placeholder="Nombre de la nueva sección (ej. General, Anuncios...)" style="margin:0;">
+                <button class="secondary-button" style="width:auto; margin:0;" onclick="createGroupChatSection()">➕ Sección</button>
+            </div>
             <div id="groupChatBox" class="chat-box" style="height: 200px;">Cargando chat de grupo...</div>
             <div style="display:flex; gap:5px;">
                 <input type="text" id="groupChatInput" placeholder="Escribe en el chat del grupo..." style="margin:0;">
@@ -740,6 +764,29 @@ model-viewer {
     </div>
 </div>
 
+<!-- MODAL SUSCRIPCIÓN TURBO BLOCK -->
+<div id="turboBlockModal" class="modal">
+    <div class="modal-box" style="max-width: 500px; text-align: center;">
+        <button class="close" onclick="closeTurboBlockModal()">×</button>
+        <h2 style="background:linear-gradient(90deg,#ff00cc,#3333ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-top:0;">🚀 Suscripción Turbo Block</h2>
+        <p style="font-size: 18px; font-weight: bold; color: #ffd700;">¡Por 10 💲 (moneda secundaria) al mes!</p>
+
+        <div style="text-align: left; background: #151515; padding: 15px; border-radius: 8px; border: 1px solid #333; margin: 15px 0;">
+            <p>✨ <b>Beneficios Exclusivos Turbo Block:</b></p>
+            <ul>
+                <li><img src="dineros.png" class="currency-icon-small" alt="Monedas"> <b>50 Monedas diarias</b>.</li>
+                <li>🖼️ <b>Subir imágenes al chat</b> con tus amigos y en los grupos.</li>
+                <li>🎁 <b>Otro artículo gratis</b> exclusivo al suscribirte (configurable por el equipo).</li>
+                <li>🛍️ Comprar y equipar artículos marcados como <b>Solo Turbo Block</b>.</li>
+                <li>✅ <b>Todos los beneficios</b> de la Suscripción Block incluidos.</li>
+            </ul>
+        </div>
+
+        <button class="block-button" style="width: 100%; padding: 14px; font-size: 16px; background:linear-gradient(90deg,#ff00cc,#3333ff); color:#fff;" onclick="buyTurboBlockSubscription()">🚀 Suscribirse por 10 💲</button>
+        <p id="turboBlockSubMsg" style="margin-top:10px;"></p>
+    </div>
+</div>
+
 <!-- MODAL COMPRA DE MONEDAS -->
 <div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
     <div class="modal-box" style="max-width: 720px;">
@@ -751,6 +798,10 @@ model-viewer {
             <b>Saldo:</b> <span id="currencyDollarsModal">0</span> 💲
         </div>
         <div id="currencyPackages" class="currency-packages">Cargando paquetes...</div>
+        <div style="margin-top:15px; text-align:left;">
+            <label style="font-size:12px; color:#aaa;">🌟 Star Code (opcional, +10% monedas extra):</label>
+            <input type="text" id="currencyStarCode" placeholder="Introduce un Star Code">
+        </div>
         <p id="currencyPurchaseMsg"></p>
     </div>
 </div>
@@ -861,13 +912,57 @@ model-viewer {
                 <label style="font-size:12px;color:#aaa;">Añadir insignia:</label>
                 <select id="adminBadgeType">
                     <option value="admin">🛡️ Admin</option>
+                    <option value="co-owner">👑 Co-Owner</option>
                     <option value="booster">🚀 Booster</option>
                     <option value="custom">✏️ Personalizada</option>
                 </select>
                 <input type="text" id="adminBadgeCustom" placeholder="Texto de la insignia personalizada" class="hidden">
                 <button class="admin-button" style="width:100%;" onclick="adminAddBadgeFromPanel()">Añadir Insignia</button>
                 <p id="adminBadgeMsg"></p>
+
+                <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
+                    <label style="font-size:12px;color:#aaa;">Quitar insignia (usa el usuario de arriba):</label>
+                    <input type="text" id="adminRemoveBadgeName" placeholder="Nombre exacto de la insignia a quitar">
+                    <button class="danger-button" style="width:100%;" onclick="adminRemoveBadgeFromPanel()">Quitar Insignia</button>
+                    <p id="adminRemoveBadgeMsg"></p>
+                </div>
             </div>
+        </div>
+
+        <div class="section" style="border: 2px solid #ff2222; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#ff5555; margin-top:0;">🚫 Banear / Suspender Cuenta</h3>
+            <input type="text" id="adminBanUsername" placeholder="Nombre de usuario">
+            <input type="number" id="adminSuspendDays" placeholder="Días de suspensión (vacío = ban permanente)" min="1">
+            <div style="display:flex; gap:8px;">
+                <button class="danger-button" style="width:100%;" onclick="adminBanOrSuspendUser()">Aplicar</button>
+                <button class="secondary-button" style="width:100%;" onclick="adminUnbanUser()">Desbanear</button>
+            </div>
+            <p id="adminBanUserMsg"></p>
+        </div>
+
+        <div class="section" style="border: 2px solid #ffd700; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#ffd700; margin-top:0;">🌟 Asociar Star Code</h3>
+            <input type="text" id="adminStarCodeName" placeholder="Star Code (ej. PAN10)">
+            <input type="text" id="adminStarCodeOwner" placeholder="Usuario al que se asocia">
+            <button class="admin-button" style="width:100%;" onclick="adminCreateStarCode()">Asociar Star Code</button>
+            <p id="adminStarCodeMsg"></p>
+        </div>
+
+        <div class="section" style="border: 2px solid #55dd77; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#55dd77; margin-top:0;">🎉 Gestión de Eventos</h3>
+            <input type="text" id="adminEventName" placeholder="Nombre del evento">
+            <textarea id="adminEventDesc" placeholder="Descripción del evento"></textarea>
+            <label style="font-size:12px; color:#aaa;">Color temático:</label>
+            <input type="color" id="adminEventThemeColor" value="#ffd700">
+            <input type="text" id="adminEventItems" placeholder='Items del evento (JSON opcional: [{"name":"Sombrero","imageUrl":"..."}])'>
+            <textarea id="adminEventCustomHtml" placeholder="HTML personalizado (opcional, sustituye todo lo anterior en la home)"></textarea>
+            <select id="adminEventActive">
+                <option value="true">Activo: Sí</option>
+                <option value="false">Activo: No</option>
+            </select>
+            <button class="admin-button" style="width:100%;" onclick="adminSaveEvent()">Guardar Evento</button>
+            <button class="danger-button" style="width:100%;" onclick="adminDeleteEvent()">Eliminar Evento Activo</button>
+            <p id="adminEventMsg"></p>
         </div>
 
         <div class="section" style="border: 2px solid #ff8800; padding: 12px; border-radius: 8px;">
@@ -1335,17 +1430,21 @@ async function loadAllGroups() {
             return;
         }
 
-        data.groups.forEach(g => {
+        const sortedGroups = [...data.groups].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+        sortedGroups.forEach(g => {
             const div = document.createElement("div");
             div.className = "result";
             if (g.pinned) {
-                div.style.borderColor = "#ff8800";
+                div.style.borderColor = "#ffae00";
+                div.style.borderWidth = "2px";
                 div.style.background = "#1a0d00";
+                div.style.boxShadow = "0 0 10px rgba(255,174,0,0.35)";
             }
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <h3 style="margin:0; color:#ff8800;">${escapeHTML(g.name)} ${g.pinned ? '📌 [FIJADO]' : ''}</h3>
+                        <h3 style="margin:0; color:#ff8800;">${g.pinned ? '<span style="background:#ffae00; color:#000; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:6px;">📌 FIJADO</span>' : ''}${escapeHTML(g.name)}</h3>
                         <div style="font-size:11px; color:#aaa; margin-top:2px;">ID: ${g.id}</div>
                         <p style="font-size:13px; color:#ccc; margin:5px 0;">${escapeHTML(g.description || "Sin descripción")}</p>
                         <div style="font-size:12px; color:#888;">Miembros: ${g.members.length}</div>
@@ -1557,12 +1656,65 @@ async function loadGroupForums(group) {
     group.forumPosts.forEach(p => {
         const d = document.createElement("div");
         d.className = "result";
+        d.style.cursor = "pointer";
+        const replyCount = (p.messages || []).length;
         d.innerHTML = `
             <b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
             <p style="margin:5px 0; color:#ccc;">${escapeHTML(p.content)}</p>
+            <div style="font-size:11px; color:#66aaff;">💬 ${replyCount} respuesta(s) — clic para abrir el chat del tema</div>
         `;
+        d.onclick = () => openForumThread(p.id);
         container.appendChild(d);
     });
+}
+
+let currentForumThreadId = null;
+
+async function openForumThread(postId) {
+    currentForumThreadId = postId;
+    document.getElementById("forumThreadPanel").classList.remove("hidden");
+    await refreshForumThread();
+}
+
+function closeForumThread() {
+    currentForumThreadId = null;
+    document.getElementById("forumThreadPanel").classList.add("hidden");
+}
+
+async function refreshForumThread() {
+    if (!currentForumThreadId) return;
+    try {
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        const post = (group.forumPosts || []).find(p => String(p.id) === String(currentForumThreadId));
+        if (!post) { closeForumThread(); return; }
+        document.getElementById("forumThreadTitle").textContent = post.title;
+        document.getElementById("forumThreadContent").textContent = post.content + " — por " + post.authorUsername;
+        const box = document.getElementById("forumThreadChatBox");
+        box.innerHTML = "";
+        const messages = post.messages || [];
+        if (messages.length === 0) {
+            box.textContent = "Sé el primero en responder en este tema.";
+        } else {
+            messages.forEach(m => {
+                const d = document.createElement("div");
+                d.className = "chat-msg chat-msg-them";
+                d.textContent = `[${m.senderUsername}]: ${m.text}`;
+                box.appendChild(d);
+            });
+            box.scrollTop = box.scrollHeight;
+        }
+    } catch (e) { alert(e.message); }
+}
+
+async function sendForumThreadMessage() {
+    const input = document.getElementById("forumThreadChatInput");
+    const text = input.value;
+    if (!text.trim() || !currentForumThreadId) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/forum/${currentForumThreadId}/messages`, "POST", { text });
+        input.value = "";
+        await refreshForumThread();
+    } catch (e) { alert(e.message); }
 }
 
 async function createForumPost() {
@@ -1578,14 +1730,49 @@ async function createForumPost() {
     } catch (e) { alert(e.message); }
 }
 
+let currentGroupChatSectionId = "general";
+
 async function loadGroupChat(group) {
+    const bar = document.getElementById("groupChatSectionsBar");
+    const addWrap = document.getElementById("groupChatAddSection");
+    const sections = (group.chatSections && group.chatSections.length > 0)
+        ? group.chatSections
+        : [{ id: "general", name: "General" }];
+
+    if (!sections.some(s => s.id === currentGroupChatSectionId)) {
+        currentGroupChatSectionId = sections[0].id;
+    }
+
+    bar.innerHTML = "";
+    sections.forEach(s => {
+        const btn = document.createElement("button");
+        btn.className = "secondary-button";
+        btn.style.width = "auto";
+        btn.style.margin = "0";
+        btn.style.padding = "5px 10px";
+        btn.style.fontSize = "12px";
+        if (s.id === currentGroupChatSectionId) {
+            btn.style.background = "#007bff";
+            btn.style.color = "#fff";
+        }
+        btn.textContent = "# " + s.name;
+        btn.onclick = () => { currentGroupChatSectionId = s.id; loadGroupChat(group); };
+        bar.appendChild(btn);
+    });
+
+    const me = await request("/api/me").catch(() => null);
+    const isOwner = me && group.ownerId && String(group.ownerId) === String(me.id);
+    const isAdminOfGroup = me && group.admins && group.admins.some(id => String(id) === String(me.id));
+    addWrap.classList.toggle("hidden", !(isOwner || isAdminOfGroup));
+
     const box = document.getElementById("groupChatBox");
     box.innerHTML = "";
-    if (!group.groupChatMessages || group.groupChatMessages.length === 0) {
-        box.textContent = "Sin mensajes en el chat de grupo.";
+    const messages = (group.groupChatMessages || []).filter(m => (m.sectionId || "general") === currentGroupChatSectionId);
+    if (messages.length === 0) {
+        box.textContent = "Sin mensajes en esta sección.";
         return;
     }
-    group.groupChatMessages.forEach(m => {
+    messages.forEach(m => {
         const d = document.createElement("div");
         d.className = "chat-msg chat-msg-them";
         d.textContent = `[${m.senderUsername}]: ${m.text}`;
@@ -1594,12 +1781,24 @@ async function loadGroupChat(group) {
     box.scrollTop = box.scrollHeight;
 }
 
+async function createGroupChatSection() {
+    const input = document.getElementById("newGroupChatSectionName");
+    const name = input.value.trim();
+    if (!name) return;
+    try {
+        await request(`/api/groups/${currentOpenGroupId}/chat/sections`, "POST", { name });
+        input.value = "";
+        const group = await request(`/api/groups/${currentOpenGroupId}`);
+        loadGroupChat(group);
+    } catch (e) { alert(e.message); }
+}
+
 async function sendGroupChatMessage() {
     const textInput = document.getElementById("groupChatInput");
     const text = textInput.value;
     if (!text.trim()) return;
     try {
-        await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
+        await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text, sectionId: currentGroupChatSectionId });
         textInput.value = "";
         const group = await request(`/api/groups/${currentOpenGroupId}`);
         loadGroupChat(group);
@@ -1659,6 +1858,31 @@ async function buyBlockSubscription() {
     }
 }
 
+function openTurboBlockModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para suscribirte.");
+        openAccount();
+        return;
+    }
+    document.getElementById("turboBlockModal").style.display = "flex";
+}
+
+function closeTurboBlockModal() { document.getElementById("turboBlockModal").style.display = "none"; }
+
+async function buyTurboBlockSubscription() {
+    const msg = document.getElementById("turboBlockSubMsg");
+    try {
+        const data = await request("/api/subscription/buy-turbo-block", "POST");
+        msg.className = "success";
+        msg.textContent = data.message + (data.freeItemGiven ? ` ¡Recibiste el regalo: ${data.freeItemGiven}!` : "");
+        document.getElementById("userDollarsText").textContent = data.dollars;
+        loadMyInventory();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
 async function loadCurrencyPackages() {
     const container = document.getElementById("currencyPackages");
     const msg = document.getElementById("currencyPurchaseMsg");
@@ -1675,7 +1899,9 @@ async function loadCurrencyPackages() {
             const card = document.createElement("div");
             card.className = "currency-package";
             const packImage = `pack${index + 1}.png`;
-            card.innerHTML = `<img src="${packImage}" alt="Pack ${index + 1}" style="width:100%; height:85px; object-fit:contain; margin-bottom:8px;"><strong>${pkg.coins.toLocaleString()} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></strong><div>${pkg.dollars} 💲</div>`;
+            const bonusTag = pkg.bonus ? `<div style="color:#55dd77; font-size:11px; font-weight:bold; margin-top:2px;">+${pkg.bonus.toLocaleString()} BONUS</div>` : "";
+            const totalLabel = pkg.bonus ? `<div style="color:#888; font-size:11px;">Total: ${(pkg.coins + pkg.bonus).toLocaleString()}</div>` : "";
+            card.innerHTML = `<img src="${packImage}" alt="Pack ${index + 1}" style="width:100%; height:85px; object-fit:contain; margin-bottom:8px;"><strong>${pkg.coins.toLocaleString()} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></strong>${bonusTag}${totalLabel}<div>${pkg.dollars} 💲</div>`;
             const btn = document.createElement("button");
             btn.className = "form-button";
             btn.style.marginTop = "10px";
@@ -1694,13 +1920,16 @@ async function loadCurrencyPackages() {
 
 async function purchaseCoinPackage(coins) {
     const msg = document.getElementById("currencyPurchaseMsg");
+    const starCode = (document.getElementById("currencyStarCode").value || "").trim();
     try {
-        const data = await request("/api/coins/purchase", "POST", { coins });
+        const data = await request("/api/coins/purchase", "POST", { coins, starCode: starCode || undefined });
         document.getElementById("userCoinsText").textContent = data.coins;
         document.getElementById("userDollarsText").textContent = data.dollars;
         document.getElementById("currencyDollarsModal").textContent = data.dollars;
         msg.className = "success";
-        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
+        msg.textContent = data.starCodeApplied
+            ? `¡Compra realizada con Star Code "${data.starCodeApplied}"! Recibiste un 10% extra. Ahora tienes ${data.coins} monedas.`
+            : `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
     } catch (e) {
         msg.className = "error";
         msg.textContent = e.message;
@@ -2070,8 +2299,13 @@ async function loadShopItems() {
     else filterContainer.classList.add("hidden");
 
     try {
-        const data = await request("/api/accessories");
+        const [data, me] = await Promise.all([
+            request("/api/accessories"),
+            localStorage.getItem("gameblocks_token") ? request("/api/me").catch(() => null) : Promise.resolve(null)
+        ]);
         container.innerHTML = "";
+
+        const ownedIds = new Set((me && me.inventory) ? me.inventory.map(String) : []);
 
         const adminFilter = document.getElementById("tshirtAdminFilter").value;
         const itemsFiltered = data.items.filter(item => {
@@ -2094,23 +2328,36 @@ async function loadShopItems() {
             if (item.offsale) tags += ` <span style="color:#ff5555; font-size:10px;">[OFFSALE]</span>`;
             if (item.onlyBlock) tags += ` <span style="color:#00d2ff; font-size:10px;">[BLOCK]</span>`;
 
+            const soldLabel = item.limited
+                ? `Vendidos: ${item.totalSold || 0}/${item.maxGlobal != null ? item.maxGlobal : "∞"}`
+                : `Vendidos: ${item.totalSold || 0}`;
+
             card.innerHTML = `
                 <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
                 <div class="item-id-label">ID: ${item.id}</div>
-                <div class="copies-sold-label">Vendidos: ${item.totalSold || 0}</div>
+                <div class="copies-sold-label">${soldLabel}</div>
                 <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
                 ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
             `;
+
+            const owned = ownedIds.has(String(item.id));
+            const isEquipped = me && String(me.equippedAccessory) === String(item.id);
 
             const btn = document.createElement("button");
             btn.className = "form-button";
             btn.style.marginTop = "6px";
             btn.style.padding = "6px";
             btn.style.fontSize = "12px";
-            btn.textContent = item.offsale ? "Offsale" : "Comprar";
-            btn.disabled = item.offsale;
-            btn.onclick = () => buyAccessory(item.id);
+
+            if (owned) {
+                btn.textContent = isEquipped ? "Desequipar" : "Equipar";
+                btn.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
+            } else {
+                btn.textContent = item.offsale ? "Offsale" : "Comprar";
+                btn.disabled = item.offsale;
+                btn.onclick = () => buyAccessory(item.id);
+            }
 
             card.appendChild(btn);
             container.appendChild(card);
@@ -2756,6 +3003,120 @@ async function adminAddBadgeFromPanel() {
     }
 }
 
+async function adminRemoveBadgeFromPanel() {
+    const username = document.getElementById("adminRenameTarget").value;
+    const badgeName = document.getElementById("adminRemoveBadgeName").value.trim();
+    const msg = document.getElementById("adminRemoveBadgeMsg");
+    if (!username.trim() || !badgeName) {
+        msg.className = "error";
+        msg.textContent = "Indica usuario e insignia.";
+        return;
+    }
+    try {
+        await request("/api/admin/badges/remove", "POST", { username, badgeName });
+        msg.className = "success";
+        msg.textContent = "Insignia eliminada.";
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminBanOrSuspendUser() {
+    const username = document.getElementById("adminBanUsername").value.trim();
+    const days = document.getElementById("adminSuspendDays").value;
+    const msg = document.getElementById("adminBanUserMsg");
+    if (!username) {
+        msg.className = "error";
+        msg.textContent = "Indica un usuario.";
+        return;
+    }
+    try {
+        const data = await request("/api/admin/users/ban", "POST", { username, days: days || undefined });
+        msg.className = "success";
+        msg.textContent = data.message;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminUnbanUser() {
+    const username = document.getElementById("adminBanUsername").value.trim();
+    const msg = document.getElementById("adminBanUserMsg");
+    try {
+        const data = await request("/api/admin/users/unban", "POST", { username });
+        msg.className = "success";
+        msg.textContent = data.message;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminCreateStarCode() {
+    const code = document.getElementById("adminStarCodeName").value.trim();
+    const ownerUsername = document.getElementById("adminStarCodeOwner").value.trim();
+    const msg = document.getElementById("adminStarCodeMsg");
+    if (!code || !ownerUsername) {
+        msg.className = "error";
+        msg.textContent = "Indica el código y el usuario.";
+        return;
+    }
+    try {
+        await request("/api/admin/starcodes/create", "POST", { code, ownerUsername });
+        msg.className = "success";
+        msg.textContent = "Star Code asociado correctamente.";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminSaveEvent() {
+    const name = document.getElementById("adminEventName").value.trim();
+    const description = document.getElementById("adminEventDesc").value.trim();
+    const themeColor = document.getElementById("adminEventThemeColor").value;
+    const itemsRaw = document.getElementById("adminEventItems").value.trim();
+    const customHtml = document.getElementById("adminEventCustomHtml").value;
+    const active = document.getElementById("adminEventActive").value === "true";
+    const msg = document.getElementById("adminEventMsg");
+
+    let items = [];
+    if (itemsRaw) {
+        try { items = JSON.parse(itemsRaw); } catch (e) {
+            msg.className = "error";
+            msg.textContent = "El JSON de items no es válido.";
+            return;
+        }
+    }
+
+    try {
+        await request("/api/admin/events/save", "POST", { name, description, themeColor, items, customHtml, active });
+        msg.className = "success";
+        msg.textContent = "Evento guardado.";
+        loadEventSection();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function adminDeleteEvent() {
+    if (!confirm("¿Eliminar el evento activo?")) return;
+    const msg = document.getElementById("adminEventMsg");
+    try {
+        await request("/api/admin/events/delete", "POST");
+        msg.className = "success";
+        msg.textContent = "Evento eliminado.";
+        loadEventSection();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
 async function adminAddCoins() {
     const username = document.getElementById("coinTargetUser").value;
     const amount = document.getElementById("coinAmount").value;
@@ -2798,6 +3159,38 @@ async function saveOwnerBanner() {
     }
 }
 
+async function loadEventSection() {
+    const box = document.getElementById("eventContent");
+    try {
+        const data = await request("/api/events/active");
+        if (!data.event) {
+            box.innerHTML = `<h3 style="margin:0; color:#888;">🗓️ Eventos</h3><p style="color:#666; margin:8px 0 0;">Próximamente...</p>`;
+            return;
+        }
+        const ev = data.event;
+        if (ev.customHtml) {
+            box.innerHTML = ev.customHtml;
+            return;
+        }
+        const themeColor = ev.themeColor || "#ffd700";
+        let itemsHtml = "";
+        if (ev.items && ev.items.length > 0) {
+            itemsHtml = `<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">` +
+                ev.items.map(it => `<div style="background:#181818; border:1px solid ${themeColor}; border-radius:6px; padding:8px; text-align:center; width:100px;">
+                    ${it.imageUrl ? `<img src="${it.imageUrl}" style="width:100%; height:60px; object-fit:contain;">` : ""}
+                    <div style="font-size:11px; margin-top:4px;">${escapeHTML(it.name || "")}</div>
+                </div>`).join("") + `</div>`;
+        }
+        box.innerHTML = `
+            <h3 style="margin:0; color:${themeColor};">🎉 ${escapeHTML(ev.name || "Evento Especial")}</h3>
+            <p style="color:#ccc; margin:8px 0 0;">${escapeHTML(ev.description || "")}</p>
+            ${itemsHtml}
+        `;
+    } catch (e) {
+        box.innerHTML = `<h3 style="margin:0; color:#888;">🗓️ Eventos</h3><p style="color:#666; margin:8px 0 0;">Próximamente...</p>`;
+    }
+}
+
 window.onload = () => {
     const badgeType = document.getElementById("adminBadgeType");
     if (badgeType) {
@@ -2807,6 +3200,7 @@ window.onload = () => {
         });
     }
     loadSavedHomeBgColor();
+    loadEventSection();
     if (localStorage.getItem("gameblocks_token")) {
         updateAccount();
     }
