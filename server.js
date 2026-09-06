@@ -1,4 +1,4 @@
-/**
+/** 
  * GAME BLOCKS - server.js
  * ---------------------------------------------------------------------------
  * Backend completo para el frontend de Game Blocks (index.html).
