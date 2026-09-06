@@ -1,2816 +1,1328 @@
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Game Blocks</title>
-
-<!-- Librería para Renderizar y Girar Modelos 3D GLB -->
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-
-<style>
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    background: #000;
-    color: #fff;
-    font-family: 'Courier New', Courier, monospace; /* Toque 2007 retro / old school */
-    transition: background-color 0.3s ease;
-}
-
-.topbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 65px;
-    background: #111;
-    border-bottom: 2px solid #292929;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    z-index: 1000;
-}
-
-.topbar-left,
-.topbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.top-search {
-    width: 200px;
-    padding: 8px 12px;
-    margin: 0;
-    background: #050505;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 5px;
-    outline: none;
-}
-
-.top-button {
-    background: #fff;
-    color: #000;
-    padding: 9px 16px;
-    border: 0;
-    border-radius: 5px;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    text-decoration: none;
-}
-
-.top-button:hover {
-    background: #ddd;
-}
-
-.coin-display {
-    background: #1a1a1a;
-    color: #ffd700;
-    border: 1px solid #333;
-    padding: 8px 14px;
-    border-radius: 20px;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.coin-display:hover {
-    background: #2a2a2a;
-    border-color: #ffd700;
-    transform: scale(1.05);
-}
-
-.dollar-display {
-    background: #1a1a1a;
-    color: #55dd77;
-    border: 1px solid #333;
-    padding: 8px 14px;
-    border-radius: 20px;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.dollar-display:hover {
-    background: #2a2a2a;
-    border-color: #55dd77;
-    transform: scale(1.05);
-}
-.currency-packages {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-    margin-top: 15px;
-}
-.currency-package {
-    background: #181818;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 15px;
-    text-align: center;
-}
-.currency-package strong {
-    display: block;
-    font-size: 20px;
-    margin-bottom: 8px;
-}
-
-.currency-icon {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    vertical-align: middle;
-    display: inline-block;
-}
-
-.currency-icon-small {
-    width: 16px;
-    height: 16px;
-    object-fit: contain;
-    vertical-align: -3px;
-    display: inline-block;
-}
-
-.currency-banner {
-    width: 100%;
-    max-height: 150px;
-    object-fit: contain;
-    display: block;
-    margin: 0 auto 15px;
-    border: 1px solid #333;
-    background: #050505;
-    border-radius: 6px;
-}
-
-.chat-image {
-    display: block;
-    max-width: 240px;
-    max-height: 180px;
-    width: auto;
-    height: auto;
-    margin-top: 5px;
-    border: 1px solid #555;
-    border-radius: 5px;
-    object-fit: contain;
-}
-
-.hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 90px 20px 40px;
-}
-
-.logo {
-    width: 300px;
-    max-width: 80%;
-    margin-bottom: 20px;
-    filter: drop-shadow(2px 2px 0px #444);
-}
-
-.slogan {
-    font-size: 42px;
-    margin: 15px 0 30px;
-    font-weight: bold;
-}
-
-.hero-download-btn {
-    margin-bottom: 30px;
-}
-
-.buttons {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    flex-wrap: wrap;
-    max-width: 900px;
-}
-
-.button {
-    padding: 14px 22px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 16px;
-    font-weight: bold;
-    border: none;
-    cursor: pointer;
-}
-
-.download-button {
-    background: #fff;
-    color: #000;
-}
-
-.discord-button {
-    background: #5865F2;
-    color: #fff;
-}
-
-.login-action-button {
-    background: #151515;
-    color: #fff;
-    border: 1px solid #444;
-}
- 
-.modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.85);
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    padding: 20px;
-}
-
-.modal-box {
-    width: 100%;
-    max-width: 700px;
-    max-height: 90vh;
-    overflow-y: auto;
-    background: #111;
-    border: 2px solid #444;
-    border-radius: 6px;
-    padding: 25px;
-    box-shadow: 0 0 30px #000;
-    transition: background-color 0.3s ease;
-}
-
-.close {
-    float: right;
-    background: transparent;
-    color: #aaa;
-    border: none;
-    font-size: 28px;
-    cursor: pointer;
-}
-
-.close:hover {
-    color: #fff;
-}
-
-input,
-select,
-textarea {
-    width: 100%;
-    padding: 13px;
-    margin: 7px 0 12px;
-    background: #050505;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 5px;
-    outline: none;
-    font-family: inherit;
-}
-
-textarea {
-    resize: vertical;
-    min-height: 80px;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    border-color: #fff;
-}
-
-.form-button {
-    width: 100%;
-    padding: 13px;
-    background: #fff;
-    color: #000;
-    border: none;
-    border-radius: 5px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.secondary-button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    background: #191919;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-.danger-button {
-    background: #e53935;
-    color: white;
-    border: none;
-    padding: 12px 18px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.admin-button {
-    background: #7a4cff;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.block-button {
-    background: #00d2ff;
-    color: #000;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.result {
-    background: #181818;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 12px;
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.section {
-    margin-top: 25px;
-}
-
-.error {
-    color: #ff5555;
-}
-
-.success {
-    color: #55dd77;
-}
-
-.hidden {
-    display: none !important;
-}
-
-.badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 6px;
-}
-
-.badge {
-    background: #202020;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 5px 8px;
-    font-size: 12px;
-}
-
-.profile-avatar-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.profile-avatar {
-    width: 110px;
-    height: 110px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #444;
-    background: #000;
-}
-
-.admin-panel {
-    margin-top: 25px;
-    padding: 18px;
-    background: #080808;
-    border: 1px solid #633cff;
-    border-radius: 8px;
-}
-
-.game-connect {
-    margin-top: 25px;
-    padding: 15px;
-    background: #080808;
-    border: 1px solid #333;
-    border-radius: 7px;
-    text-align: center;
-}
-
-.game-code {
-    font-size: 32px;
-    font-weight: bold;
-    letter-spacing: 8px;
-    margin: 15px 0;
-}
-
-.avatar-modal-body {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-top: 15px;
-}
-
-.avatar-viewer-box {
-    width: 250px;
-    height: 300px;
-    background: #050505;
-    border: 1px solid #333;
-    border-radius: 8px;
-    position: relative;
-    overflow: hidden;
-}
-
-model-viewer {
-    width: 100%;
-    height: 100%;
-}
-
-.shop-items {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
-    width: 100%;
-}
-
-.shop-card {
-    background: #181818;
-    border: 1px solid #333;
-    padding: 10px;
-    border-radius: 6px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
-
-.shop-card img {
-    width: 100%;
-    height: 70px;
-    object-fit: contain;
-}
-
-.item-id-label {
-    font-size: 11px;
-    color: #888;
-    margin-top: 2px;
-}
-
-.copies-sold-label {
-    font-size: 11px;
-    color: #00d2ff;
-    font-weight: bold;
-    margin-top: 2px;
-}
-
-.creator-link {
-    color: #7a4cff;
-    cursor: pointer;
-    font-weight: bold;
-    text-decoration: underline;
-}
-
-.sidebar-banner {
-    margin-top: 15px;
-    padding: 10px;
-    background: #1a1100;
-    border: 1px solid #ffd700;
-    border-radius: 6px;
-    font-size: 13px;
-    color: #ffd700;
-    text-align: center;
-}
-
-.chat-box {
-    height: 250px;
-    background: #050505;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 10px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.chat-msg {
-    max-width: 80%;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 14px;
-}
-
-.chat-msg-me {
-    align-self: flex-end;
-    background: #007bff;
-    color: #fff;
-}
-
-.chat-msg-them {
-    align-self: flex-start;
-    background: #252525;
-    color: #fff;
-}
-
-.emoji-panel {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-    background: #151515;
-    padding: 6px;
-    border-radius: 5px;
-    border: 1px solid #333;
-    margin-bottom: 8px;
-}
-
-.emoji-btn {
-    background: #252525;
-    border: none;
-    color: #fff;
-    padding: 5px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-}
-.emoji-btn:hover { background: #353535; }
-
-/* Estilos específicos para Grupos y pestañas 2007 */
-.group-tabs {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 15px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-}
-.group-tab-btn {
-    background: #222;
-    color: #ccc;
-    border: 1px solid #444;
-    padding: 8px 14px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-}
-.group-tab-btn.active {
-    background: #fff;
-    color: #000;
-    border-color: #fff;
-}
-</style>
-</head>
-
-<body>
-
-<div class="topbar">
-    <div class="topbar-left">
-        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
-        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
-        <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
-    </div>
-    <div class="topbar-right">
-        <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="openCurrencyModal()">
-            <img src="dineros.png" class="currency-icon" alt="Monedas"> <span id="userCoinsText">0</span>
-        </div>
-        <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
-            💲 <span id="userDollarsText">0</span>
-        </div>
-        <button class="top-button" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥 Grupos</button>
-        <button class="top-button" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡ Block Sub</button>
-        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
-        <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
-        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver mi cuenta</button>
-    </div>
-</div>
-
-<section class="hero">
-    <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
-    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción (Edición 2007)</h1>
-
-    <!-- CAMBIAR COLOR DE FONDO LOCAL -->
-    <div style="background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #444; margin-bottom: 20px;">
-        <label style="font-size: 13px; color: #aaa; display: block; margin-bottom: 5px;">🎨 Color de Fondo Local (Estilo 2007):</label>
-        <input type="color" id="homeBgColorPicker" value="#000000" onchange="changeHomeBgColor(this.value)" style="width:60px; height:35px; padding:0; cursor:pointer;">
-        <button class="secondary-button" style="width: auto; padding: 4px 10px; margin-left: 8px;" onclick="resetHomeBgColor()">Restablecer</button>
-    </div>
-
-    <div class="hero-download-btn">
-        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
-    </div>
-    <div class="buttons">
-        <a class="button discord-button" href="https://discord.gg/Up24N45SK3" target="_blank">💬 Discord</a>
-        <a class="button download-button" href="https://pablopalo2014.itch.io/game-blocks">⬇️ Descargar</a>
-        <button id="loginBtn" class="button login-action-button" onclick="openAccount()">🔑 Iniciar sesión</button>
-    </div>
-</section>
-
-<!-- MODAL DE GRUPOS (CLANES) -->
-<div id="groupsModal" class="modal" onclick="outsideCloseGroups(event)">
-    <div class="modal-box" style="max-width: 750px;">
-        <button class="close" onclick="closeGroupsModal()">×</button>
-        <h2 style="color: #ff8800; margin-top:0;">👥 Grupos de Game Blocks (2007)</h2>
-        
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <button class="form-button" style="background: #ff8800; color: #000;" onclick="openCreateGroupModal()">➕ Crear Grupo (100 <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</button>
-            <button class="secondary-button" style="margin:0;" onclick="loadAllGroups()">🔄 Actualizar Lista</button>
-        </div>
-
-        <div id="allGroupsContainer" class="section">Cargando grupos...</div>
-    </div>
-</div>
-
-<!-- MODAL CREAR GRUPO -->
-<div id="createGroupModal" class="modal">
-    <div class="modal-box" style="max-width: 450px;">
-        <button class="close" onclick="closeCreateGroupModal()">×</button>
-        <h3 style="margin-top:0;">🛠️ Crear Nuevo Grupo</h3>
-        <p style="font-size: 13px; color: #aaa;">Crear un grupo cuesta 100 monedas (<img src="dineros.png" class="currency-icon-small" alt="Monedas">).</p>
-        <input type="text" id="newGroupName" placeholder="Nombre del Grupo" maxlength="30">
-        <textarea id="newGroupDesc" placeholder="Descripción del grupo..."></textarea>
-        <button class="form-button" style="background: #ff8800; color: #000;" onclick="submitCreateGroup()">Pagar 100 <img src="dineros.png" class="currency-icon-small" alt="Monedas"> y Crear</button>
-        <p id="createGroupMsg" style="margin-top: 10px;"></p>
-    </div>
-</div>
-
-<!-- MODAL VISTA INDIVIDUAL DE GRUPO -->
-<div id="groupDetailModal" class="modal">
-    <div class="modal-box" style="max-width: 650px;">
-        <button class="close" onclick="closeGroupDetailModal()">×</button>
-        <h2 id="groupDetailName" style="margin:0; color:#ff8800;">Nombre del Grupo</h2>
-        <div id="groupDetailId" style="font-size: 11px; color: #888; margin-bottom: 10px;">ID: --</div>
-        <p id="groupDetailDesc" style="color: #ccc; background: #151515; padding: 10px; border-radius: 4px; border: 1px solid #333;"></p>
-
-        <!-- CHAT DE NOTICIAS (Solo admins pueden hablar) -->
-        <div class="section" style="background: #121212; padding: 10px; border-radius: 5px; border: 1px solid #444;">
-            <h4 style="margin: 0 0 5px 0; color: #ffd700;">📢 Chat de Noticias (Solo Admins)</h4>
-            <div id="groupNewsBox" class="chat-box" style="height: 120px;">Cargando noticias...</div>
-            <div id="groupNewsInputArea" class="hidden" style="display:flex; gap:5px; margin-top:5px;">
-                <input type="text" id="groupNewsText" placeholder="Escribir noticia oficial..." style="margin:0;">
-                <button class="form-button" style="width:auto; background:#ffd700; color:#000;" onclick="sendGroupNews()">Publicar</button>
-            </div>
-        </div>
-
-        <!-- PESTAÑAS DEL GRUPO -->
-        <div class="group-tabs" style="margin-top: 20px;">
-            <button id="tabBtnMembers" class="group-tab-btn active" onclick="switchGroupTab('members')">Miembros</button>
-            <button id="tabBtnForums" class="group-tab-btn hidden" onclick="switchGroupTab('forums')">Foros</button>
-            <button id="tabBtnChats" class="group-tab-btn hidden" onclick="switchGroupTab('chats')">Chats</button>
-        </div>
-
-        <!-- CONTENIDO PESTAÑA: MIEMBROS -->
-        <div id="groupTabMembers" class="group-tab-content">
-            <div id="groupMembersList">Cargando miembros...</div>
-        </div>
-
-        <!-- CONTENIDO PESTAÑA: FOROS -->
-        <div id="groupTabForums" class="group-tab-content hidden">
-            <div id="groupForumsContainer">Cargando foros...</div>
-            <div style="margin-top:10px;">
-                <input type="text" id="forumPostTitle" placeholder="Título del tema de foro...">
-                <textarea id="forumPostContent" placeholder="Escribe tu mensaje en el foro..."></textarea>
-                <button class="form-button" onclick="createForumPost()">Crear Tema de Foro</button>
-            </div>
-        </div>
-
-        <!-- CONTENIDO PESTAÑA: CHATS -->
-        <div id="groupTabChats" class="group-tab-content hidden">
-            <div id="groupChatBox" class="chat-box" style="height: 200px;">Cargando chat de grupo...</div>
-            <div style="display:flex; gap:5px;">
-                <input type="text" id="groupChatInput" placeholder="Escribe en el chat del grupo..." style="margin:0;">
-                <button class="form-button" style="width:auto; background:#007bff;" onclick="sendGroupChatMessage()">Enviar</button>
-            </div>
-        </div>
-
-        <!-- PANEL DE CONTROL DEL OWNER / ADMINS -->
-        <div id="groupOwnerAdminPanel" class="hidden section" style="background: #1a0800; border: 1px solid #ff8800; padding: 12px; border-radius: 6px;">
-            <h4 style="margin:0; color:#ff8800;">⚙️ Panel de Control del Grupo</h4>
-            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('forumEnabled')">🔄 Activar/Desactivar Foros</button>
-                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('chatEnabled')">🔄 Activar/Desactivar Chat</button>
-                <button class="secondary-button" style="width:auto; margin:0;" onclick="toggleGroupSetting('membersEnabled')">👥 Mostrar/Ocultar Miembros</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL SUSCRIPCIÓN BLOCK -->
-<div id="blockSubModal" class="modal">
-    <div class="modal-box" style="max-width: 500px; text-align: center;">
-        <button class="close" onclick="closeBlockSubModal()">×</button>
-        <h2 style="color: #00d2ff; margin-top:0;">⚡ Suscripción Block</h2>
-        <p style="font-size: 18px; font-weight: bold; color: #ffd700;">¡Por 5 💲 (moneda secundaria) al mes!</p>
-        
-        <div style="text-align: left; background: #151515; padding: 15px; border-radius: 8px; border: 1px solid #333; margin: 15px 0;">
-            <p>✨ <b>Beneficios Exclusivos:</b></p>
-            <ul>
-                <li>😃 <b>Usar y pegar emojis</b> en el chat con tus amigos.</li>
-                <li><img src="dineros.png" class="currency-icon-small" alt="Monedas"> <b>34 Monedas diarias</b> (en lugar de 10) basadas en la hora del servidor.</li>
-                <li>🛍️ Comprar y equipar accesorios marcados como <b>Solo Block</b>.</li>
-                <li>🎁 <b>1 Accesorio gratis</b> exclusivo al suscribirte (¡no se quita al vencer!).</li>
-            </ul>
-        </div>
-
-        <button class="block-button" style="width: 100%; padding: 14px; font-size: 16px;" onclick="buyBlockSubscription()">⚡ Suscribirse por 5 💲</button>
-        <p id="blockSubMsg" style="margin-top:10px;"></p>
-    </div>
-</div>
-
-<!-- MODAL COMPRA DE MONEDAS -->
-<div id="currencyModal" class="modal" onclick="outsideCloseCurrency(event)">
-    <div class="modal-box" style="max-width: 720px;">
-        <button class="close" onclick="closeCurrencyModal()">×</button>
-        <img src="banner compra.png" class="currency-banner" alt="Comprar monedas">
-        <h2>💲 Comprar monedas</h2>
-        <p style="color:#aaa;">Usa tus 💲 para obtener monedas de Game Blocks.</p>
-        <div id="currencyBalance" class="result" style="text-align:center;">
-            <b>Saldo:</b> <span id="currencyDollarsModal">0</span> 💲
-        </div>
-        <div id="currencyPackages" class="currency-packages">Cargando paquetes...</div>
-        <p id="currencyPurchaseMsg"></p>
-    </div>
-</div>
-
-<!-- MODAL PRINCIPAL CUENTA -->
-<div id="accountModal" class="modal" onclick="outsideClose(event)">
-<div class="modal-box" id="accountModalBox">
-<button class="close" onclick="closeAccount()">×</button>
-
-<!-- VISTA DE BANEO -->
-<div id="bannedView" class="hidden" style="text-align: center; padding: 10px;">
-    <h2 style="color: #ff5555; font-size: 26px;">⛔ TE HAN BANEADO</h2>
-    <p style="color: #ccc; margin: 15px 0;">Has sido sancionado y ya no puedes acceder a la plataforma.</p>
-    <button class="danger-button" style="width: 100%;" onclick="deleteBannedAccount()">🗑️ Borrar Cuenta</button>
-</div>
-
-<!-- VISTA LOGIN -->
-<div id="loginView">
-    <h2>Iniciar sesión</h2>
-    <input id="loginUsername" type="text" placeholder="Nombre de usuario" maxlength="40">
-    <input id="loginPassword" type="password" placeholder="Contraseña">
-    <button class="form-button" onclick="login()">Iniciar sesión</button>
-    <button class="secondary-button" onclick="showRegister()">Crear cuenta</button>
-    <p id="loginMessage"></p>
-</div>
-
-<!-- VISTA REGISTRO -->
-<div id="registerView" class="hidden">
-    <h2>Crear cuenta</h2>
-    <small style="color:#aaa;">Solo se permiten letras, números y _</small>
-    <input id="registerUsername" type="text" placeholder="Nombre de usuario" maxlength="20">
-    <input id="registerPassword" type="password" placeholder="Contraseña">
-    <input id="registerPassword2" type="password" placeholder="Repetir contraseña">
-    <button class="form-button" onclick="register()">Crear cuenta</button>
-    <button class="secondary-button" onclick="showLogin()">Ya tengo una cuenta</button>
-    <p id="registerMessage"></p>
-</div>
-
-<!-- VISTA MI CUENTA -->
-<div id="accountView" class="hidden">
-    <div class="profile-avatar-container">
-        <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
-        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
-    </div>
-
-    <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
-
-    <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
-        <h3>🎟️ Canjear Código promocional</h3>
-        <input type="text" id="codeRedeemInput" placeholder="Introduce tu código aquí (ej: PROMO100)">
-        <button class="form-button" style="background:#ffd700; color:#000;" onclick="redeemCode()">Canjear Código</button>
-        <p id="codeRedeemMsg"></p>
-    </div>
-
-    <div class="section">
-        <h3>🎒 Mi Inventario</h3>
-        <div id="myInventoryContainer" class="shop-items">Cargando inventario...</div>
-    </div>
-
-    <div class="section">
-        <h3>👕 Subir Camiseta (UGC)</h3>
-        <small style="color:#888;">Las camisetas UGC no pueden modificar el fondo ni el sonido del perfil.</small>
-        <label style="font-size:12px; color:#aaa;">Nombre de la Camiseta:</label>
-        <input type="text" id="userTshirtName" placeholder="Ej: Camiseta Fuego">
-        <label style="font-size:12px; color:#aaa;">URL de la imagen (PNG/JPG):</label>
-        <input type="text" id="userTshirtUrl" placeholder="https://ejemplo.com/camiseta.png">
-        <label style="font-size:12px; color:#aaa;">Coste en monedas:</label>
-        <input type="number" id="userTshirtCost" placeholder="Mínimo 1 moneda" min="1">
-        <select id="userTshirtOnlyBlock">
-            <option value="false">¿Solo Block?: No</option>
-            <option value="true">¿Solo Block?: Sí</option>
-        </select>
-        <button class="form-button" style="background:#28a745; color:#fff;" onclick="userUploadTshirt()">Subir Camiseta</button>
-        <p id="userTshirtMsg"></p>
-    </div>
-
-    <div class="section">
-        <h3>⚙️ Configuración del Juego</h3>
-        <label for="exePath" style="font-size: 13px; color: #aaa;">Ruta o protocolo del ejecutable (.exe):</label>
-        <input id="exePath" type="text" placeholder="C:\Juegos\GameBlocks\GameBlocks.exe o gameblocks://">
-        <button class="secondary-button" style="width: auto;" onclick="saveExePath()">Guardar configuración</button>
-        <p id="exeMessage"></p>
-    </div>
-
-    <div class="section">
-        <h3>🏅 Insignias</h3>
-        <div id="myBadges" class="badges">Cargando...</div>
-    </div>
-
-    <div class="section">
-        <h3>📝 Biografía</h3>
-        <textarea id="myBio" placeholder="Escribe algo sobre ti..."></textarea>
-        <button class="secondary-button" style="width: auto;" onclick="saveBio()">Guardar biografía</button>
-        <p id="bioMessage"></p>
-    </div>
-
-    <div id="adminPanel" class="admin-panel hidden">
-        <h2>🛠️ Panel de Administración</h2>
-
-        <div class="section" style="border: 2px solid #7a4cff; padding: 12px; border-radius: 8px;">
-            <h3 style="color:#b99cff; margin-top:0;">👤 Gestionar Usuario</h3>
-            <input type="text" id="adminRenameTarget" placeholder="Usuario actual">
-            <input type="text" id="adminRenameNewName" placeholder="Nuevo nombre (sin las limitaciones de registro)">
-            <button class="admin-button" style="width:100%;" onclick="adminRenameUser()">Cambiar Nombre</button>
-            <p id="adminRenameMsg"></p>
-
-            <div style="border-top:1px solid #333; margin-top:15px; padding-top:15px;">
-                <label style="font-size:12px;color:#aaa;">Añadir insignia:</label>
-                <select id="adminBadgeType">
-                    <option value="admin">🛡️ Admin</option>
-                    <option value="booster">🚀 Booster</option>
-                    <option value="custom">✏️ Personalizada</option>
-                </select>
-                <input type="text" id="adminBadgeCustom" placeholder="Texto de la insignia personalizada" class="hidden">
-                <button class="admin-button" style="width:100%;" onclick="adminAddBadgeFromPanel()">Añadir Insignia</button>
-                <p id="adminBadgeMsg"></p>
-            </div>
-        </div>
-
-        <div class="section" style="border: 2px solid #ff8800; padding: 12px; border-radius: 8px;">
-            <h3 style="color: #ff8800; margin-top:0;">📌 Fijar / Desfijar Grupo por ID</h3>
-            <input type="text" id="adminPinGroupId" placeholder="ID del Grupo">
-            <button class="admin-button" style="width:100%;" onclick="adminPinGroup()">Fijar/Desfijar Grupo</button>
-            <p id="adminPinMsg"></p>
-        </div>
-
-        <div class="section" style="border: 2px solid #ff4444; padding: 12px; border-radius: 8px;">
-            <h3 style="color: #ff5555; margin-top:0;">📥 Bandeja de Cuentas Reportadas (10+ Denuncias)</h3>
-            <button class="secondary-button" onclick="loadReportedUsersInbox()">🔄 Actualizar Bandeja</button>
-            <div id="reportedUsersInbox" style="margin-top: 10px;">Cargando reporte...</div>
-        </div>
-
-        <div class="section">
-            <h3>⚙️ Configurar ID de Regalo Suscripción Block</h3>
-            <input type="text" id="adminBlockRewardItemId" placeholder="ID del Item que se regalará al suscribirse">
-            <button class="admin-button" style="width:100%;" onclick="adminSetBlockReward()">Guardar ID de Regalo</button>
-        </div>
-
-        <div class="section">
-            <h3>🎟️ Crear Código Promocional</h3>
-            <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
-            <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
-            <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
-            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
-            <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
-            <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional)">
-            <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
-            <p id="adminCodeMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3>👕 Subir Camiseta (Admin)</h3>
-            <input type="text" id="adminTshirtName" placeholder="Nombre">
-            <select id="adminTshirtIsLimited" onchange="toggleAdminTshirtLimited()">
-                <option value="no">¿Limited?: No</option>
-                <option value="si">¿Limited?: Sí</option>
-            </select>
-            <div id="adminTshirtLimitedOpts" class="hidden">
-                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario" min="1" value="1">
-                <input type="number" id="adminTshirtMaxGlobal" placeholder="Stock Global Total">
-                <input type="number" id="adminTshirtExpiresDays" placeholder="Días límite">
-            </div>
-            <select id="adminTshirtIsOffsale">
-                <option value="no">¿Offsale?: No</option>
-                <option value="si">¿Offsale?: Sí</option>
-            </select>
-            <select id="adminTshirtOnlyBlock">
-                <option value="false">¿Solo Block?: No</option>
-                <option value="true">¿Solo Block?: Sí</option>
-            </select>
-            <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
-            <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
-            <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
-            <p id="adminTshirtMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3>✏️ Editar Accesorio / Camiseta por ID</h3>
-            <input type="text" id="editItemId" placeholder="ID del artículo">
-            <input type="number" id="editItemPrice" placeholder="Nuevo Precio (opcional)">
-            <select id="editItemLimited">
-                <option value="">¿Limited?: No cambiar</option>
-                <option value="true">Sí</option>
-                <option value="false">No</option>
-            </select>
-            <select id="editItemOffsale">
-                <option value="">¿Offsale?: No cambiar</option>
-                <option value="true">Sí (Offsale)</option>
-                <option value="false">No (En Venta)</option>
-            </select>
-            <select id="editItemIsGhost">
-                <option value="">¿Es Fantasma?: No cambiar</option>
-                <option value="true">Sí (Fantasma)</option>
-                <option value="false">No (Público)</option>
-            </select>
-            <select id="editItemOnlyBlock">
-                <option value="">¿Solo Block?: No cambiar</option>
-                <option value="true">Sí (Solo Suscripción Block)</option>
-                <option value="false">No</option>
-            </select>
-            <label style="font-size:12px; color:#aaa;">Nuevo Color Fondo Perfil (ej: #ff0000):</label>
-            <input type="color" id="editItemBgColor" value="#111111">
-            <input type="text" id="editItemSoundUrl" placeholder="Nueva URL Audio Perfil (.mp3)">
-            <button class="admin-button" style="width:100%;" onclick="adminEditAccessory()">Guardar Cambios</button>
-        </div>
-
-        <div class="section">
-            <h3>📦 Subir Sombrero / Accesorio 3D</h3>
-            <input type="text" id="accessoryName" placeholder="Nombre">
-            <input type="file" id="accessoryGlbFile" accept=".glb">
-            <select id="accessoryIsLimited" onchange="toggleLimitedInput()">
-                <option value="no">¿Limited?: No</option>
-                <option value="si">¿Limited?: Sí</option>
-            </select>
-            <select id="accessoryIsOffsale">
-                <option value="no">¿Offsale?: No</option>
-                <option value="si">¿Offsale?: Sí</option>
-            </select>
-            <select id="accessoryOnlyBlock">
-                <option value="false">¿Solo Block?: No</option>
-                <option value="true">¿Solo Block?: Sí</option>
-            </select>
-            <div id="limitedOptions" class="hidden">
-                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
-                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
-                <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
-            </div>
-            <label style="font-size:12px; color:#aaa;">Color Fondo Perfil al Equipar:</label>
-            <input type="color" id="accessoryBgColor" value="#111111">
-            <label style="font-size:12px; color:#aaa;">URL Audio Perfil al Equipar (.mp3):</label>
-            <input type="text" id="accessorySoundUrl" placeholder="https://ejemplo.com/audio.mp3">
-            <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
-            <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
-            <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
-            <p id="accessoryUploadMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3><img src="dineros.png" class="currency-icon-small" alt="Monedas"> Añadir Monedas</h3>
-            <input type="text" id="coinTargetUser" placeholder="Nombre de usuario">
-            <input type="number" id="coinAmount" placeholder="Cantidad de monedas">
-            <button class="admin-button" style="width:100%;" onclick="adminAddCoins()">Añadir Monedas</button>
-            <p id="coinAdminMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3>💲 Añadir 💲</h3>
-            <input type="text" id="dollarTargetUser" placeholder="Nombre de usuario">
-            <input type="number" id="dollarAmount" placeholder="Cantidad de 💲" min="1">
-            <button class="admin-button" style="width:100%;" onclick="adminAddDollars()">Añadir 💲</button>
-            <p id="dollarAdminMsg"></p>
-        </div>
-
-        <div class="section">
-            <h3>📢 Banner Informativo</h3>
-            <input type="text" id="bannerTextInput" placeholder="Texto del banner">
-            <button class="admin-button" style="width:100%;" onclick="saveOwnerBanner()">Guardar Banner</button>
-            <p id="bannerMsg"></p>
-        </div>
-    </div>
-
-    <div class="game-connect">
-        <h3>🎮 Conectar con Game Blocks</h3>
-        <button class="form-button" onclick="createGameCode()">🔗 Generar código</button>
-        <div id="gameCodeContainer" class="hidden">
-            <div id="gameCode" class="game-code">------</div>
-        </div>
-        <p id="gameCodeMessage"></p>
-    </div>
-
-    <div class="section">
-        <h3>🔎 Resultados de Búsqueda</h3>
-        <div id="searchResults"></div>
-    </div>
-
-    <div class="section">
-        <h3>🤝 Intercambios (Trades)</h3>
-        <button class="secondary-button" onclick="loadTrades()">🔄 Cargar ofertas recibidas</button>
-        <div id="tradesContainer"></div>
-    </div>
-
-    <div class="section">
-        <h3>👥 Solicitudes de Amistad</h3>
-        <div id="requests">Cargando...</div>
-    </div>
-
-    <div class="section">
-        <h3>⭐ Amigos & Chat</h3>
-        <div id="friends">Cargando...</div>
-    </div>
-
-    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
-</div>
-
-</div>
-</div>
-
-<!-- MODAL TIENDA Y AVATAR -->
-<div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
-<div class="modal-box" style="max-width: 850px;">
-    <button class="close" onclick="closeAvatarModal()">×</button>
-    <h2>🎭 Personalizar Avatar & Tienda</h2>
-    
-    <div class="avatar-modal-body">
-        <div style="display:flex; flex-direction:column; align-items:center;">
-            <div class="avatar-viewer-box">
-                <model-viewer id="baseNoobViewer" src="noob.glb" alt="Noob Avatar" camera-controls auto-rotate style="position: absolute; inset:0; z-index:1;"></model-viewer>
-                <model-viewer id="accessoryViewer" src="" alt="Accesorio Equipado" camera-controls auto-rotate style="position: absolute; inset:0; z-index:2; pointer-events: none;"></model-viewer>
-            </div>
-            <small style="color:#888; margin-top:5px;">💡 Haz clic y arrastra para girar el modelo 3D</small>
-        </div>
-
-        <div style="flex:1; min-width: 260px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <h3 style="margin:0;">🛒 Catálogo</h3>
-                
-                <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
-                    <option value="hat">Sombreros / Accesorios 3D</option>
-                    <option value="tshirt">Camisetas</option>
-                </select>
-            </div>
-
-            <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
-                <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
-                <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
-                    <option value="all">Todas las Camisetas</option>
-                    <option value="adminOnly">Creado por Admins (Sí)</option>
-                </select>
-            </div>
-
-            <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
-
-            <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
-            <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
-        </div>
-    </div>
-
-    <div id="sidebarBannerContainer" class="sidebar-banner hidden"></div>
-</div>
-</div>
-
-<!-- MODAL INTERFAZ DE TRADE -->
-<div id="tradeModal" class="modal">
-    <div class="modal-box" style="max-width: 600px;">
-        <button class="close" onclick="closeTradeModal()">×</button>
-        <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
-        <div style="display:flex; flex-direction:column; gap:15px; margin-top:15px;">
-            <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
-                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">TU ITEM (LIMITED OFFSALE)</div>
-                <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
-                <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
-            </div>
-            <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
-                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">ITEM A RECIBIR (LIMITED OFFSALE)</div>
-                <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
-                <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
-            </div>
-            <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL CHAT CON AMIGOS -->
-<div id="chatModal" class="modal">
-    <div class="modal-box" style="max-width: 500px;">
-        <button class="close" onclick="closeChatModal()">×</button>
-        <h2 id="chatWithTitle" style="margin-top:0;">💬 Chat con Amigo</h2>
-
-        <div id="chatMessagesBox" class="chat-box">Cargando chat...</div>
-
-        <!-- PANEL TECLADO FACILITADOR DE EMOJIS -->
-        <div class="emoji-panel">
-            <span style="font-size:11px; color:#aaa; width:100%;">Emojis rápidos (Requiere Suscripción Block):</span>
-            <button class="emoji-btn" onclick="insertEmoji('😀')">😀</button>
-            <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
-            <button class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
-            <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
-            <button class="emoji-btn" onclick="insertEmoji('🎮')">🎮</button>
-            <button class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
-            <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
-        </div>
-
-        <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="chatInputText" placeholder="Escribe un mensaje..." style="margin:0;">
-            <button id="chatImageButton" class="secondary-button" style="width:auto; margin:0; white-space:nowrap;" onclick="document.getElementById('chatImageInput').click()">🖼️ Imagen</button>
-            <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="sendChatImage()">
-            <button class="form-button" style="width:auto; padding:0 20px; background:#007bff; color:#fff;" onclick="sendChatMessage()">Enviar</button>
-        </div>
-        <p id="chatErrorMsg" class="error" style="margin-top:5px; font-size:12px;"></p>
-    </div>
-</div>
-
-<!-- TARJETA PÚBLICA DE PERFIL DE USUARIO -->
-<div id="userProfileCardModal" class="modal" onclick="outsideCloseUserCard(event)">
-    <div class="modal-box" style="max-width: 480px;">
-        <button class="close" onclick="closeUserProfileCard()">×</button>
-        <div class="profile-avatar-container">
-            <img id="cardAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
-            <h2 id="cardUsername" style="margin:0; text-align:center;">Usuario</h2>
-            <div id="cardAlertBadge" class="hidden" style="background:#ff4444; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">⚠️ EN ALERTA</div>
-        </div>
-
-        <!-- REACCIONES Y REPORTES -->
-        <div style="display:flex; justify-content:center; gap:12px; margin-bottom:15px;">
-            <button class="secondary-button" style="width:auto; margin:0;" onclick="likeUserCard()">👍 <span id="cardLikesCount">0</span></button>
-            <button class="secondary-button" style="width:auto; margin:0;" onclick="dislikeUserCard()">👎 <span id="cardDislikesCount">0</span></button>
-            <button class="danger-button" style="padding:8px 12px; font-size:13px;" onclick="reportUserCard()">🚨 Denunciar</button>
-        </div>
-
-        <div class="section">
-            <h3 style="margin-top:0;">🏅 Insignias</h3>
-            <div id="cardBadges" class="badges">Ninguna.</div>
-        </div>
-
-        <div class="section">
-            <b>📝 Bio</b>
-            <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
-        </div>
-
-        <div class="section">
-            <h3>🎒 Inventario</h3>
-            <div id="cardInventory" class="shop-items">Cargando inventario...</div>
-        </div>
-    </div>
-</div>
-
-<script>
-const RENDER_API = (
-    window.GAMEBLOCKS_API_URL ||
-    localStorage.getItem("gameblocks_api_url") ||
-    "https://panstudios-github-io-1.onrender.com"
-).replace(/\/$/, "");
-
-let currentTradeTargetId = null;
-let currentChatFriendId = null;
-let currentCardUserId = null;
-let currentOpenGroupId = null;
-let profileAudio = null;
-
-function escapeHTML(str) {
-    if (typeof str !== 'string') return str;
-    return str.replace(/[&<>"']/g, (m) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    })[m]);
-}
-
-// CAMBIAR Y MANTENER COLOR DE FONDO LOCAL
-function changeHomeBgColor(color) {
-    document.body.style.backgroundColor = color;
-    localStorage.setItem("gameblocks_home_bg_color", color);
-}
-
-function resetHomeBgColor() {
-    document.body.style.backgroundColor = "#000000";
-    document.getElementById("homeBgColorPicker").value = "#000000";
-    localStorage.removeItem("gameblocks_home_bg_color");
-}
-
-function loadSavedHomeBgColor() {
-    const saved = localStorage.getItem("gameblocks_home_bg_color");
-    if (saved) {
-        document.body.style.backgroundColor = saved;
-        const picker = document.getElementById("homeBgColorPicker");
-        if (picker) picker.value = saved;
-    }
-}
-
-async function request(endpoint, method = "GET", body = null) {
-    const headers = { "Content-Type": "application/json" };
-    const token = localStorage.getItem("gameblocks_token");
-    if (token) headers.Authorization = "Bearer " + token;
-
-    const options = { method, headers };
-    if (body !== null) options.body = JSON.stringify(body);
-
-    let response;
+/**
+ * GAME BLOCKS - server.js
+ * ---------------------------------------------------------------------------
+ * Backend completo para el frontend de Game Blocks (index.html).
+ * Pensado para desplegarse en Render y ser consumido desde:
+ *   https://panstudios-github-io-1.onrender.com   (RENDER_API en el frontend)
+ *
+ * Persistencia: fichero JSON en disco (./data/db.json). Esto es justo lo que
+ * garantiza el punto pedido de "al actualizarse todos mantendrán sus cuentas,
+ * grupos y el catálogo seguirá igual" -> los datos NO viven en memoria, se
+ * guardan en disco en cada escritura y se vuelven a cargar al arrancar, así
+ * un redeploy / reinicio del servicio no borra nada.
+ *
+ * NOTA IMPORTANTE PARA RENDER: los discos de Render "Free" son efímeros en
+ * cada deploy si no usas un "Persistent Disk". Si quieres que los datos
+ * sobrevivan a los deploys (no solo a los reinicios), añade un Persistent
+ * Disk en Render y monta DATA_DIR en él (variable de entorno DATA_DIR).
+ * ---------------------------------------------------------------------------
+ */
+
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const multer = require("multer");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const DB_FILE = path.join(DATA_DIR, "db.json");
+const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
+
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+app.use("/uploads", express.static(UPLOADS_DIR));
+
+// ---------------------------------------------------------------------------
+// BASE DE DATOS (fichero JSON persistente)
+// ---------------------------------------------------------------------------
+
+function defaultDb() {
+    return {
+        users: [],           // { id, username, passwordHash, coins, dollars, admin, owner, badges:[], inventory:[], equippedAccessory, friends:[], friendRequests:[], banned, bannedUntil, blockSub:{active,expiresAt}, turboBlockSub:{active,expiresAt}, profileBgColor, profileSoundUrl, bio, reportsCount, avatarUrl }
+        accessories: [],      // { id, name, type, price, limited, offsale, onlyBlock, isGhost, maxPerUser, maxGlobal, expiresAt, totalSold, glbUrl, imageUrl, bgColor, soundUrl, creatorId, creatorUsername, createdByAdmin }
+        groups: [],           // { id, name, description, ownerId, members:[], admins:[], pinned, forumEnabled, chatEnabled, membersEnabled, forumPosts:[], groupChatMessages:[], chatSections:[], newsMessages:[] }
+        friendChats: {},      // key `${minId}_${maxId}` -> [ {senderId, senderUsername, text, imageUrl, createdAt} ]
+        trades: [],           // pending trade offers
+        codes: [],            // promo codes
+        starCodes: [],        // { code, ownerUsername, ownerId, uses }
+        settings: { blockRewardItemId: null, turboBlockRewardItemId: null, bannerText: "", exePath: "" },
+        events: [],           // { id, name, description, themeColor, items:[], customHtml, active, createdAt }
+        resaleListings: [],   // { id, itemId, sellerId, sellerUsername, price }
+        nextId: 1
+    };
+}
+
+let db = defaultDb();
+
+function loadDb() {
     try {
-        response = await fetch(RENDER_API + endpoint, options);
-    } catch (networkErr) {
-        throw new Error("No se pudo conectar con el servidor. Revisa tu conexión.");
+        if (fs.existsSync(DB_FILE)) {
+            const raw = fs.readFileSync(DB_FILE, "utf-8");
+            const parsed = JSON.parse(raw);
+            db = Object.assign(defaultDb(), parsed);
+        } else {
+            saveDb();
+        }
+    } catch (e) {
+        console.error("Error cargando la base de datos, se usa una nueva:", e.message);
     }
+}
 
-    const rawText = await response.text().catch(() => "");
-    let data = {};
-    if (rawText) {
+let saveTimer = null;
+function saveDb() {
+    // Debounce ligero para no escribir a disco en cada micro-cambio
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
         try {
-            data = JSON.parse(rawText);
-        } catch {
-            throw new Error(response.ok ? "Respuesta inválida del servidor." : `Error del servidor (${response.status}).`);
+            fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+        } catch (e) {
+            console.error("Error guardando la base de datos:", e.message);
         }
+    }, 150);
+}
+
+function nextId() {
+    const id = db.nextId++;
+    saveDb();
+    return String(id);
+}
+
+loadDb();
+
+// ---------------------------------------------------------------------------
+// UTILIDADES
+// ---------------------------------------------------------------------------
+
+function hashPassword(password, salt) {
+    salt = salt || crypto.randomBytes(16).toString("hex");
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+    return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+    if (!stored || !stored.includes(":")) return false;
+    const [salt, hash] = stored.split(":");
+    const check = crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
+    return check === hash;
+}
+
+const tokens = new Map(); // token -> userId (en memoria; se recrea al reiniciar y el usuario tendrá que volver a loguearse)
+
+function issueToken(userId) {
+    const token = crypto.randomBytes(32).toString("hex");
+    tokens.set(token, userId);
+    return token;
+}
+
+function getUserFromReq(req) {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token || !tokens.has(token)) return null;
+    const userId = tokens.get(token);
+    return db.users.find(u => u.id === userId) || null;
+}
+
+function requireAuth(req, res, next) {
+    const user = getUserFromReq(req);
+    if (!user) return res.status(401).json({ error: "No autenticado." });
+    if (user.banned && !isBanStillActive(user)) {
+        // suspensión temporal expirada -> se levanta automáticamente
+        user.banned = false;
+        user.bannedUntil = null;
+        saveDb();
+    } else if (user.banned) {
+        return res.status(403).json({ error: bannedMessage(user) });
     }
+    req.user = user;
+    next();
+}
 
-    if (!response.ok) {
-        if (data.banned) showBannedView();
-        if (data.error) throw new Error(data.error);
-        throw new Error(`Error del servidor (${response.status}).`);
+function isBanStillActive(user) {
+    if (!user.banned) return false;
+    if (!user.bannedUntil) return true; // ban permanente
+    return Date.now() < user.bannedUntil;
+}
+
+function bannedMessage(user) {
+    if (user.bannedUntil) {
+        const date = new Date(user.bannedUntil).toLocaleString("es-ES");
+        return `Tu cuenta está suspendida hasta ${date}.`;
     }
-    return data;
+    return "Tu cuenta ha sido baneada permanentemente.";
 }
 
-function applyProfileStyling(bgColor, soundUrl) {
-    const box = document.getElementById("accountModalBox");
-    if (bgColor) {
-        box.style.backgroundColor = bgColor;
-    } else {
-        box.style.backgroundColor = "#111";
-    }
-
-    if (profileAudio) {
-        profileAudio.pause();
-        profileAudio = null;
-    }
-
-    if (soundUrl) {
-        try {
-            profileAudio = new Audio(soundUrl);
-            profileAudio.play().catch(() => {});
-        } catch (e) {}
-    }
-}
-
-// ==========================================
-// FUNCIONES DE GRUPOS EN CLIENTE
-// ==========================================
-function openGroupsModal() {
-    document.getElementById("groupsModal").style.display = "flex";
-    loadAllGroups();
-}
-
-function closeGroupsModal() {
-    document.getElementById("groupsModal").style.display = "none";
-}
-
-function outsideCloseGroups(event) {
-    if (event.target.id === "groupsModal") closeGroupsModal();
-}
-
-function openCreateGroupModal() {
-    if (!localStorage.getItem("gameblocks_token")) {
-        alert("Inicia sesión para crear un grupo.");
-        openAccount();
-        return;
-    }
-    document.getElementById("createGroupModal").style.display = "flex";
-}
-
-function closeCreateGroupModal() {
-    document.getElementById("createGroupModal").style.display = "none";
-}
-
-async function submitCreateGroup() {
-    const name = document.getElementById("newGroupName").value;
-    const description = document.getElementById("newGroupDesc").value;
-    const msg = document.getElementById("createGroupMsg");
-
-    try {
-        const data = await request("/api/groups/create", "POST", { name, description });
-        msg.className = "success";
-        msg.textContent = "¡Grupo creado con éxito!";
-        document.getElementById("userCoinsText").textContent = data.newBalance;
-        setTimeout(() => {
-            closeCreateGroupModal();
-            loadAllGroups();
-        }, 1000);
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function loadAllGroups() {
-    const container = document.getElementById("allGroupsContainer");
-    try {
-        const data = await request("/api/groups");
-        container.innerHTML = "";
-        if (data.groups.length === 0) {
-            container.textContent = "No hay grupos creados todavía.";
-            return;
-        }
-
-        data.groups.forEach(g => {
-            const div = document.createElement("div");
-            div.className = "result";
-            if (g.pinned) {
-                div.style.borderColor = "#ff8800";
-                div.style.background = "#1a0d00";
-            }
-            div.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div>
-                        <h3 style="margin:0; color:#ff8800;">${escapeHTML(g.name)} ${g.pinned ? '📌 [FIJADO]' : ''}</h3>
-                        <div style="font-size:11px; color:#aaa; margin-top:2px;">ID: ${g.id}</div>
-                        <p style="font-size:13px; color:#ccc; margin:5px 0;">${escapeHTML(g.description || "Sin descripción")}</p>
-                        <div style="font-size:12px; color:#888;">Miembros: ${g.members.length}</div>
-                    </div>
-                    <div style="display:flex; gap:6px;">
-                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 12px;" onclick="joinGroup('${g.id}')">Unirse</button>
-                        <button class="form-button" style="width:auto; margin:0; padding:6px 12px; background:#ff8800; color:#000;" onclick="openGroupDetail('${g.id}')">Ver Grupo</button>
-                    </div>
-                </div>
-            `;
-            container.appendChild(div);
-        });
-    } catch (e) {
-        container.textContent = "Error al cargar los grupos.";
-    }
-}
-
-async function joinGroup(groupId) {
-    try {
-        const data = await request(`/api/groups/${groupId}/join`, "POST");
-        alert(data.message);
-        loadAllGroups();
-    } catch (e) { alert(e.message); }
-}
-
-async function openGroupDetail(groupId) {
-    currentOpenGroupId = groupId;
-    document.getElementById("groupDetailModal").style.display = "flex";
-    loadGroupData();
-}
-
-function closeGroupDetailModal() {
-    document.getElementById("groupDetailModal").style.display = "none";
-    currentOpenGroupId = null;
-}
-
-async function loadGroupData() {
-    if (!currentOpenGroupId) return;
-    try {
-        const [group, me] = await Promise.all([
-            request(`/api/groups/${currentOpenGroupId}`),
-            request("/api/me")
-        ]);
-
-        document.getElementById("groupDetailName").textContent = group.name;
-        document.getElementById("groupDetailId").textContent = "ID: " + group.id;
-        document.getElementById("groupDetailDesc").textContent = group.description || "Sin descripción";
-
-        // Chat de noticias
-        const newsBox = document.getElementById("groupNewsBox");
-        newsBox.innerHTML = "";
-        if (!group.newsMessages || group.newsMessages.length === 0) {
-            newsBox.textContent = "No hay noticias oficiales.";
-        } else {
-            group.newsMessages.forEach(n => {
-                const d = document.createElement("div");
-                d.className = "chat-msg chat-msg-them";
-                d.style.background = "#2a1c00";
-                d.textContent = `[${n.senderUsername}]: ${n.text}`;
-                newsBox.appendChild(d);
-            });
-            newsBox.scrollTop = newsBox.scrollHeight;
-        }
-
-        const isOwner = String(group.ownerId) === String(me.id);
-        const isAdmin = group.admins && group.admins.some(id => String(id) === String(me.id));
-
-        if (isOwner || isAdmin) {
-            document.getElementById("groupNewsInputArea").classList.remove("hidden");
-        } else {
-            document.getElementById("groupNewsInputArea").classList.add("hidden");
-        }
-
-        if (isOwner || isAdmin) {
-            document.getElementById("groupOwnerAdminPanel").classList.remove("hidden");
-        } else {
-            document.getElementById("groupOwnerAdminPanel").classList.add("hidden");
-        }
-
-        const membersEnabled = group.membersEnabled !== false;
-        const membersTabBtn = document.getElementById("tabBtnMembers");
-        const membersTab = document.getElementById("groupTabMembers");
-        if (membersEnabled) {
-            membersTabBtn.classList.remove("hidden");
-            membersTab.classList.remove("hidden");
-        } else {
-            membersTabBtn.classList.add("hidden");
-            membersTab.classList.add("hidden");
-        }
-
-        // Pestañas dinámicas según configuración del owner
-        const btnForums = document.getElementById("tabBtnForums");
-        const btnChats = document.getElementById("tabBtnChats");
-
-        if (group.forumEnabled) {
-            btnForums.classList.remove("hidden");
-        } else {
-            btnForums.classList.add("hidden");
-        }
-
-        if (group.chatEnabled) {
-            btnChats.classList.remove("hidden");
-        } else {
-            btnChats.classList.add("hidden");
-        }
-
-        // Listar miembros
-        const membersDiv = document.getElementById("groupMembersList");
-        membersDiv.innerHTML = "";
-        group.enrichedMembers.forEach(m => {
-            const mIsOwner = String(m.id) === String(group.ownerId);
-            const mIsAdmin = (group.admins || []).some(id => String(id) === String(m.id));
-            const div = document.createElement("div");
-            div.className = "result";
-            div.innerHTML = `
-                <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <img src="${m.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
-                        <b>${escapeHTML(m.username)}</b> ${mIsOwner ? '👑 [Owner]' : mIsAdmin ? '🛡️ [Admin]' : ''}
-                    </div>
-                    <div>
-                        ${(isOwner && !mIsOwner) ? `
-                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:11px;" onclick="toggleGroupAdmin('${m.id}')">${mIsAdmin ? 'Quitar Admin' : 'Hacer Admin'}</button>
-                            <button class="danger-button" style="padding:4px 8px; font-size:11px;" onclick="banGroupMember('${m.id}')">Banear</button>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-            membersDiv.appendChild(div);
-        });
-
-        // Cargar Foros y Chat si están activos
-        if (group.forumEnabled) loadGroupForums(group);
-        if (group.chatEnabled) loadGroupChat(group);
-        if (group.membersEnabled === false) {
-            if (group.forumEnabled) switchGroupTab('forums');
-            else if (group.chatEnabled) switchGroupTab('chats');
-        }
-
-    } catch (e) {
-        alert(e.message);
-    }
-}
-
-function switchGroupTab(tabName) {
-    document.querySelectorAll('.group-tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.group-tab-btn').forEach(el => el.classList.remove('active'));
-
-    if (tabName === 'members') {
-        const btn = document.getElementById('tabBtnMembers');
-        if (btn && btn.classList.contains('hidden')) return;
-        document.getElementById('groupTabMembers').classList.remove('hidden');
-        btn.classList.add('active');
-    } else if (tabName === 'forums') {
-        document.getElementById('groupTabForums').classList.remove('hidden');
-        document.getElementById('tabBtnForums').classList.add('active');
-    } else if (tabName === 'chats') {
-        document.getElementById('groupTabChats').classList.remove('hidden');
-        document.getElementById('tabBtnChats').classList.add('active');
-    }
-}
-
-async function sendGroupNews() {
-    const text = document.getElementById("groupNewsText").value;
-    if (!text.trim()) return;
-    try {
-        await request(`/api/groups/${currentOpenGroupId}/news/send`, "POST", { text });
-        document.getElementById("groupNewsText").value = "";
-        loadGroupData();
-    } catch (e) { alert(e.message); }
-}
-
-async function toggleGroupSetting(settingName) {
-    try {
-        const group = await request(`/api/groups/${currentOpenGroupId}`);
-        const body = {};
-        if (settingName === 'chatEnabled') body.chatEnabled = !group.chatEnabled;
-        if (settingName === 'forumEnabled') body.forumEnabled = !group.forumEnabled;
-
-        await request(`/api/groups/${currentOpenGroupId}/settings`, "POST", body);
-        loadGroupData();
-    } catch (e) { alert(e.message); }
-}
-
-async function toggleGroupAdmin(memberId) {
-    try {
-        const group = await request(`/api/groups/${currentOpenGroupId}`);
-        const isAdmin = (group.admins || []).some(id => String(id) === String(memberId));
-        await request(`/api/groups/${currentOpenGroupId}/admins`, "POST", { memberId, action: isAdmin ? "remove" : "add" });
-        loadGroupData();
-    } catch (e) { alert(e.message); }
-}
-
-async function banGroupMember(memberId) {
-    if (!confirm("¿Seguro que deseas banear a este miembro del grupo?")) return;
-    try {
-        await request(`/api/groups/${currentOpenGroupId}/ban-member`, "POST", { memberId });
-        loadGroupData();
-    } catch (e) { alert(e.message); }
-}
-
-async function loadGroupForums(group) {
-    const container = document.getElementById("groupForumsContainer");
-    container.innerHTML = "";
-    if (!group.forumPosts || group.forumPosts.length === 0) {
-        container.textContent = "No hay temas en el foro.";
-        return;
-    }
-    group.forumPosts.forEach(p => {
-        const d = document.createElement("div");
-        d.className = "result";
-        d.innerHTML = `
-            <b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
-            <p style="margin:5px 0; color:#ccc;">${escapeHTML(p.content)}</p>
-        `;
-        container.appendChild(d);
+function isAdminUser(user) {
+    if (!user) return false;
+    if (user.admin || user.owner) return true;
+    return (user.badges || []).some(b => {
+        const name = (typeof b === "object" ? b.name : b) || "";
+        return name.toLowerCase().includes("admin") || name.toLowerCase() === "co-owner";
     });
 }
 
-async function createForumPost() {
-    const title = document.getElementById("forumPostTitle").value;
-    const content = document.getElementById("forumPostContent").value;
-    if (!title.trim() || !content.trim()) return;
-    try {
-        await request(`/api/groups/${currentOpenGroupId}/forum`, "POST", { title, content });
-        document.getElementById("forumPostTitle").value = "";
-        document.getElementById("forumPostContent").value = "";
-        const group = await request(`/api/groups/${currentOpenGroupId}`);
-        loadGroupForums(group);
-    } catch (e) { alert(e.message); }
+function requireAdmin(req, res, next) {
+    const user = getUserFromReq(req);
+    if (!user) return res.status(401).json({ error: "No autenticado." });
+    if (!isAdminUser(user)) return res.status(403).json({ error: "No tienes permisos de administrador." });
+    req.user = user;
+    next();
 }
 
-async function loadGroupChat(group) {
-    const box = document.getElementById("groupChatBox");
-    box.innerHTML = "";
-    if (!group.groupChatMessages || group.groupChatMessages.length === 0) {
-        box.textContent = "Sin mensajes en el chat de grupo.";
-        return;
+function publicUser(u) {
+    return {
+        id: u.id,
+        username: u.username,
+        coins: u.coins,
+        dollars: u.dollars,
+        admin: !!u.admin,
+        owner: !!u.owner,
+        badges: u.badges || [],
+        inventory: u.inventory || [],
+        equippedAccessory: u.equippedAccessory || null,
+        friends: u.friends || [],
+        profileBgColor: u.profileBgColor || null,
+        profileSoundUrl: u.profileSoundUrl || null,
+        bio: u.bio || "",
+        avatarUrl: u.avatarUrl || null,
+        blockSub: hasActiveBlock(u),
+        turboBlockSub: hasActiveTurboBlock(u),
+        banned: !!u.banned
+    };
+}
+
+function hasActiveBlock(u) {
+    const b = u.blockSub;
+    const t = u.turboBlockSub;
+    const blockActive = !!(b && b.active && b.expiresAt > Date.now());
+    const turboActive = !!(t && t.active && t.expiresAt > Date.now());
+    return blockActive || turboActive; // turbo incluye todos los beneficios de block
+}
+
+function hasActiveTurboBlock(u) {
+    const t = u.turboBlockSub;
+    return !!(t && t.active && t.expiresAt > Date.now());
+}
+
+function findUserByUsername(username) {
+    if (!username) return null;
+    return db.users.find(u => u.username.toLowerCase() === username.toLowerCase()) || null;
+}
+
+function findItem(itemId) {
+    return db.accessories.find(a => String(a.id) === String(itemId)) || null;
+}
+
+function itemSoldCount(itemId) {
+    return db.accessories.find(a => String(a.id) === String(itemId))?.totalSold || 0;
+}
+
+// ---------------------------------------------------------------------------
+// SUBIDA DE ARCHIVOS (GLB, imágenes de tienda, imágenes de chat)
+// ---------------------------------------------------------------------------
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname) || "";
+        cb(null, `${Date.now()}_${crypto.randomBytes(6).toString("hex")}${ext}`);
     }
-    group.groupChatMessages.forEach(m => {
-        const d = document.createElement("div");
-        d.className = "chat-msg chat-msg-them";
-        d.textContent = `[${m.senderUsername}]: ${m.text}`;
-        box.appendChild(d);
+});
+const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
+
+function fileUrl(req, filename) {
+    return `/uploads/${filename}`;
+}
+
+// ---------------------------------------------------------------------------
+// AUTENTICACIÓN
+// ---------------------------------------------------------------------------
+
+app.post("/api/register", (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password || username.length < 3 || password.length < 4) {
+        return res.status(400).json({ error: "Usuario o contraseña inválidos (mín. 3/4 caracteres)." });
+    }
+    if (findUserByUsername(username)) {
+        return res.status(400).json({ error: "Ese nombre de usuario ya existe." });
+    }
+    const user = {
+        id: nextId(),
+        username,
+        passwordHash: hashPassword(password),
+        coins: 100,
+        dollars: 0,
+        admin: db.users.length === 0, // el primer usuario registrado es admin/owner por defecto
+        owner: db.users.length === 0,
+        badges: [],
+        inventory: [],
+        equippedAccessory: null,
+        friends: [],
+        friendRequests: [],
+        banned: false,
+        bannedUntil: null,
+        blockSub: { active: false, expiresAt: 0 },
+        turboBlockSub: { active: false, expiresAt: 0 },
+        profileBgColor: null,
+        profileSoundUrl: null,
+        bio: "",
+        avatarUrl: null,
+        reportsCount: 0,
+        lastDailyClaim: 0,
+        createdAt: Date.now()
+    };
+    db.users.push(user);
+    saveDb();
+    const token = issueToken(user.id);
+    res.json({ token, user: publicUser(user) });
+});
+
+app.post("/api/login", (req, res) => {
+    const { username, password } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+        return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
+    }
+    if (isBanStillActive(user)) {
+        return res.status(403).json({ error: bannedMessage(user) });
+    }
+    const token = issueToken(user.id);
+    res.json({ token, user: publicUser(user) });
+});
+
+app.get("/api/me", requireAuth, (req, res) => {
+    grantDailyCoinsIfNeeded(req.user);
+    res.json(publicUser(req.user));
+});
+
+function grantDailyCoinsIfNeeded(user) {
+    const now = new Date();
+    const todayKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`;
+    if (user._lastDailyKey === todayKey) return;
+    let amount = 10;
+    if (hasActiveTurboBlock(user)) amount = 50;
+    else if (hasActiveBlock(user)) amount = 34;
+    user.coins += amount;
+    user._lastDailyKey = todayKey;
+    saveDb();
+}
+
+// ---------------------------------------------------------------------------
+// MONEDAS: PAQUETES, COMPRA Y STAR CODES
+// ---------------------------------------------------------------------------
+
+// Los paquetes bonus pedidos:
+// Paquete 1: sin bonus (base)
+// Paquete 2: 500 -> +50 (550)
+// Paquete 3: 1000 -> +100 (1100)
+// Paquete 4: 2500 -> +500 (3000)
+// Paquete 5: 6000 -> +1000 (7000)
+const COIN_PACKAGES = [
+    { coins: 100, dollars: 1, bonus: 0 },
+    { coins: 500, dollars: 4, bonus: 50 },
+    { coins: 1000, dollars: 8, bonus: 100 },
+    { coins: 2500, dollars: 18, bonus: 500 },
+    { coins: 6000, dollars: 40, bonus: 1000 }
+];
+
+app.get("/api/coins/packages", (req, res) => {
+    res.json({ packages: COIN_PACKAGES });
+});
+
+app.post("/api/coins/purchase", requireAuth, (req, res) => {
+    const { coins, starCode } = req.body || {};
+    const pkg = COIN_PACKAGES.find(p => Number(p.coins) === Number(coins));
+    if (!pkg) return res.status(400).json({ error: "Paquete no válido." });
+
+    const user = req.user;
+    if (user.dollars < pkg.dollars) {
+        return res.status(400).json({ error: "No tienes 💲 suficientes para este paquete." });
+    }
+
+    let totalCoins = pkg.coins + (pkg.bonus || 0);
+    let starCodeApplied = null;
+
+    user.dollars -= pkg.dollars;
+
+    if (starCode && starCode.trim()) {
+        const sc = db.starCodes.find(c => c.code.toLowerCase() === starCode.trim().toLowerCase());
+        if (!sc) {
+            saveDb();
+            return res.status(400).json({ error: "Star Code no válido." });
+        }
+        const bonusCoins = Math.round(pkg.coins * 0.10);
+        totalCoins += bonusCoins;
+        starCodeApplied = sc.code;
+
+        // El 10% de las monedas (en valor equivalente de 💲) va a la cuenta asociada
+        const ownerAccount = db.users.find(u => u.id === sc.ownerId) || findUserByUsername(sc.ownerUsername);
+        if (ownerAccount && ownerAccount.id !== user.id) {
+            const dollarShare = Math.max(1, Math.round(pkg.dollars * 0.10));
+            ownerAccount.dollars += dollarShare;
+        }
+        sc.uses = (sc.uses || 0) + 1;
+    }
+
+    user.coins += totalCoins;
+    saveDb();
+    res.json({ coins: user.coins, dollars: user.dollars, starCodeApplied });
+});
+
+// ---------------------------------------------------------------------------
+// SUSCRIPCIONES: BLOCK Y TURBO BLOCK
+// ---------------------------------------------------------------------------
+
+const BLOCK_PRICE_DOLLARS = 5;
+const TURBO_BLOCK_PRICE_DOLLARS = 10;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+app.post("/api/subscription/buy-block", requireAuth, (req, res) => {
+    const user = req.user;
+    if (user.dollars < BLOCK_PRICE_DOLLARS) {
+        return res.status(400).json({ error: "No tienes 💲 suficientes." });
+    }
+    user.dollars -= BLOCK_PRICE_DOLLARS;
+    const alreadyHad = hasActiveBlock(user);
+    const base = user.blockSub && user.blockSub.expiresAt > Date.now() ? user.blockSub.expiresAt : Date.now();
+    user.blockSub = { active: true, expiresAt: base + THIRTY_DAYS_MS };
+
+    let freeItemGiven = null;
+    if (!alreadyHad && db.settings.blockRewardItemId) {
+        const item = findItem(db.settings.blockRewardItemId);
+        if (item) {
+            user.inventory.push(item.id);
+            item.totalSold = (item.totalSold || 0) + 1;
+            freeItemGiven = item.name;
+        }
+    }
+    saveDb();
+    res.json({ message: "¡Suscripción Block activada!", dollars: user.dollars, freeItemGiven });
+});
+
+app.post("/api/subscription/buy-turbo-block", requireAuth, (req, res) => {
+    const user = req.user;
+    if (user.dollars < TURBO_BLOCK_PRICE_DOLLARS) {
+        return res.status(400).json({ error: "No tienes 💲 suficientes." });
+    }
+    user.dollars -= TURBO_BLOCK_PRICE_DOLLARS;
+    const alreadyHad = hasActiveTurboBlock(user);
+    const base = user.turboBlockSub && user.turboBlockSub.expiresAt > Date.now() ? user.turboBlockSub.expiresAt : Date.now();
+    user.turboBlockSub = { active: true, expiresAt: base + THIRTY_DAYS_MS };
+
+    let freeItemGiven = null;
+    if (!alreadyHad && db.settings.turboBlockRewardItemId) {
+        const item = findItem(db.settings.turboBlockRewardItemId);
+        if (item) {
+            user.inventory.push(item.id);
+            item.totalSold = (item.totalSold || 0) + 1;
+            freeItemGiven = item.name;
+        }
+    }
+    saveDb();
+    res.json({ message: "¡Suscripción Turbo Block activada!", dollars: user.dollars, freeItemGiven });
+});
+
+// ---------------------------------------------------------------------------
+// CATÁLOGO / ACCESORIOS
+// ---------------------------------------------------------------------------
+
+app.get("/api/accessories", (req, res) => {
+    const items = db.accessories.filter(a => !a.isGhost);
+    res.json({ items });
+});
+
+app.get("/api/accessories/all", (req, res) => {
+    res.json({ items: db.accessories });
+});
+
+app.post("/api/accessories/buy", requireAuth, (req, res) => {
+    const { itemId } = req.body || {};
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    if (item.offsale) return res.status(400).json({ error: "Este artículo no está a la venta." });
+    if (item.expiresAt && Date.now() > item.expiresAt) return res.status(400).json({ error: "Este artículo ya no está disponible." });
+
+    const user = req.user;
+    if (item.onlyBlock === "turbo" && !hasActiveTurboBlock(user)) {
+        return res.status(403).json({ error: "Este artículo requiere Suscripción Turbo Block." });
+    }
+    if (item.onlyBlock === true && !hasActiveBlock(user)) {
+        return res.status(403).json({ error: "Este artículo requiere Suscripción Block." });
+    }
+    if (item.limited) {
+        const ownedCount = user.inventory.filter(id => String(id) === String(item.id)).length;
+        if (item.maxPerUser && ownedCount >= item.maxPerUser) {
+            return res.status(400).json({ error: "Ya tienes el máximo de copias permitidas de este artículo." });
+        }
+        if (item.maxGlobal != null && (item.totalSold || 0) >= item.maxGlobal) {
+            return res.status(400).json({ error: "Este artículo limitado se ha agotado." });
+        }
+    }
+    if (user.coins < item.price) {
+        return res.status(400).json({ error: "No tienes monedas suficientes." });
+    }
+
+    user.coins -= item.price;
+    user.inventory.push(item.id);
+    item.totalSold = (item.totalSold || 0) + 1;
+    saveDb();
+    res.json({ newBalance: user.coins });
+});
+
+app.post("/api/accessories/equip", requireAuth, (req, res) => {
+    const { itemId } = req.body || {};
+    const user = req.user;
+    if (!user.inventory.some(id => String(id) === String(itemId))) {
+        return res.status(400).json({ error: "No posees este artículo." });
+    }
+    const item = findItem(itemId);
+    user.equippedAccessory = itemId;
+    saveDb();
+    res.json({ profileBgColor: item?.bgColor || null, profileSoundUrl: item?.soundUrl || null });
+});
+
+app.post("/api/accessories/unequip", requireAuth, (req, res) => {
+    req.user.equippedAccessory = null;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/accessories/sell", requireAuth, (req, res) => {
+    const { itemId } = req.body || {};
+    const user = req.user;
+    const idx = user.inventory.findIndex(id => String(id) === String(itemId));
+    if (idx === -1) return res.status(400).json({ error: "No posees este artículo." });
+    const item = findItem(itemId);
+    const refundAmount = Math.floor((item?.price || 0) * 0.5);
+    user.inventory.splice(idx, 1);
+    if (String(user.equippedAccessory) === String(itemId)) user.equippedAccessory = null;
+    user.coins += refundAmount;
+    saveDb();
+    res.json({ refundAmount, newBalance: user.coins });
+});
+
+app.get("/api/accessories/resale-market", (req, res) => {
+    res.json({ listings: db.resaleListings });
+});
+
+app.post("/api/accessories/resell-list", requireAuth, (req, res) => {
+    const { itemId, price } = req.body || {};
+    const user = req.user;
+    const item = findItem(itemId);
+    if (!item || !item.limited || !item.offsale) return res.status(400).json({ error: "Solo se pueden revender Limiteds Offsale." });
+    if (!user.inventory.some(id => String(id) === String(itemId))) return res.status(400).json({ error: "No posees este artículo." });
+
+    const listing = { id: nextId(), itemId, sellerId: user.id, sellerUsername: user.username, price: Number(price) || 0 };
+    db.resaleListings.push(listing);
+    saveDb();
+    res.json({ listing });
+});
+
+app.post("/api/accessories/resell-buy", requireAuth, (req, res) => {
+    const { listingId } = req.body || {};
+    const listing = db.resaleListings.find(l => String(l.id) === String(listingId));
+    if (!listing) return res.status(404).json({ error: "Anuncio no encontrado." });
+    const buyer = req.user;
+    const seller = db.users.find(u => u.id === listing.sellerId);
+    if (buyer.coins < listing.price) return res.status(400).json({ error: "No tienes monedas suficientes." });
+
+    const idx = seller ? seller.inventory.findIndex(id => String(id) === String(listing.itemId)) : -1;
+    if (seller && idx !== -1) seller.inventory.splice(idx, 1);
+    buyer.coins -= listing.price;
+    if (seller) seller.coins += listing.price;
+    buyer.inventory.push(listing.itemId);
+
+    db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id);
+    saveDb();
+    res.json({ ok: true, newBalance: buyer.coins });
+});
+
+// ---------------------------------------------------------------------------
+// CAMISETAS (T-SHIRTS)
+// ---------------------------------------------------------------------------
+
+app.post("/api/tshirts/upload", requireAuth, (req, res) => {
+    const { name, imageUrl, price, onlyBlock } = req.body || {};
+    if (!name || !imageUrl) return res.status(400).json({ error: "Faltan datos." });
+    const item = {
+        id: nextId(),
+        name,
+        type: "tshirt",
+        imageUrl,
+        price: Number(price) || 0,
+        limited: false,
+        offsale: false,
+        onlyBlock: onlyBlock === true || onlyBlock === "true",
+        isGhost: false,
+        totalSold: 0,
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: false
+    };
+    db.accessories.push(item);
+    saveDb();
+    res.json({ item });
+});
+
+app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
+    const { name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price } = req.body || {};
+    const item = {
+        id: nextId(),
+        name,
+        type: "tshirt",
+        imageUrl,
+        price: Number(price) || 0,
+        limited: !!limited,
+        offsale: !!offsale,
+        onlyBlock: onlyBlock === true || onlyBlock === "true",
+        maxPerUser: limited ? Number(maxPerUser) || 1 : null,
+        maxGlobal: limited && maxGlobal ? Number(maxGlobal) : null,
+        expiresAt: limited && expiresInDays ? Date.now() + Number(expiresInDays) * 86400000 : null,
+        isGhost: false,
+        totalSold: 0,
+        creatorUsername: "Admin",
+        createdByAdmin: true
+    };
+    db.accessories.push(item);
+    saveDb();
+    res.json({ item });
+});
+
+// ---------------------------------------------------------------------------
+// ACCESORIOS 3D (Admin)
+// ---------------------------------------------------------------------------
+
+app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (req, res) => {
+    const b = req.body || {};
+    const limited = b.limited === "true" || b.limited === true;
+    const item = {
+        id: nextId(),
+        name: b.name,
+        type: "hat",
+        glbUrl: fileUrl(req, req.file.filename),
+        imageUrl: b.imageUrl || "",
+        price: Number(b.price) || 0,
+        limited,
+        offsale: b.offsale === "true" || b.offsale === true,
+        onlyBlock: b.onlyBlock === "true" || b.onlyBlock === true,
+        maxPerUser: limited ? Number(b.maxPerUser) || 1 : null,
+        maxGlobal: limited && b.maxGlobal ? Number(b.maxGlobal) : null,
+        expiresAt: limited && b.expiresInDays ? Date.now() + Number(b.expiresInDays) * 86400000 : null,
+        bgColor: b.bgColor || null,
+        soundUrl: b.soundUrl || null,
+        isGhost: false,
+        totalSold: 0,
+        creatorUsername: "Admin",
+        createdByAdmin: true
+    };
+    db.accessories.push(item);
+    saveDb();
+    res.json({ item });
+});
+
+app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
+    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl } = req.body || {};
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+
+    if (price !== undefined && price !== "") item.price = Number(price);
+    if (limited === "true") item.limited = true;
+    if (limited === "false") item.limited = false;
+    if (offsale === "true") item.offsale = true;
+    if (offsale === "false") item.offsale = false;
+    if (isGhost === "true") item.isGhost = true;
+    if (isGhost === "false") item.isGhost = false;
+    if (onlyBlock === "true") item.onlyBlock = true;
+    if (onlyBlock === "false") item.onlyBlock = false;
+    if (bgColor) item.bgColor = bgColor;
+    if (soundUrl) item.soundUrl = soundUrl;
+
+    saveDb();
+    res.json({ item });
+});
+
+// ---------------------------------------------------------------------------
+// PERFIL, AVATAR, BIO
+// ---------------------------------------------------------------------------
+
+app.post("/api/profile/avatar", requireAuth, (req, res) => {
+    const { avatarUrl } = req.body || {};
+    req.user.avatarUrl = avatarUrl;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/profile/bio", requireAuth, (req, res) => {
+    const { bio } = req.body || {};
+    req.user.bio = (bio || "").slice(0, 500);
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// AMIGOS
+// ---------------------------------------------------------------------------
+
+app.get("/api/friends", requireAuth, (req, res) => {
+    const friends = (req.user.friends || []).map(id => {
+        const u = db.users.find(x => x.id === id);
+        return u ? { id: u.id, username: u.username } : null;
+    }).filter(Boolean);
+    res.json({ friends });
+});
+
+app.get("/api/friends/requests", requireAuth, (req, res) => {
+    const requests = (req.user.friendRequests || []).map(id => {
+        const u = db.users.find(x => x.id === id);
+        return u ? { id: u.id, username: u.username } : null;
+    }).filter(Boolean);
+    res.json({ requests });
+});
+
+app.post("/api/friends/request", requireAuth, (req, res) => {
+    const { username } = req.body || {};
+    const target = findUserByUsername(username);
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (target.id === req.user.id) return res.status(400).json({ error: "No puedes añadirte a ti mismo." });
+    target.friendRequests = target.friendRequests || [];
+    if (!target.friendRequests.includes(req.user.id)) target.friendRequests.push(req.user.id);
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/friends/accept", requireAuth, (req, res) => {
+    const { userId } = req.body || {};
+    const user = req.user;
+    user.friendRequests = (user.friendRequests || []).filter(id => id !== userId);
+    user.friends = user.friends || [];
+    if (!user.friends.includes(userId)) user.friends.push(userId);
+    const other = db.users.find(u => u.id === userId);
+    if (other) {
+        other.friends = other.friends || [];
+        if (!other.friends.includes(user.id)) other.friends.push(user.id);
+    }
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// CHAT PRIVADO (AMIGOS)
+// ---------------------------------------------------------------------------
+
+function chatKey(idA, idB) {
+    const [a, b] = [String(idA), String(idB)].sort();
+    return `${a}_${b}`;
+}
+
+app.get("/api/chat/messages/:friendId", requireAuth, (req, res) => {
+    const key = chatKey(req.user.id, req.params.friendId);
+    res.json({ messages: db.friendChats[key] || [] });
+});
+
+app.post("/api/chat/send", requireAuth, (req, res) => {
+    const { friendId, text } = req.body || {};
+    const key = chatKey(req.user.id, friendId);
+    db.friendChats[key] = db.friendChats[key] || [];
+    db.friendChats[key].push({
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        text: String(text).slice(0, 1000),
+        createdAt: Date.now()
     });
-    box.scrollTop = box.scrollHeight;
-}
+    saveDb();
+    res.json({ ok: true });
+});
 
-async function sendGroupChatMessage() {
-    const textInput = document.getElementById("groupChatInput");
-    const text = textInput.value;
-    if (!text.trim()) return;
-    try {
-        await request(`/api/groups/${currentOpenGroupId}/chat/send`, "POST", { text });
-        textInput.value = "";
-        const group = await request(`/api/groups/${currentOpenGroupId}`);
-        loadGroupChat(group);
-    } catch (e) { alert(e.message); }
-}
-
-// ADMIN: Fijar grupo por ID
-async function adminPinGroup() {
-    const groupId = document.getElementById("adminPinGroupId").value;
-    const msg = document.getElementById("adminPinMsg");
-    try {
-        const data = await request("/api/admin/groups/pin", "POST", { groupId });
-        msg.className = "success";
-        msg.textContent = data.message;
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
+app.post("/api/chat/upload", requireAuth, upload.single("image"), (req, res) => {
+    const user = req.user;
+    if (!hasActiveTurboBlock(user)) {
+        return res.status(403).json({ error: "Subir imágenes al chat requiere Suscripción Turbo Block." });
     }
-}
+    const { friendId, groupId, sectionId } = req.body || {};
+    if (!req.file) return res.status(400).json({ error: "No se recibió ninguna imagen." });
+    const imageUrl = fileUrl(req, req.file.filename);
 
-// Modales generales y utilidades
-function openCurrencyModal() {
-    if (!localStorage.getItem("gameblocks_token")) {
-        alert("Inicia sesión para usar tus 💲.");
-        openAccount();
-        return;
-    }
-    document.getElementById("currencyModal").style.display = "flex";
-    loadCurrencyPackages();
-}
-
-function closeCurrencyModal() { document.getElementById("currencyModal").style.display = "none"; }
-function outsideCloseCurrency(event) { if (event.target.id === "currencyModal") closeCurrencyModal(); }
-
-function openBlockSubModal() {
-    if (!localStorage.getItem("gameblocks_token")) {
-        alert("Inicia sesión para suscribirte.");
-        openAccount();
-        return;
-    }
-    document.getElementById("blockSubModal").style.display = "flex";
-}
-
-function closeBlockSubModal() { document.getElementById("blockSubModal").style.display = "none"; }
-
-async function buyBlockSubscription() {
-    const msg = document.getElementById("blockSubMsg");
-    try {
-        const data = await request("/api/subscription/buy-block", "POST");
-        msg.className = "success";
-        msg.textContent = data.message + (data.freeItemGiven ? ` ¡Recibiste el regalo: ${data.freeItemGiven}!` : "");
-        document.getElementById("userDollarsText").textContent = data.dollars;
-        loadMyInventory();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function loadCurrencyPackages() {
-    const container = document.getElementById("currencyPackages");
-    const msg = document.getElementById("currencyPurchaseMsg");
-    try {
-        const [packagesData, me] = await Promise.all([
-            request("/api/coins/packages"),
-            request("/api/me")
-        ]);
-        document.getElementById("currencyDollarsModal").textContent = me.dollars || 0;
-        document.getElementById("userDollarsText").textContent = me.dollars || 0;
-        container.innerHTML = "";
-
-        packagesData.packages.forEach((pkg, index) => {
-            const card = document.createElement("div");
-            card.className = "currency-package";
-            const packImage = `pack${index + 1}.png`;
-            card.innerHTML = `<img src="${packImage}" alt="Pack ${index + 1}" style="width:100%; height:85px; object-fit:contain; margin-bottom:8px;"><strong>${pkg.coins.toLocaleString()} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></strong><div>${pkg.dollars} 💲</div>`;
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.marginTop = "10px";
-            btn.textContent = "Comprar";
-            btn.onclick = () => purchaseCoinPackage(pkg.coins);
-            card.appendChild(btn);
-            container.appendChild(card);
+    if (groupId) {
+        const group = db.groups.find(g => String(g.id) === String(groupId));
+        if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+        group.groupChatMessages = group.groupChatMessages || [];
+        group.groupChatMessages.push({
+            senderUsername: user.username,
+            senderId: user.id,
+            text: "",
+            imageUrl,
+            sectionId: sectionId || "general",
+            createdAt: Date.now()
         });
-        msg.textContent = "";
-    } catch (e) {
-        container.textContent = "No se pudieron cargar los paquetes.";
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function purchaseCoinPackage(coins) {
-    const msg = document.getElementById("currencyPurchaseMsg");
-    try {
-        const data = await request("/api/coins/purchase", "POST", { coins });
-        document.getElementById("userCoinsText").textContent = data.coins;
-        document.getElementById("userDollarsText").textContent = data.dollars;
-        document.getElementById("currencyDollarsModal").textContent = data.dollars;
-        msg.className = "success";
-        msg.textContent = `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-function openAccount() {
-    document.getElementById("accountModal").style.display = "flex";
-    updateAccount();
-}
-
-function closeAccount() {
-    document.getElementById("accountModal").style.display = "none";
-    applyProfileStyling(null, null);
-}
-
-function outsideClose(event) {
-    if (event.target.id === "accountModal") closeAccount();
-}
-
-function openAvatarModal() {
-    document.getElementById("avatarModal").style.display = "flex";
-    loadShopItems();
-    loadResaleMarket();
-    loadBanner();
-}
-
-function closeAvatarModal() { document.getElementById("avatarModal").style.display = "none"; }
-function outsideCloseAvatar(event) { if (event.target.id === "avatarModal") closeAvatarModal(); }
-
-function toggleLimitedInput() {
-    const val = document.getElementById("accessoryIsLimited").value;
-    if (val === "si") document.getElementById("limitedOptions").classList.remove("hidden");
-    else document.getElementById("limitedOptions").classList.add("hidden");
-}
-
-function toggleAdminTshirtLimited() {
-    const val = document.getElementById("adminTshirtIsLimited").value;
-    if (val === "si") document.getElementById("adminTshirtLimitedOpts").classList.remove("hidden");
-    else document.getElementById("adminTshirtLimitedOpts").classList.add("hidden");
-}
-
-function showLogin() {
-    document.getElementById("loginView").classList.remove("hidden");
-    document.getElementById("registerView").classList.add("hidden");
-    document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
-}
-
-function showRegister() {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("registerView").classList.remove("hidden");
-    document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
-}
-
-function showAccount() {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("registerView").classList.add("hidden");
-    document.getElementById("accountView").classList.remove("hidden");
-    document.getElementById("bannedView").classList.add("hidden");
-}
-
-function showBannedView() {
-    document.getElementById("loginView").classList.add("hidden");
-    document.getElementById("registerView").classList.add("hidden");
-    document.getElementById("accountView").classList.add("hidden");
-    document.getElementById("bannedView").classList.remove("hidden");
-}
-
-async function login() {
-    const usernameInput = document.getElementById("loginUsername").value;
-    const passwordInput = document.getElementById("loginPassword").value;
-    const msg = document.getElementById("loginMessage");
-    msg.textContent = "";
-
-    try {
-        const data = await request("/api/login", "POST", { username: usernameInput, password: passwordInput });
-        if (data.token) {
-            localStorage.setItem("gameblocks_token", data.token);
-            updateAccount();
-        }
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function register() {
-    const u = document.getElementById("registerUsername").value;
-    const p1 = document.getElementById("registerPassword").value;
-    const p2 = document.getElementById("registerPassword2").value;
-    const msg = document.getElementById("registerMessage");
-    msg.textContent = "";
-
-    if (p1 !== p2) {
-        msg.className = "error";
-        msg.textContent = "Las contraseñas no coinciden.";
-        return;
-    }
-
-    try {
-        const data = await request("/api/register", "POST", { username: u, password: p1 });
-        if (data.token) {
-            localStorage.setItem("gameblocks_token", data.token);
-            updateAccount();
-        }
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-function logout() {
-    localStorage.removeItem("gameblocks_token");
-    document.getElementById("accountButton").classList.add("hidden");
-    document.getElementById("loginBtn").classList.remove("hidden");
-    document.getElementById("userCoinsText").textContent = "0";
-    document.getElementById("userDollarsText").textContent = "0";
-    showLogin();
-}
-
-async function deleteBannedAccount() {
-    if (!confirm("¿Estás seguro de eliminar permanentemente tu cuenta?")) return;
-    try {
-        await request("/api/account/delete-banned", "POST");
-        alert("Cuenta eliminada.");
-        logout();
-    } catch (e) { alert(e.message); }
-}
-
-async function updateAccount() {
-    const token = localStorage.getItem("gameblocks_token");
-    if (!token) {
-        showLogin();
-        return;
-    }
-
-    try {
-        const me = await request("/api/me");
-        showAccount();
-
-        document.getElementById("welcome").textContent = "Hola, " + me.username;
-        document.getElementById("myAvatar").src = me.avatar || "https://via.placeholder.com/110";
-        document.getElementById("userCoinsText").textContent = me.coins || 0;
-        document.getElementById("userDollarsText").textContent = me.dollars || 0;
-        document.getElementById("myBio").value = me.bio || "";
-
-        document.getElementById("accountButton").classList.remove("hidden");
-        document.getElementById("loginBtn").classList.add("hidden");
-
-        const badgesContainer = document.getElementById("myBadges");
-        badgesContainer.innerHTML = "";
-        (me.badges || []).forEach(b => {
-            const span = document.createElement("span");
-            span.className = "badge";
-            span.textContent = typeof b === 'object' ? b.name : b;
-            badgesContainer.appendChild(span);
+    } else if (friendId) {
+        const key = chatKey(user.id, friendId);
+        db.friendChats[key] = db.friendChats[key] || [];
+        db.friendChats[key].push({
+            senderId: user.id,
+            senderUsername: user.username,
+            text: "",
+            imageUrl,
+            createdAt: Date.now()
         });
-
-        const isAdmin = me.admin || me.owner || (me.badges && me.badges.some(b => (typeof b === 'object' ? b.name : b).includes("admin")));
-        if (isAdmin) {
-            document.getElementById("adminPanel").classList.remove("hidden");
-            loadReportedUsersInbox();
-        } else {
-            document.getElementById("adminPanel").classList.add("hidden");
-        }
-
-        applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
-        loadMyInventory();
-        loadFriendsAndRequests();
-    } catch (e) {
-        if (e.message.includes("baneado")) showBannedView();
-        else logout();
-    }
-}
-
-async function editAvatar() {
-    const url = prompt("Introduce la URL de tu nuevo avatar (PNG/JPG):");
-    if (!url) return;
-    try {
-        const data = await request("/api/profile/avatar", "POST", { avatar: url });
-        document.getElementById("myAvatar").src = data.avatar;
-    } catch (e) { alert(e.message); }
-}
-
-async function saveBio() {
-    const bioText = document.getElementById("myBio").value;
-    const msg = document.getElementById("bioMessage");
-    try {
-        await request("/api/profile/bio", "POST", { bio: bioText });
-        msg.className = "success";
-        msg.textContent = "Biografía guardada correctamente.";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-function saveExePath() {
-    const p = document.getElementById("exePath").value;
-    localStorage.setItem("gameblocks_exe_path", p);
-    document.getElementById("exeMessage").className = "success";
-    document.getElementById("exeMessage").textContent = "Configuración guardada.";
-}
-
-function launchGame() {
-    const p = localStorage.getItem("gameblocks_exe_path");
-    if (p) {
-        window.location.href = p;
     } else {
-        alert("Configura primero la ruta del ejecutable en 'Mi Cuenta'.");
-        openAccount();
+        return res.status(400).json({ error: "Falta el destinatario (friendId o groupId)." });
     }
-}
 
-async function redeemCode() {
-    const code = document.getElementById("codeRedeemInput").value;
-    const msg = document.getElementById("codeRedeemMsg");
-    try {
-        const data = await request("/api/codes/redeem", "POST", { code });
-        msg.className = "success";
-        msg.textContent = data.message;
-        updateAccount();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
+    saveDb();
+    res.json({ ok: true, imageUrl });
+});
+
+// ---------------------------------------------------------------------------
+// GRUPOS
+// ---------------------------------------------------------------------------
+
+const GROUP_CREATE_COST = 100;
+
+app.get("/api/groups", (req, res) => {
+    res.json({ groups: db.groups });
+});
+
+app.get("/api/groups/:id", (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    res.json(group);
+});
+
+app.post("/api/groups/create", requireAuth, (req, res) => {
+    const { name, description } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ error: "El grupo necesita un nombre." });
+    const user = req.user;
+    if (user.coins < GROUP_CREATE_COST) return res.status(400).json({ error: "No tienes monedas suficientes para crear un grupo." });
+
+    user.coins -= GROUP_CREATE_COST;
+    const group = {
+        id: nextId(),
+        name: name.trim(),
+        description: description || "",
+        ownerId: user.id,
+        members: [user.id],
+        admins: [],
+        pinned: false,
+        forumEnabled: false,
+        chatEnabled: true,
+        membersEnabled: true,
+        forumPosts: [],
+        groupChatMessages: [],
+        chatSections: [{ id: "general", name: "General" }],
+        newsMessages: [],
+        bannedMembers: []
+    };
+    db.groups.push(group);
+    saveDb();
+    res.json({ group, newBalance: user.coins });
+});
+
+app.post("/api/groups/:id/join", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    if ((group.bannedMembers || []).includes(req.user.id)) {
+        return res.status(403).json({ error: "Has sido baneado de este grupo." });
     }
-}
+    if (!group.members.includes(req.user.id)) group.members.push(req.user.id);
+    saveDb();
+    res.json({ message: "Te has unido al grupo." });
+});
 
-async function userUploadTshirt() {
-    const name = document.getElementById("userTshirtName").value;
-    const imageUrl = document.getElementById("userTshirtUrl").value;
-    const price = document.getElementById("userTshirtCost").value;
-    const onlyBlock = document.getElementById("userTshirtOnlyBlock").value === "true";
-    const msg = document.getElementById("userTshirtMsg");
+app.post("/api/groups/:id/ban-member", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = (group.admins || []).includes(req.user.id);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "No tienes permisos en este grupo." });
 
-    try {
-        await request("/api/tshirts/upload", "POST", { name, imageUrl, price, onlyBlock });
-        msg.className = "success";
-        msg.textContent = "¡Camiseta UGC publicada con éxito!";
-        loadShopItems();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+    const { memberId } = req.body || {};
+    group.members = group.members.filter(id => String(id) !== String(memberId));
+    group.bannedMembers = group.bannedMembers || [];
+    if (!group.bannedMembers.includes(memberId)) group.bannedMembers.push(memberId);
+    saveDb();
+    res.json({ ok: true });
+});
 
-async function createGameCode() {
-    try {
-        const data = await request("/api/game/create-code", "POST");
-        document.getElementById("gameCode").textContent = data.code;
-        document.getElementById("gameCodeContainer").classList.remove("hidden");
-    } catch (e) {
-        document.getElementById("gameCodeMessage").textContent = e.message;
-    }
-}
+app.post("/api/groups/:id/admins", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    if (String(group.ownerId) !== String(req.user.id)) return res.status(403).json({ error: "Solo el dueño puede gestionar admins." });
 
-async function searchUsers() {
-    const q = document.getElementById("searchInput").value;
-    const container = document.getElementById("searchResults");
-    if (!q) return;
+    const { memberId, action } = req.body || {};
+    group.admins = group.admins || [];
+    if (action === "add" && !group.admins.includes(memberId)) group.admins.push(memberId);
+    if (action === "remove") group.admins = group.admins.filter(id => String(id) !== String(memberId));
+    saveDb();
+    res.json({ ok: true });
+});
 
-    try {
-        const data = await request(`/api/users/search?q=${encodeURIComponent(q)}`);
-        container.innerHTML = "";
-        if (data.users.length === 0) {
-            container.textContent = "No se encontraron usuarios.";
-            return;
+app.post("/api/groups/:id/settings", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = (group.admins || []).includes(req.user.id);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "No tienes permisos en este grupo." });
+
+    ["forumEnabled", "chatEnabled", "membersEnabled"].forEach(key => {
+        if (req.body[key] !== undefined) group[key] = !!req.body[key];
+    });
+    saveDb();
+    res.json({ group });
+});
+
+// --- Secciones de chat de grupo (tipo canales) ---
+app.post("/api/groups/:id/chat/sections", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = (group.admins || []).includes(req.user.id);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "Solo el dueño o admins pueden crear secciones." });
+
+    const { name } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ error: "La sección necesita un nombre." });
+
+    group.chatSections = group.chatSections || [{ id: "general", name: "General" }];
+    const section = { id: nextId(), name: name.trim() };
+    group.chatSections.push(section);
+    saveDb();
+    res.json({ section });
+});
+
+app.post("/api/groups/:id/chat/send", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    if (!group.members.includes(req.user.id)) return res.status(403).json({ error: "No eres miembro de este grupo." });
+    if (!group.chatEnabled) return res.status(403).json({ error: "El chat está desactivado en este grupo." });
+
+    const { text, sectionId } = req.body || {};
+    group.groupChatMessages = group.groupChatMessages || [];
+    group.groupChatMessages.push({
+        senderUsername: req.user.username,
+        senderId: req.user.id,
+        text: String(text).slice(0, 1000),
+        sectionId: sectionId || "general",
+        createdAt: Date.now()
+    });
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/groups/:id/news/send", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = (group.admins || []).includes(req.user.id);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "Solo el dueño o admins pueden publicar noticias." });
+
+    const { text } = req.body || {};
+    group.newsMessages = group.newsMessages || [];
+    group.newsMessages.push({ senderUsername: req.user.username, text: String(text).slice(0, 1000), createdAt: Date.now() });
+    saveDb();
+    res.json({ ok: true });
+});
+
+// --- Foros con chat por tema ---
+app.post("/api/groups/:id/forum", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    if (!group.forumEnabled) return res.status(403).json({ error: "El foro está desactivado en este grupo." });
+
+    const { title, content } = req.body || {};
+    if (!title || !content) return res.status(400).json({ error: "Faltan datos del tema." });
+
+    const post = {
+        id: nextId(),
+        title: title.slice(0, 150),
+        content: content.slice(0, 3000),
+        authorId: req.user.id,
+        authorUsername: req.user.username,
+        createdAt: Date.now(),
+        messages: []
+    };
+    group.forumPosts = group.forumPosts || [];
+    group.forumPosts.push(post);
+    saveDb();
+    res.json({ post });
+});
+
+app.post("/api/groups/:id/forum/:postId/messages", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const post = (group.forumPosts || []).find(p => String(p.id) === String(req.params.postId));
+    if (!post) return res.status(404).json({ error: "Tema de foro no encontrado." });
+
+    const { text } = req.body || {};
+    if (!text || !text.trim()) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
+
+    post.messages = post.messages || [];
+    post.messages.push({
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        text: text.slice(0, 1000),
+        createdAt: Date.now()
+    });
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// CÓDIGOS PROMOCIONALES
+// ---------------------------------------------------------------------------
+
+app.post("/api/codes/redeem", requireAuth, (req, res) => {
+    const { code } = req.body || {};
+    const promo = db.codes.find(c => c.code.toLowerCase() === String(code).toLowerCase());
+    if (!promo) return res.status(404).json({ error: "Código no válido." });
+    if (promo.expiresAt && Date.now() > promo.expiresAt) return res.status(400).json({ error: "Este código ha expirado." });
+    if (promo.maxUses && (promo.uses || 0) >= promo.maxUses) return res.status(400).json({ error: "Este código ha alcanzado su límite de usos." });
+    if ((promo.redeemedBy || []).includes(req.user.id)) return res.status(400).json({ error: "Ya has usado este código." });
+
+    const user = req.user;
+    user.coins += Number(promo.coins) || 0;
+    user.dollars += Number(promo.dollars) || 0;
+    let rewardItemName = null;
+    if (promo.rewardItemId) {
+        const item = findItem(promo.rewardItemId);
+        if (item) {
+            user.inventory.push(item.id);
+            item.totalSold = (item.totalSold || 0) + 1;
+            rewardItemName = item.name;
         }
-        data.users.forEach(u => {
-            const div = document.createElement("div");
-            div.className = "result";
-            div.innerHTML = `
-                <div style="display:flex; align-items:center; justify-content:space-between;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${u.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                        <b>${escapeHTML(u.username)}</b>
-                    </div>
-                    <div>
-                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="openUserProfileCard('${u.id}')">Ver Perfil</button>
-                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="sendFriendRequest('${u.id}')">➕ Agregar</button>
-                    </div>
-                </div>
-            `;
-            container.appendChild(div);
-        });
-        openAccount();
-    } catch (e) { alert(e.message); }
-}
-
-async function openUserProfileCard(userId) {
-    currentCardUserId = userId;
-    const modal = document.getElementById("userProfileCardModal");
-    modal.style.display = "flex";
-
-    try {
-        const u = await request(`/api/users/profile/${userId}`);
-        document.getElementById("cardAvatar").src = u.avatar || "https://via.placeholder.com/110";
-        document.getElementById("cardUsername").textContent = u.username;
-        document.getElementById("cardLikesCount").textContent = u.likesCount || 0;
-        document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
-        document.getElementById("cardBio").textContent = u.bio || "Sin biografía.";
-
-        if (u.isAlert) document.getElementById("cardAlertBadge").classList.remove("hidden");
-        else document.getElementById("cardAlertBadge").classList.add("hidden");
-
-        const badgesDiv = document.getElementById("cardBadges");
-        badgesDiv.innerHTML = "";
-        (u.badges || []).forEach(b => {
-            const span = document.createElement("span");
-            span.className = "badge";
-            span.textContent = typeof b === 'object' ? b.name : b;
-            badgesDiv.appendChild(span);
-        });
-
-        const invDiv = document.getElementById("cardInventory");
-        invDiv.innerHTML = "";
-        (u.inventory || []).forEach(item => {
-            const card = document.createElement("div");
-            card.className = "shop-card";
-            card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
-                <div style="font-size:12px; font-weight:bold; margin-top:5px;">${escapeHTML(item.name)}</div>
-            `;
-            invDiv.appendChild(card);
-        });
-    } catch (e) { alert(e.message); }
-}
-
-function closeUserProfileCard() { document.getElementById("userProfileCardModal").style.display = "none"; }
-function outsideCloseUserCard(event) { if (event.target.id === "userProfileCardModal") closeUserProfileCard(); }
-
-async function likeUserCard() {
-    if (!currentCardUserId) return;
-    try {
-        const data = await request(`/api/users/${currentCardUserId}/like`, "POST");
-        document.getElementById("cardLikesCount").textContent = data.likes;
-        document.getElementById("cardDislikesCount").textContent = data.dislikes;
-    } catch (e) { alert(e.message); }
-}
-
-async function dislikeUserCard() {
-    if (!currentCardUserId) return;
-    try {
-        const data = await request(`/api/users/${currentCardUserId}/dislike`, "POST");
-        document.getElementById("cardLikesCount").textContent = data.likes;
-        document.getElementById("cardDislikesCount").textContent = data.dislikes;
-    } catch (e) { alert(e.message); }
-}
-
-async function reportUserCard() {
-    if (!currentCardUserId) return;
-    if (!confirm("¿Deseas reportar a este usuario?")) return;
-    try {
-        const data = await request(`/api/users/${currentCardUserId}/report`, "POST");
-        alert(data.message);
-    } catch (e) { alert(e.message); }
-}
-
-async function loadShopItems() {
-    const type = document.getElementById("catalogTypeSelect").value;
-    const filterContainer = document.getElementById("tshirtFilterContainer");
-    const container = document.getElementById("shopContainer");
-
-    if (type === "tshirt") filterContainer.classList.remove("hidden");
-    else filterContainer.classList.add("hidden");
-
-    try {
-        const data = await request("/api/accessories");
-        container.innerHTML = "";
-
-        const adminFilter = document.getElementById("tshirtAdminFilter").value;
-        const itemsFiltered = data.items.filter(item => {
-            if (item.type !== type) return false;
-            if (type === "tshirt" && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
-            return true;
-        });
-
-        if (itemsFiltered.length === 0) {
-            container.textContent = "No hay artículos disponibles.";
-            return;
-        }
-
-        itemsFiltered.forEach(item => {
-            const card = document.createElement("div");
-            card.className = "shop-card";
-
-            let tags = "";
-            if (item.limited) tags += ` <span style="color:#ffd700; font-size:10px;">[LIMITED]</span>`;
-            if (item.offsale) tags += ` <span style="color:#ff5555; font-size:10px;">[OFFSALE]</span>`;
-            if (item.onlyBlock) tags += ` <span style="color:#00d2ff; font-size:10px;">[BLOCK]</span>`;
-
-            card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
-                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
-                <div class="item-id-label">ID: ${item.id}</div>
-                <div class="copies-sold-label">Vendidos: ${item.totalSold || 0}</div>
-                <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
-                ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
-            `;
-
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.marginTop = "6px";
-            btn.style.padding = "6px";
-            btn.style.fontSize = "12px";
-            btn.textContent = item.offsale ? "Offsale" : "Comprar";
-            btn.disabled = item.offsale;
-            btn.onclick = () => buyAccessory(item.id);
-
-            card.appendChild(btn);
-            container.appendChild(card);
-        });
-    } catch (e) { container.textContent = "Error al cargar la tienda."; }
-}
-
-async function searchUserByName(username) {
-    document.getElementById("searchInput").value = username;
-    searchUsers();
-}
-
-async function buyAccessory(itemId) {
-    try {
-        const data = await request("/api/accessories/buy", "POST", { itemId });
-        alert("¡Compra realizada con éxito!");
-        document.getElementById("userCoinsText").textContent = data.newBalance;
-        loadMyInventory();
-        loadShopItems();
-    } catch (e) { alert(e.message); }
-}
-
-async function loadMyInventory() {
-    const container = document.getElementById("myInventoryContainer");
-    try {
-        const [me, allAcc] = await Promise.all([
-            request("/api/me"),
-            request("/api/accessories/all")
-        ]);
-
-        container.innerHTML = "";
-        if (!me.inventory || me.inventory.length === 0) {
-            container.textContent = "Tu inventario está vacío.";
-            return;
-        }
-
-        const counts = {};
-        me.inventory.forEach(id => counts[id] = (counts[id] || 0) + 1);
-
-        Object.keys(counts).forEach(itemId => {
-            const item = allAcc.items.find(a => String(a.id) === String(itemId)) || {
-                id: itemId,
-                name: "Artículo #" + itemId,
-                imageUrl: "https://via.placeholder.com/80",
-                type: "hat"
-            };
-
-            const card = document.createElement("div");
-            card.className = "shop-card";
-            const isEquipped = String(me.equippedAccessory) === String(itemId);
-
-            card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
-                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)} (x${counts[itemId]})</div>
-                <div class="item-id-label">ID: ${item.id}</div>
-            `;
-
-            const btnEquip = document.createElement("button");
-            btnEquip.className = "form-button";
-            btnEquip.style.marginTop = "4px";
-            btnEquip.style.padding = "4px";
-            btnEquip.style.fontSize = "11px";
-            btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
-            btnEquip.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
-
-            const btnSell = document.createElement("button");
-            btnSell.className = "secondary-button";
-            btnSell.style.marginTop = "4px";
-            btnSell.style.padding = "4px";
-            btnSell.style.fontSize = "11px";
-            btnSell.textContent = "Vender (50%)";
-            btnSell.onclick = () => sellAccessory(item.id);
-
-            card.appendChild(btnEquip);
-            card.appendChild(btnSell);
-
-            if (item.limited && item.offsale) {
-                const btnResell = document.createElement("button");
-                btnResell.className = "admin-button";
-                btnResell.style.marginTop = "4px";
-                btnResell.style.padding = "4px";
-                btnResell.style.fontSize = "11px";
-                btnResell.textContent = "Revender";
-                btnResell.onclick = () => resellAccessory(item.id);
-                card.appendChild(btnResell);
-            }
-
-            container.appendChild(card);
-        });
-    } catch (e) { container.textContent = "Error al cargar el inventario."; }
-}
-
-async function equipAccessory(itemId) {
-    try {
-        const data = await request("/api/accessories/equip", "POST", { itemId });
-        applyProfileStyling(data.profileBgColor, data.profileSoundUrl);
-        const item = (await request("/api/accessories/all")).items.find(a => String(a.id) === String(itemId));
-        if (item && item.glbUrl) document.getElementById("accessoryViewer").src = item.glbUrl;
-        loadMyInventory();
-    } catch (e) { alert(e.message); }
-}
-
-async function unequipAccessory() {
-    try {
-        await request("/api/accessories/unequip", "POST");
-        applyProfileStyling(null, null);
-        document.getElementById("accessoryViewer").src = "";
-        loadMyInventory();
-    } catch (e) { alert(e.message); }
-}
-
-async function sellAccessory(itemId) {
-    if (!confirm("¿Deseas vender una copia por el 50% de su valor?")) return;
-    try {
-        const data = await request("/api/accessories/sell", "POST", { itemId });
-        alert(`Vendido por ${data.refundAmount} monedas.`);
-        updateAccount();
-    } catch (e) { alert(e.message); }
-}
-
-async function resellAccessory(itemId) {
-    const price = prompt("¿A qué precio en monedas deseas publicar este Limited Offsale?:");
-    if (!price) return;
-    try {
-        await request("/api/accessories/resell-list", "POST", { itemId, price });
-        alert("¡Publicado en el mercado de reventa!");
-        loadMyInventory();
-        loadResaleMarket();
-    } catch (e) { alert(e.message); }
-}
-
-async function loadResaleMarket() {
-    const container = document.getElementById("resaleMarketContainer");
-    try {
-        const data = await request("/api/accessories/resale-market");
-        container.innerHTML = "";
-        if (data.listings.length === 0) {
-            container.textContent = "No hay ofertas de reventa.";
-            return;
-        }
-
-        data.listings.forEach(l => {
-            const item = l.item || { name: "Accesorio #" + l.itemId, imageUrl: "https://via.placeholder.com/80" };
-            const card = document.createElement("div");
-            card.className = "shop-card";
-            card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
-                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}</div>
-                <div style="font-size:11px; color:#aaa;">Vendedor: ${escapeHTML(l.sellerUsername)}</div>
-                <div style="font-size:12px; color:#ffd700; margin:4px 0;"> ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
-            `;
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.padding = "5px";
-            btn.style.fontSize = "11px";
-            btn.textContent = "Comprar Reventa";
-            btn.onclick = () => buyResaleItem(l.id);
-
-            card.appendChild(btn);
-            container.appendChild(card);
-        });
-    } catch (e) { container.textContent = "Error al cargar reventas."; }
-}
-
-async function buyResaleItem(listingId) {
-    try {
-        const data = await request("/api/accessories/resell-buy", "POST", { listingId });
-        alert(data.message);
-        updateAccount();
-        loadResaleMarket();
-    } catch (e) { alert(e.message); }
-}
-
-async function loadBanner() {
-    try {
-        const data = await request("/api/banner");
-        const container = document.getElementById("sidebarBannerContainer");
-        if (data.text) {
-            container.textContent = "📢 " + data.text;
-            container.classList.remove("hidden");
-        } else {
-            container.classList.add("hidden");
-        }
-    } catch (e) {}
-}
-
-async function loadFriendsAndRequests() {
-    try {
-        const [reqs, friends] = await Promise.all([
-            request("/api/friends/requests"),
-            request("/api/friends")
-        ]);
-
-        const reqDiv = document.getElementById("requests");
-        reqDiv.innerHTML = "";
-        if (reqs.requests.length === 0) {
-            reqDiv.textContent = "No tienes solicitudes de amistad pendientes.";
-        } else {
-            reqs.requests.forEach(r => {
-                const div = document.createElement("div");
-                div.className = "result";
-                div.innerHTML = `
-                    <span>Solicitud de <b>${escapeHTML(r.username)}</b></span>
-                    <button class="form-button" style="width:auto; padding:5px 10px;" onclick="acceptFriendRequest('${r.id}')">Aceptar</button>
-                `;
-                reqDiv.appendChild(div);
-            });
-        }
-
-        const fDiv = document.getElementById("friends");
-        fDiv.innerHTML = "";
-        if (friends.friends.length === 0) {
-            fDiv.textContent = "No tienes amigos agregados.";
-        } else {
-            friends.friends.forEach(f => {
-                const div = document.createElement("div");
-                div.className = "result";
-                div.innerHTML = `
-                    <div style="display:flex; align-items:center; justify-content:space-between;">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <img src="${f.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
-                            <b>${escapeHTML(f.username)}</b>
-                        </div>
-                        <div>
-                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openChatModal('${f.id}', '${escapeHTML(f.username)}')">💬 Chat</button>
-                            <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openTradeModal('${f.id}', '${escapeHTML(f.username)}')">🤝 Trade</button>
-                        </div>
-                    </div>
-                `;
-                fDiv.appendChild(div);
-            });
-        }
-    } catch (e) {}
-}
-
-async function sendFriendRequest(userId) {
-    try {
-        const data = await request("/api/friends/request", "POST", { userId });
-        alert(data.message);
-    } catch (e) { alert(e.message); }
-}
-
-async function acceptFriendRequest(requestId) {
-    try {
-        const data = await request("/api/friends/accept", "POST", { requestId });
-        alert(data.message);
-        loadFriendsAndRequests();
-    } catch (e) { alert(e.message); }
-}
-
-async function openTradeModal(targetUserId, username) {
-    currentTradeTargetId = targetUserId;
-    document.getElementById("tradeTargetTitle").textContent = "Intercambiar con " + username;
-    document.getElementById("tradeModal").style.display = "flex";
-
-    try {
-        const [me, target, allAcc] = await Promise.all([
-            request("/api/me"),
-            request(`/api/users/profile/${targetUserId}`),
-            request("/api/accessories/all")
-        ]);
-
-        const giveSelect = document.getElementById("tradeGiveSelect");
-        const getSelect = document.getElementById("tradeGetSelect");
-        giveSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
-        getSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
-
-        (me.inventory || []).forEach(itemId => {
-            const item = allAcc.items.find(a => String(a.id) === String(itemId));
-            if (item && item.limited && item.offsale) {
-                giveSelect.innerHTML += `<option value="${item.id}">${escapeHTML(item.name)}</option>`;
-            }
-        });
-
-        (target.inventory || []).forEach(itemObj => {
-            const item = allAcc.items.find(a => String(a.id) === String(itemObj.id));
-            if (item && item.limited && item.offsale) {
-                getSelect.innerHTML += `<option value="${item.id}">${escapeHTML(item.name)}</option>`;
-            }
-        });
-    } catch (e) { alert(e.message); }
-}
-
-function closeTradeModal() { document.getElementById("tradeModal").style.display = "none"; }
-
-async function sendTradeOffer() {
-    const offeredItemId = document.getElementById("tradeGiveSelect").value;
-    const offeredCoins = document.getElementById("tradeGiveCoins").value;
-    const requestedItemId = document.getElementById("tradeGetSelect").value;
-    const requestedCoins = document.getElementById("tradeGetCoins").value;
-
-    try {
-        const data = await request("/api/trade/offer", "POST", {
-            targetUserId: currentTradeTargetId,
-            offeredItemId,
-            offeredCoins,
-            requestedItemId,
-            requestedCoins
-        });
-        alert(data.message);
-        closeTradeModal();
-    } catch (e) { alert(e.message); }
-}
-
-async function loadTrades() {
-    const container = document.getElementById("tradesContainer");
-    try {
-        const data = await request("/api/trade/pending");
-        container.innerHTML = "";
-        if (data.trades.length === 0) {
-            container.textContent = "No tienes ofertas pendientes.";
-            return;
-        }
-        data.trades.forEach(t => {
-            const div = document.createElement("div");
-            div.className = "result";
-            div.innerHTML = `
-                <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
-                <div><b>Ofrece:</b> ${t.offeredItemName} (+ ${t.offeredCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
-                <div><b>Pide:</b> ${t.requestedItemName} (+ ${t.requestedCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
-                <button class="form-button" style="background:#28a745; color:#fff;" onclick="acceptTrade('${t.id}')">Aceptar Intercambio</button>
-            `;
-            container.appendChild(div);
-        });
-    } catch (e) { container.textContent = "Error al cargar intercambios."; }
-}
-
-async function acceptTrade(tradeId) {
-    try {
-        const data = await request("/api/trade/accept", "POST", { tradeId });
-        alert(data.message);
-        updateAccount();
-        loadTrades();
-    } catch (e) { alert(e.message); }
-}
-
-function openChatModal(friendId, username) {
-    currentChatFriendId = friendId;
-    document.getElementById("chatWithTitle").textContent = "💬 Chat con " + username;
-    document.getElementById("chatModal").style.display = "flex";
-    request("/api/me").then(me => {
-        const btn = document.getElementById("chatImageButton");
-        if (btn) btn.style.display = me.hasBlockSub ? "inline-block" : "none";
-    }).catch(() => {});
-    loadChatMessages();
-}
-
-function closeChatModal() { document.getElementById("chatModal").style.display = "none"; }
-
-async function loadChatMessages() {
-    if (!currentChatFriendId) return;
-    const box = document.getElementById("chatMessagesBox");
-    try {
-        const me = await request("/api/me");
-        const data = await request(`/api/chat/${currentChatFriendId}`);
-        box.innerHTML = "";
-        if (data.messages.length === 0) {
-            box.textContent = "Sin mensajes aún.";
-            return;
-        }
-        data.messages.forEach(m => {
-            const div = document.createElement("div");
-            const isMe = String(m.senderId) === String(me.id);
-            div.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-them'}`;
-            if (m.text) {
-                const textDiv = document.createElement('div');
-                textDiv.textContent = m.text;
-                div.appendChild(textDiv);
-            }
-            if (m.imageUrl) {
-                const img = document.createElement('img');
-                img.src = m.imageUrl.startsWith('http') ? m.imageUrl : RENDER_API + m.imageUrl;
-                img.className = 'chat-image';
-                img.alt = 'Imagen enviada';
-                img.loading = 'lazy';
-                div.appendChild(img);
-            }
-            box.appendChild(div);
-        });
-        box.scrollTop = box.scrollHeight;
-    } catch (e) { box.textContent = "Error al cargar el chat."; }
-}
-
-async function sendChatMessage() {
-    const textInput = document.getElementById("chatInputText");
-    const text = textInput.value;
-    const errorMsg = document.getElementById("chatErrorMsg");
-    errorMsg.textContent = "";
-
-    if (!text.trim()) return;
-
-    try {
-        await request("/api/chat/send", "POST", { friendId: currentChatFriendId, text });
-        textInput.value = "";
-        loadChatMessages();
-    } catch (e) { errorMsg.textContent = e.message; }
-}
-
-async function sendChatImage() {
-    const input = document.getElementById("chatImageInput");
-    const errorMsg = document.getElementById("chatErrorMsg");
-    errorMsg.textContent = "";
-    if (!input.files[0] || !currentChatFriendId) return;
-
-    try {
-        const token = localStorage.getItem("gameblocks_token");
-        const formData = new FormData();
-        formData.append("friendId", currentChatFriendId);
-        formData.append("image", input.files[0]);
-
-        const response = await fetch(RENDER_API + "/api/chat/upload", {
-            method: "POST",
-            headers: token ? { Authorization: "Bearer " + token } : {},
-            body: formData
-        });
-        const raw = await response.text();
-        let data = {};
-        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
-        if (!response.ok) throw new Error(data.error || `Error del servidor (${response.status}).`);
-
-        input.value = "";
-        loadChatMessages();
-    } catch (e) {
-        input.value = "";
-        errorMsg.textContent = e.message;
     }
-}
+    promo.uses = (promo.uses || 0) + 1;
+    promo.redeemedBy = promo.redeemedBy || [];
+    promo.redeemedBy.push(user.id);
+    saveDb();
+    res.json({ message: "Código canjeado con éxito.", coins: user.coins, dollars: user.dollars, rewardItemName });
+});
 
-function insertEmoji(emoji) {
-    const input = document.getElementById("chatInputText");
-    input.value += emoji;
-}
+// ---------------------------------------------------------------------------
+// TRADES (INTERCAMBIOS DE LIMITEDS)
+// ---------------------------------------------------------------------------
 
-// ADMIN Y REPORTES
-async function loadReportedUsersInbox() {
-    const container = document.getElementById("reportedUsersInbox");
-    try {
-        const data = await request("/api/admin/reports");
-        container.innerHTML = "";
-        if (data.reportedUsers.length === 0) {
-            container.textContent = "No hay usuarios reportados con 10 o más denuncias.";
-            return;
-        }
+app.get("/api/trade/pending", requireAuth, (req, res) => {
+    const pending = db.trades.filter(t => t.toUserId === req.user.id && t.status === "pending");
+    res.json({ trades: pending });
+});
 
-        data.reportedUsers.forEach(u => {
-            const div = document.createElement("div");
-            div.className = "result";
-            div.style.borderColor = "#ff4444";
-            div.innerHTML = `
-                <div><b>Usuario:</b> ${escapeHTML(u.username)} (ID: ${u.id})</div>
-                <div><b>Total Denuncias:</b> <span style="color:#ff5555; font-weight:bold;">${u.reportsCount}</span></div>
-                <div><b>Estado:</b> ${u.banned ? 'BANEADO' : 'Activo'}</div>
-                <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;">
-                    <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px;" onclick="adminRenameReported('${u.id}')">Cambiar nombre</button>
-                    <button class="danger-button" style="padding:4px 8px;" onclick="adminBanReported('${u.id}')">Banear Cuenta</button>
-                    <button class="admin-button" style="padding:4px 8px;" onclick="adminClearReported('${u.id}')">Borrar Denuncias</button>
-                </div>
-            `;
-            container.appendChild(div);
-        });
-    } catch (e) { container.textContent = "Error al cargar reportes."; }
-}
+app.post("/api/trade/offer", requireAuth, (req, res) => {
+    const { toUsername, giveItemId, giveCoins, getItemId, getCoins } = req.body || {};
+    const toUser = findUserByUsername(toUsername);
+    if (!toUser) return res.status(404).json({ error: "Usuario no encontrado." });
 
-async function adminRenameReported(userId) {
-    try {
-        await request("/api/admin/reports/rename", "POST", { userId });
-        loadReportedUsersInbox();
-    } catch (e) { alert(e.message); }
-}
+    const trade = {
+        id: nextId(),
+        fromUserId: req.user.id,
+        fromUsername: req.user.username,
+        toUserId: toUser.id,
+        giveItemId, giveCoins: Number(giveCoins) || 0,
+        getItemId, getCoins: Number(getCoins) || 0,
+        status: "pending",
+        createdAt: Date.now()
+    };
+    db.trades.push(trade);
+    saveDb();
+    res.json({ trade });
+});
 
-async function adminBanReported(userId) {
-    try {
-        await request("/api/admin/reports/ban", "POST", { userId });
-        loadReportedUsersInbox();
-    } catch (e) { alert(e.message); }
-}
+app.post("/api/trade/accept", requireAuth, (req, res) => {
+    const { tradeId } = req.body || {};
+    const trade = db.trades.find(t => String(t.id) === String(tradeId));
+    if (!trade || trade.status !== "pending") return res.status(404).json({ error: "Oferta no encontrada o ya resuelta." });
 
-async function adminClearReported(userId) {
-    try {
-        await request("/api/admin/reports/clear", "POST", { userId });
-        loadReportedUsersInbox();
-    } catch (e) { alert(e.message); }
-}
+    const fromUser = db.users.find(u => u.id === trade.fromUserId);
+    const toUser = req.user;
+    if (String(trade.toUserId) !== String(toUser.id)) return res.status(403).json({ error: "Esta oferta no es para ti." });
 
-async function adminSetBlockReward() {
-    const itemId = document.getElementById("adminBlockRewardItemId").value;
-    try {
-        await request("/api/admin/settings/block-reward", "POST", { itemId });
-        alert("ID de Regalo de Suscripción guardado.");
-    } catch (e) { alert(e.message); }
-}
-
-async function adminCreateCode() {
-    const code = document.getElementById("adminCodeName").value;
-    const coins = document.getElementById("adminCodeCoins").value;
-    const dollars = document.getElementById("adminCodeDollars").value;
-    const maxUses = document.getElementById("adminCodeMaxUses").value;
-    const expiresInDays = document.getElementById("adminCodeExpiresDays").value;
-    const rewardItemId = document.getElementById("adminCodeRewardItem").value;
-    const msg = document.getElementById("adminCodeMsg");
-
-    try {
-        await request("/api/admin/codes/create", "POST", { code, coins, dollars, maxUses, expiresInDays, rewardItemId });
-        msg.className = "success";
-        msg.textContent = "Código creado correctamente.";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function adminUploadTshirt() {
-    const name = document.getElementById("adminTshirtName").value;
-    const limited = document.getElementById("adminTshirtIsLimited").value === "si";
-    const maxPerUser = document.getElementById("adminTshirtMaxUser").value;
-    const maxGlobal = document.getElementById("adminTshirtMaxGlobal").value;
-    const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
-    const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
-    const onlyBlock = document.getElementById("adminTshirtOnlyBlock").value === "true";
-    const imageUrl = document.getElementById("adminTshirtImgUrl").value;
-    const price = document.getElementById("adminTshirtPrice").value;
-    const msg = document.getElementById("adminTshirtMsg");
-
-    try {
-        await request("/api/admin/tshirts/upload", "POST", {
-            name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price
-        });
-        msg.className = "success";
-        msg.textContent = "Camiseta subida por Admin.";
-        loadShopItems();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-async function adminEditAccessory() {
-    const itemId = document.getElementById("editItemId").value;
-    const price = document.getElementById("editItemPrice").value;
-    const limited = document.getElementById("editItemLimited").value;
-    const offsale = document.getElementById("editItemOffsale").value;
-    const isGhost = document.getElementById("editItemIsGhost").value;
-    const onlyBlock = document.getElementById("editItemOnlyBlock").value;
-    const bgColor = document.getElementById("editItemBgColor").value;
-    const soundUrl = document.getElementById("editItemSoundUrl").value;
-
-    try {
-        await request("/api/admin/accessories/edit", "POST", {
-            itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl
-        });
-        alert("Artículo editado.");
-        loadShopItems();
-    } catch (e) { alert(e.message); }
-}
-
-async function uploadAccessory() {
-    const fileInput = document.getElementById("accessoryGlbFile");
-    const name = document.getElementById("accessoryName").value;
-    const limited = document.getElementById("accessoryIsLimited").value === "si";
-    const offsale = document.getElementById("accessoryIsOffsale").value === "si";
-    const onlyBlock = document.getElementById("accessoryOnlyBlock").value === "true";
-    const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
-    const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
-    const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
-    const bgColor = document.getElementById("accessoryBgColor").value;
-    const soundUrl = document.getElementById("accessorySoundUrl").value;
-    const price = document.getElementById("accessoryPrice").value;
-    const imageUrl = document.getElementById("accessoryPngUrl").value;
-    const msg = document.getElementById("accessoryUploadMsg");
-
-    if (!fileInput.files[0]) {
-        msg.className = "error";
-        msg.textContent = "Selecciona un archivo .GLB";
-        return;
+    if (trade.giveCoins > fromUser.coins || trade.getCoins > toUser.coins) {
+        return res.status(400).json({ error: "Alguna de las partes no tiene monedas suficientes." });
     }
 
-    const formData = new FormData();
-    formData.append("glb", fileInput.files[0]);
-    formData.append("name", name);
-    formData.append("limited", limited);
-    formData.append("offsale", offsale);
-    formData.append("onlyBlock", onlyBlock);
-    formData.append("maxPerUser", maxPerUser);
-    formData.append("maxGlobal", maxGlobal);
-    formData.append("expiresInDays", expiresInDays);
-    formData.append("bgColor", bgColor);
-    formData.append("soundUrl", soundUrl);
-    formData.append("price", price);
-    formData.append("imageUrl", imageUrl);
+    // Intercambiar items
+    if (trade.giveItemId) {
+        const idx = fromUser.inventory.findIndex(id => String(id) === String(trade.giveItemId));
+        if (idx !== -1) { fromUser.inventory.splice(idx, 1); toUser.inventory.push(trade.giveItemId); }
+    }
+    if (trade.getItemId) {
+        const idx = toUser.inventory.findIndex(id => String(id) === String(trade.getItemId));
+        if (idx !== -1) { toUser.inventory.splice(idx, 1); fromUser.inventory.push(trade.getItemId); }
+    }
+    fromUser.coins -= trade.giveCoins;
+    toUser.coins += trade.giveCoins;
+    toUser.coins -= trade.getCoins;
+    fromUser.coins += trade.getCoins;
 
-    try {
-        const token = localStorage.getItem("gameblocks_token");
-        const res = await fetch(RENDER_API + "/api/admin/accessories/upload", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + token },
-            body: formData
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        msg.className = "success";
-        msg.textContent = "Accesorio 3D subido con éxito.";
-        loadShopItems();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+    trade.status = "accepted";
+    saveDb();
+    res.json({ ok: true });
+});
 
-async function adminRenameUser() {
-    const targetUsername = document.getElementById("adminRenameTarget").value;
-    const newName = document.getElementById("adminRenameNewName").value;
-    const msg = document.getElementById("adminRenameMsg");
-    try {
-        await request("/api/admin/users/rename", "POST", { targetUsername, newName });
-        msg.className = "success";
-        msg.textContent = "Nombre cambiado correctamente.";
-        updateAccount();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+// ---------------------------------------------------------------------------
+// JUEGO: CÓDIGO DE VINCULACIÓN (login desde el ejecutable)
+// ---------------------------------------------------------------------------
 
-async function adminAddBadgeFromPanel() {
-    const username = document.getElementById("adminRenameTarget").value;
-    const type = document.getElementById("adminBadgeType").value;
-    const custom = document.getElementById("adminBadgeCustom").value.trim();
-    const msg = document.getElementById("adminBadgeMsg");
-    const badgeName = type === "custom" ? custom : type;
-    if (!username.trim() || !badgeName.trim()) {
-        msg.className = "error";
-        msg.textContent = "Indica usuario e insignia.";
-        return;
-    }
-    try {
-        await request("/api/admin/badges/add", "POST", { username, badgeName });
-        msg.className = "success";
-        msg.textContent = "Insignia añadida.";
-        updateAccount();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+app.post("/api/game/create-code", requireAuth, (req, res) => {
+    const code = crypto.randomBytes(3).toString("hex").toUpperCase();
+    db.gameLinkCodes = db.gameLinkCodes || {};
+    db.gameLinkCodes[code] = { userId: req.user.id, createdAt: Date.now() };
+    saveDb();
+    res.json({ code });
+});
 
-async function adminAddCoins() {
-    const username = document.getElementById("coinTargetUser").value;
-    const amount = document.getElementById("coinAmount").value;
-    const msg = document.getElementById("coinAdminMsg");
-    try {
-        await request("/api/admin/coins/add", "POST", { username, amount });
-        msg.className = "success";
-        msg.textContent = "Monedas otorgadas.";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+// ---------------------------------------------------------------------------
+// BANNER
+// ---------------------------------------------------------------------------
 
-async function adminAddDollars() {
-    const username = document.getElementById("dollarTargetUser").value;
-    const amount = document.getElementById("dollarAmount").value;
-    const msg = document.getElementById("dollarAdminMsg");
-    try {
-        await request("/api/admin/dollars/add", "POST", { username, amount });
-        msg.className = "success";
-        msg.textContent = "💲 otorgados.";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+app.get("/api/banner", (req, res) => res.json({ text: db.settings.bannerText || "" }));
 
-async function saveOwnerBanner() {
-    const text = document.getElementById("bannerTextInput").value;
-    const msg = document.getElementById("bannerMsg");
-    try {
-        await request("/api/admin/banner", "POST", { text });
-        msg.className = "success";
-        msg.textContent = "Banner actualizado.";
-        loadBanner();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+app.post("/api/admin/banner", requireAdmin, (req, res) => {
+    db.settings.bannerText = (req.body && req.body.text) || "";
+    saveDb();
+    res.json({ ok: true });
+});
 
-window.onload = () => {
-    const badgeType = document.getElementById("adminBadgeType");
-    if (badgeType) {
-        badgeType.addEventListener("change", () => {
-            const custom = document.getElementById("adminBadgeCustom");
-            if (custom) custom.classList.toggle("hidden", badgeType.value !== "custom");
-        });
+// ---------------------------------------------------------------------------
+// EVENTOS
+// ---------------------------------------------------------------------------
+
+app.get("/api/events/active", (req, res) => {
+    const event = db.events.find(e => e.active);
+    res.json({ event: event || null });
+});
+
+app.post("/api/admin/events/save", requireAdmin, (req, res) => {
+    const { name, description, themeColor, items, customHtml, active } = req.body || {};
+    // Solo un evento puede estar activo a la vez
+    if (active) db.events.forEach(e => (e.active = false));
+
+    const event = {
+        id: nextId(),
+        name: name || "Evento Especial",
+        description: description || "",
+        themeColor: themeColor || "#ffd700",
+        items: Array.isArray(items) ? items : [],
+        customHtml: customHtml || "",
+        active: !!active,
+        createdAt: Date.now()
+    };
+    db.events.push(event);
+    saveDb();
+    res.json({ event });
+});
+
+app.post("/api/admin/events/delete", requireAdmin, (req, res) => {
+    db.events = db.events.filter(e => !e.active);
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// STAR CODES
+// ---------------------------------------------------------------------------
+
+app.post("/api/admin/starcodes/create", requireAdmin, (req, res) => {
+    const { code, ownerUsername } = req.body || {};
+    if (!code || !ownerUsername) return res.status(400).json({ error: "Faltan datos." });
+    const owner = findUserByUsername(ownerUsername);
+    if (!owner) return res.status(404).json({ error: "Usuario asociado no encontrado." });
+    if (db.starCodes.some(c => c.code.toLowerCase() === code.toLowerCase())) {
+        return res.status(400).json({ error: "Ese Star Code ya existe." });
     }
-    loadSavedHomeBgColor();
-    if (localStorage.getItem("gameblocks_token")) {
-        updateAccount();
+    const starCode = { code, ownerId: owner.id, ownerUsername: owner.username, uses: 0 };
+    db.starCodes.push(starCode);
+    saveDb();
+    res.json({ starCode });
+});
+
+// ---------------------------------------------------------------------------
+// ADMIN: USUARIOS, INSIGNIAS, BANEOS
+// ---------------------------------------------------------------------------
+
+app.post("/api/admin/users/rename", requireAdmin, (req, res) => {
+    const { targetUsername, newName } = req.body || {};
+    const user = findUserByUsername(targetUsername);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (findUserByUsername(newName)) return res.status(400).json({ error: "Ese nombre ya está en uso." });
+    user.username = newName;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/badges/add", requireAdmin, (req, res) => {
+    const { username, badgeName } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.badges = user.badges || [];
+    if (!user.badges.some(b => (typeof b === "object" ? b.name : b) === badgeName)) {
+        user.badges.push({ name: badgeName, addedAt: Date.now() });
     }
-};
-</script>
-</body>
-</html>
+    if (badgeName === "co-owner") user.owner = true; // el co-owner obtiene también acceso de administración
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/badges/remove", requireAdmin, (req, res) => {
+    const { username, badgeName } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.badges = (user.badges || []).filter(b => (typeof b === "object" ? b.name : b) !== badgeName);
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/users/ban", requireAdmin, (req, res) => {
+    const { username, days } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (isAdminUser(user) && !req.user.owner) {
+        return res.status(403).json({ error: "No puedes banear a otro administrador." });
+    }
+    user.banned = true;
+    user.bannedUntil = days ? Date.now() + Number(days) * 86400000 : null;
+    saveDb();
+    res.json({
+        message: days
+            ? `Usuario suspendido durante ${days} día(s).`
+            : "Usuario baneado permanentemente."
+    });
+});
+
+app.post("/api/admin/users/unban", requireAdmin, (req, res) => {
+    const { username } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.banned = false;
+    user.bannedUntil = null;
+    saveDb();
+    res.json({ message: "Usuario desbaneado correctamente." });
+});
+
+app.post("/api/account/delete-banned", requireAuth, (req, res) => {
+    // Un usuario baneado puede solicitar el borrado de su propia cuenta
+    db.users = db.users.filter(u => u.id !== req.user.id);
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// REPORTES
+// ---------------------------------------------------------------------------
+
+app.post("/api/users/:id/report", requireAuth, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.reportsCount = (user.reportsCount || 0) + 1;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.get("/api/admin/reports", requireAdmin, (req, res) => {
+    const reportedUsers = db.users
+        .filter(u => (u.reportsCount || 0) >= 10)
+        .map(u => ({ id: u.id, username: u.username, reportsCount: u.reportsCount, banned: !!u.banned }));
+    res.json({ reportedUsers });
+});
+
+app.post("/api/admin/reports/rename", requireAdmin, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.body.userId));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.username = `Usuario${user.id}`;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/reports/ban", requireAdmin, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.body.userId));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.banned = true;
+    user.bannedUntil = null;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/reports/clear", requireAdmin, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.body.userId));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.reportsCount = 0;
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// ADMIN: AJUSTES Y CÓDIGOS
+// ---------------------------------------------------------------------------
+
+app.post("/api/admin/settings/block-reward", requireAdmin, (req, res) => {
+    db.settings.blockRewardItemId = req.body.itemId || null;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/settings/turbo-block-reward", requireAdmin, (req, res) => {
+    db.settings.turboBlockRewardItemId = req.body.itemId || null;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/codes/create", requireAdmin, (req, res) => {
+    const { code, coins, dollars, maxUses, expiresInDays, rewardItemId } = req.body || {};
+    if (!code) return res.status(400).json({ error: "Falta el nombre del código." });
+    const promo = {
+        code,
+        coins: Number(coins) || 0,
+        dollars: Number(dollars) || 0,
+        maxUses: maxUses ? Number(maxUses) : null,
+        expiresAt: expiresInDays ? Date.now() + Number(expiresInDays) * 86400000 : null,
+        rewardItemId: rewardItemId || null,
+        uses: 0,
+        redeemedBy: []
+    };
+    db.codes.push(promo);
+    saveDb();
+    res.json({ promo });
+});
+
+app.post("/api/admin/coins/add", requireAdmin, (req, res) => {
+    const { username, amount } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.coins += Number(amount) || 0;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/dollars/add", requireAdmin, (req, res) => {
+    const { username, amount } = req.body || {};
+    const user = findUserByUsername(username);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.dollars += Number(amount) || 0;
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/admin/groups/pin", requireAdmin, (req, res) => {
+    const { groupId } = req.body || {};
+    const group = db.groups.find(g => String(g.id) === String(groupId));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    group.pinned = !group.pinned;
+    saveDb();
+    res.json({ message: group.pinned ? "Grupo fijado 📌" : "Grupo desfijado." });
+});
+
+// ---------------------------------------------------------------------------
+// SALUD / RAÍZ
+// ---------------------------------------------------------------------------
+
+app.get("/", (req, res) => res.send("Game Blocks API funcionando correctamente."));
+app.get("/api/health", (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+// ---------------------------------------------------------------------------
+app.listen(PORT, () => {
+    console.log(`Game Blocks server escuchando en el puerto ${PORT}`);
+    console.log(`Base de datos persistente en: ${DB_FILE}`);
+});
