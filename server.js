@@ -70,25 +70,31 @@ function loadDb() {
             const raw = fs.readFileSync(DB_FILE, "utf-8");
             const parsed = JSON.parse(raw);
             db = Object.assign(defaultDb(), parsed);
+            
+            // 🛡️ NUEVO: Normalizar cada usuario para que nunca falten propiedades y no explote
+            db.users = (db.users || []).map(u => ({
+                inventory: [],
+                badges: [],
+                friends: [],
+                friendRequests: [],
+                followers: [],
+                following: [],
+                likedBy: [],
+                dislikedBy: [],
+                blockSub: { active: false, expiresAt: 0 },
+                turboBlockSub: { active: false, expiresAt: 0 },
+                ...u,
+                admin: !!u.admin,
+                owner: !!u.owner,
+                banned: !!u.banned,
+                active: u.active !== false
+            }));
         } else {
             saveDb();
         }
-    } catch (e) {
+    } catch (e)  {
         console.error("Error cargando la base de datos, se usa una nueva:", e.message);
     }
-}
-
-let saveTimer = null;
-function saveDb() {
-    // Debounce ligero para no escribir a disco en cada micro-cambio
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        try {
-            fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-        } catch (e) {
-            console.error("Error guardando la base de datos:", e.message);
-        }
-    }, 150);
 }
 
 function nextId() {
