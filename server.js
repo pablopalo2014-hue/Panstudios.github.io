@@ -397,13 +397,21 @@ app.post("/api/register", (req, res) => {
 app.post("/api/login", (req, res) => {
     const { username, password } = req.body || {};
     const user = findUserByUsername(username);
+    
+    // Forzar limpieza de baneo e inactividad si es la cuenta owner
+    if (user && user.username.toLowerCase() === "owner") {
+        user.banned = false;
+        user.bannedUntil = null;
+        user.active = true;
+    }
+
     if (!user || !verifyPassword(password, user.passwordHash)) {
         return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
     }
     if (isBanStillActive(user)) {
         return res.status(403).json({ error: bannedMessage(user) });
     }
-    // Al iniciar sesión, la cuenta deja de estar inactiva automáticamente.
+
     if (user.active === false) user.active = true;
     const token = issueToken(user.id);
     saveDb();
