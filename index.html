@@ -28,8 +28,8 @@ body {
     left: 0;
     width: 100%;
     height: 65px;
-    background: #111;
-    border-bottom: 2px solid #292929;
+    background: #0a1440;
+    border-bottom: 2px solid #14225e;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -668,8 +668,17 @@ model-viewer {
 <div id="groupDetailModal" class="modal">
     <div class="modal-box" style="max-width: 650px;">
         <button class="close" onclick="closeGroupDetailModal()">×</button>
-        <h2 id="groupDetailName" style="margin:0; color:#ff8800;">Nombre del Grupo</h2>
-        <div id="groupDetailId" style="font-size: 11px; color: #888; margin-bottom: 10px;">ID: --</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <img id="groupDetailIcon" src="" alt="" style="width:52px; height:52px; border-radius:8px; object-fit:cover; border:1px solid #444; display:none;">
+            <div>
+                <h2 id="groupDetailName" style="margin:0; color:#ff8800;">Nombre del Grupo</h2>
+                <div id="groupDetailId" style="font-size: 11px; color: #888;">ID: --</div>
+            </div>
+        </div>
+        <div id="groupIconAdminArea" class="hidden" style="display:flex; gap:6px; align-items:center; margin:8px 0;">
+            <input type="file" id="groupIconFileInput" accept="image/*" class="hidden" onchange="uploadGroupIcon()">
+            <button class="secondary-button" style="width:auto; margin:0; padding:5px 10px; font-size:11px;" onclick="document.getElementById('groupIconFileInput').click()">🖼️ Cambiar icono del grupo</button>
+        </div>
         <p id="groupDetailDesc" style="color: #ccc; background: #151515; padding: 10px; border-radius: 4px; border: 1px solid #333;"></p>
 
         <!-- CHAT DE NOTICIAS (Solo admins pueden hablar) -->
@@ -844,10 +853,14 @@ model-viewer {
 <div id="accountView" class="hidden">
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
-        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="editAvatar()">🖼️ Cambiar foto</button>
+        <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="editAvatar()">
+        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="document.getElementById('avatarFileInput').click()">🖼️ Cambiar foto</button>
+        <div id="avatarUploadMsg" style="font-size:11px; margin-top:4px;"></div>
+        <div id="myAccountIdLabel" style="font-size:11px; color:#888; margin-top:4px;"></div>
     </div>
 
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
+
 
     <div class="section" style="background:#151515; padding:15px; border-radius:8px; border:1px solid #333;">
         <h3>🎟️ Canjear Código promocional</h3>
@@ -1137,7 +1150,27 @@ model-viewer {
         <div id="friends">Cargando...</div>
     </div>
 
+    <div class="section">
+        <h3>✉️ Mensajes de Administración</h3>
+        <div id="myAdminMessages">No tienes mensajes.</div>
+    </div>
+
+    <div class="section">
+        <h3>🌟 Crear mi Star Code</h3>
+        <small style="color:#888;">Usa tu ID de cuenta privado, se asociará automáticamente a ti.</small>
+        <input type="text" id="ownStarCodeName" placeholder="Nombre del Star Code" style="margin-top:6px;">
+        <button class="form-button" onclick="createOwnStarCode()">Crear Star Code</button>
+        <p id="ownStarCodeMsg"></p>
+    </div>
+
+    <div id="ownerAccountIdsPanel" class="section hidden">
+        <h3>👑 IDs de todas las cuentas (Solo Owner)</h3>
+        <div id="ownerAccountIdsList">Cargando...</div>
+    </div>
+
+    <button class="secondary-button" onclick="setAccountInactive()">😴 Ponerme inactivo (cierra sesión)</button>
     <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
+    <button class="danger-button" style="margin-top:8px;" onclick="deleteAccountFully()">🗑️ Borrar mi cuenta permanentemente (100%)</button>
 </div>
 
 </div>
@@ -1165,15 +1198,21 @@ model-viewer {
                 <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
                     <option value="hat">Sombreros / Accesorios 3D</option>
                     <option value="tshirt">Camisetas</option>
+                    <option value="gear">⚙️ Gears</option>
                 </select>
             </div>
 
             <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
-                <label style="font-size:12px; color:#aaa;">Filtrar Camisetas:</label>
+                <label style="font-size:12px; color:#aaa;">Filtrar por creador:</label>
                 <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
-                    <option value="all">Todas las Camisetas</option>
+                    <option value="all">Todos</option>
                     <option value="adminOnly">Creado por Admins (Sí)</option>
                 </select>
+            </div>
+
+            <div id="gearComingSoon" class="hidden" style="margin-top:15px; text-align:center; padding: 30px 10px; border:1px dashed #444; border-radius:8px;">
+                <h3 style="margin:0; color:#aaa;">Próximamente</h3>
+                <small style="color:#666;">quien sabe que podrá tener tu inventario...</small>
             </div>
 
             <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
@@ -1285,6 +1324,12 @@ let currentCardUserId = null;
 let currentOpenGroupId = null;
 let profileAudio = null;
 
+// Cada 10 segundos se envía un "ping" vacío al servidor (mantiene la sesión
+// y el servidor activos, especialmente en hostings gratuitos que "duermen").
+setInterval(() => {
+    fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+}, 10000);
+
 function escapeHTML(str) {
     if (typeof str !== 'string') return str;
     return str.replace(/[&<>"']/g, (m) => ({
@@ -1294,6 +1339,14 @@ function escapeHTML(str) {
         '"': '&quot;',
         "'": '&#039;'
     })[m]);
+}
+
+// Convierte una URL relativa devuelta por el servidor (p.ej. "/uploads/xxx.png")
+// en una URL absoluta. Las URLs externas (http/https) se dejan tal cual.
+function absUrl(url) {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    return RENDER_API + url;
 }
 
 // CAMBIAR Y MANTENER COLOR DE FONDO LOCAL
@@ -1493,6 +1546,14 @@ async function loadGroupData() {
         document.getElementById("groupDetailId").textContent = "ID: " + group.id;
         document.getElementById("groupDetailDesc").textContent = group.description || "Sin descripción";
 
+        const iconEl = document.getElementById("groupDetailIcon");
+        if (group.iconUrl) {
+            iconEl.src = absUrl(group.iconUrl);
+            iconEl.style.display = "block";
+        } else {
+            iconEl.style.display = "none";
+        }
+
         // Chat de noticias
         const newsBox = document.getElementById("groupNewsBox");
         newsBox.innerHTML = "";
@@ -1514,8 +1575,10 @@ async function loadGroupData() {
 
         if (isOwner || isAdmin) {
             document.getElementById("groupNewsInputArea").classList.remove("hidden");
+            document.getElementById("groupIconAdminArea").classList.remove("hidden");
         } else {
             document.getElementById("groupNewsInputArea").classList.add("hidden");
+            document.getElementById("groupIconAdminArea").classList.add("hidden");
         }
 
         if (isOwner || isAdmin) {
@@ -1562,7 +1625,7 @@ async function loadGroupData() {
             div.innerHTML = `
                 <div style="display:flex; align-items:center; justify-content:space-between;">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <img src="${m.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                        <img src="${absUrl(m.avatar) || 'https://via.placeholder.com/30'}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
                         <b>${escapeHTML(m.username)}</b> ${mIsOwner ? '👑 [Owner]' : mIsAdmin ? '🛡️ [Admin]' : ''}
                     </div>
                     <div>
@@ -1605,6 +1668,26 @@ function switchGroupTab(tabName) {
         document.getElementById('groupTabChats').classList.remove('hidden');
         document.getElementById('tabBtnChats').classList.add('active');
     }
+}
+
+async function uploadGroupIcon() {
+    const fileInput = document.getElementById("groupIconFileInput");
+    if (!fileInput.files || !fileInput.files[0] || !currentOpenGroupId) return;
+    const formData = new FormData();
+    formData.append("image", fileInput.files[0]);
+    try {
+        const token = localStorage.getItem("gameblocks_token");
+        const uploadRes = await fetch(RENDER_API + "/api/upload/image", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+            body: formData
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error);
+        await request(`/api/groups/${currentOpenGroupId}/icon`, "POST", { iconUrl: uploadData.imageUrl });
+        loadGroupData();
+    } catch (e) { alert(e.message); }
+    finally { fileInput.value = ""; }
 }
 
 async function sendGroupNews() {
@@ -2061,6 +2144,70 @@ async function deleteBannedAccount() {
     } catch (e) { alert(e.message); }
 }
 
+async function deleteAccountFully() {
+    if (!confirm("Esto borrará tu cuenta y TODOS tus datos del servidor de forma permanente e irreversible. ¿Deseas continuar?")) return;
+    if (!confirm("Confirmación final: ¿SEGURO que quieres borrar tu cuenta al 100%? Esta acción no se puede deshacer.")) return;
+    try {
+        await request("/api/account/delete-self", "POST");
+        alert("Tu cuenta y todos tus datos han sido eliminados.");
+        logout();
+    } catch (e) { alert(e.message); }
+}
+
+async function setAccountInactive() {
+    if (!confirm("Tu cuenta pasará a estar inactiva (solo se verá tu foto, nombre y 'Inactivo') y se cerrará tu sesión. ¿Continuar?")) return;
+    try {
+        await request("/api/account/set-inactive", "POST");
+        logout();
+    } catch (e) { alert(e.message); }
+}
+
+async function createOwnStarCode() {
+    const code = document.getElementById("ownStarCodeName").value;
+    const msg = document.getElementById("ownStarCodeMsg");
+    try {
+        const data = await request("/api/starcodes/create-own", "POST", { code });
+        msg.className = "success";
+        msg.textContent = `¡Star Code "${data.starCode.code}" creado!`;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function loadOwnerAccountIds() {
+    const container = document.getElementById("ownerAccountIdsList");
+    try {
+        const data = await request("/api/owner/account-ids");
+        container.innerHTML = "";
+        data.users.forEach(u => {
+            const div = document.createElement("div");
+            div.style.fontSize = "12px";
+            div.style.color = "#ccc";
+            div.textContent = `ID ${u.id} — ${u.username}`;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar."; }
+}
+
+async function loadMyAdminMessages() {
+    const container = document.getElementById("myAdminMessages");
+    try {
+        const data = await request("/api/messages");
+        if (!data.messages || data.messages.length === 0) {
+            container.textContent = "No tienes mensajes.";
+            return;
+        }
+        container.innerHTML = "";
+        data.messages.forEach(m => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `<b style="color:#ff8800;">${escapeHTML(m.fromUsername)} (Admin):</b> ${escapeHTML(m.text)}`;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar mensajes."; }
+}
+
 async function updateAccount() {
     const token = localStorage.getItem("gameblocks_token");
     if (!token) {
@@ -2073,10 +2220,11 @@ async function updateAccount() {
         showAccount();
 
         document.getElementById("welcome").textContent = "Hola, " + me.username;
-        document.getElementById("myAvatar").src = me.avatar || "https://via.placeholder.com/110";
+        document.getElementById("myAvatar").src = me.avatar ? absUrl(me.avatar) : "https://via.placeholder.com/110";
         document.getElementById("userCoinsText").textContent = me.coins || 0;
         document.getElementById("userDollarsText").textContent = me.dollars || 0;
         document.getElementById("myBio").value = me.bio || "";
+        document.getElementById("myAccountIdLabel").textContent = "🔒 Tu ID de cuenta (privado, solo tú lo ves): " + me.id;
 
         document.getElementById("accountButton").classList.remove("hidden");
         document.getElementById("loginBtn").classList.add("hidden");
@@ -2094,13 +2242,25 @@ async function updateAccount() {
         if (isAdmin) {
             document.getElementById("adminPanel").classList.remove("hidden");
             loadReportedUsersInbox();
+            loadReportedItemsInbox();
         } else {
             document.getElementById("adminPanel").classList.add("hidden");
+        }
+
+        const ownerIdsPanel = document.getElementById("ownerAccountIdsPanel");
+        if (ownerIdsPanel) {
+            if (me.owner) {
+                ownerIdsPanel.classList.remove("hidden");
+                loadOwnerAccountIds();
+            } else {
+                ownerIdsPanel.classList.add("hidden");
+            }
         }
 
         applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
         loadMyInventory();
         loadFriendsAndRequests();
+        loadMyAdminMessages();
     } catch (e) {
         if (e.message.includes("baneado")) showBannedView();
         else logout();
@@ -2108,12 +2268,31 @@ async function updateAccount() {
 }
 
 async function editAvatar() {
-    const url = prompt("Introduce la URL de tu nuevo avatar (PNG/JPG):");
-    if (!url) return;
+    const fileInput = document.getElementById("avatarFileInput");
+    const msg = document.getElementById("avatarUploadMsg");
+    if (!fileInput.files || !fileInput.files[0]) return;
+
+    const formData = new FormData();
+    formData.append("image", fileInput.files[0]);
+
     try {
-        const data = await request("/api/profile/avatar", "POST", { avatar: url });
-        document.getElementById("myAvatar").src = data.avatar;
-    } catch (e) { alert(e.message); }
+        const token = localStorage.getItem("gameblocks_token");
+        const res = await fetch(RENDER_API + "/api/profile/avatar-upload", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+            body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al subir la imagen.");
+        document.getElementById("myAvatar").src = absUrl(data.avatar);
+        msg.className = "success";
+        msg.textContent = "¡Foto de perfil actualizada!";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    } finally {
+        fileInput.value = "";
+    }
 }
 
 async function saveBio() {
@@ -2206,7 +2385,7 @@ async function searchUsers() {
             div.innerHTML = `
                 <div style="display:flex; align-items:center; justify-content:space-between;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${u.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <img src="${absUrl(u.avatar) || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                         <b>${escapeHTML(u.username)}</b>
                     </div>
                     <div>
@@ -2228,7 +2407,7 @@ async function openUserProfileCard(userId) {
 
     try {
         const u = await request(`/api/users/profile/${userId}`);
-        document.getElementById("cardAvatar").src = u.avatar || "https://via.placeholder.com/110";
+        document.getElementById("cardAvatar").src = u.avatar ? absUrl(u.avatar) : "https://via.placeholder.com/110";
         document.getElementById("cardUsername").textContent = u.username;
         document.getElementById("cardLikesCount").textContent = u.likesCount || 0;
         document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
@@ -2252,7 +2431,7 @@ async function openUserProfileCard(userId) {
             const card = document.createElement("div");
             card.className = "shop-card";
             card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold; margin-top:5px;">${escapeHTML(item.name)}</div>
             `;
             invDiv.appendChild(card);
@@ -2294,8 +2473,18 @@ async function loadShopItems() {
     const type = document.getElementById("catalogTypeSelect").value;
     const filterContainer = document.getElementById("tshirtFilterContainer");
     const container = document.getElementById("shopContainer");
+    const gearComingSoon = document.getElementById("gearComingSoon");
 
-    if (type === "tshirt") filterContainer.classList.remove("hidden");
+    if (type === "gear") {
+        filterContainer.classList.add("hidden");
+        container.classList.add("hidden");
+        gearComingSoon.classList.remove("hidden");
+        return;
+    }
+    gearComingSoon.classList.add("hidden");
+    container.classList.remove("hidden");
+
+    if (type === "tshirt" || type === "hat") filterContainer.classList.remove("hidden");
     else filterContainer.classList.add("hidden");
 
     try {
@@ -2310,7 +2499,7 @@ async function loadShopItems() {
         const adminFilter = document.getElementById("tshirtAdminFilter").value;
         const itemsFiltered = data.items.filter(item => {
             if (item.type !== type) return false;
-            if (type === "tshirt" && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
+            if ((type === "tshirt" || type === "hat") && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
             return true;
         });
 
@@ -2333,7 +2522,7 @@ async function loadShopItems() {
                 : `Vendidos: ${item.totalSold || 0}`;
 
             card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
                 <div class="item-id-label">ID: ${item.id}</div>
                 <div class="copies-sold-label">${soldLabel}</div>
@@ -2410,7 +2599,7 @@ async function loadMyInventory() {
             const isEquipped = String(me.equippedAccessory) === String(itemId);
 
             card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)} (x${counts[itemId]})</div>
                 <div class="item-id-label">ID: ${item.id}</div>
             `;
@@ -2423,16 +2612,7 @@ async function loadMyInventory() {
             btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
             btnEquip.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
 
-            const btnSell = document.createElement("button");
-            btnSell.className = "secondary-button";
-            btnSell.style.marginTop = "4px";
-            btnSell.style.padding = "4px";
-            btnSell.style.fontSize = "11px";
-            btnSell.textContent = "Vender (50%)";
-            btnSell.onclick = () => sellAccessory(item.id);
-
             card.appendChild(btnEquip);
-            card.appendChild(btnSell);
 
             if (item.limited && item.offsale) {
                 const btnResell = document.createElement("button");
@@ -2469,15 +2649,6 @@ async function unequipAccessory() {
     } catch (e) { alert(e.message); }
 }
 
-async function sellAccessory(itemId) {
-    if (!confirm("¿Deseas vender una copia por el 50% de su valor?")) return;
-    try {
-        const data = await request("/api/accessories/sell", "POST", { itemId });
-        alert(`Vendido por ${data.refundAmount} monedas.`);
-        updateAccount();
-    } catch (e) { alert(e.message); }
-}
-
 async function resellAccessory(itemId) {
     const price = prompt("¿A qué precio en monedas deseas publicar este Limited Offsale?:");
     if (!price) return;
@@ -2504,7 +2675,7 @@ async function loadResaleMarket() {
             const card = document.createElement("div");
             card.className = "shop-card";
             card.innerHTML = `
-                <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}">
+                <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}</div>
                 <div style="font-size:11px; color:#aaa;">Vendedor: ${escapeHTML(l.sellerUsername)}</div>
                 <div style="font-size:12px; color:#ffd700; margin:4px 0;"> ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
