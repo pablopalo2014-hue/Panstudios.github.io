@@ -1,4 +1,4 @@
-/** 
+/**
  * GAME BLOCKS - server.js
  * ---------------------------------------------------------------------------
  * Backend completo para el frontend de Game Blocks (index.html).
@@ -54,7 +54,11 @@ function defaultDb() {
         settings: { blockRewardItemId: null, turboBlockRewardItemId: null, bannerText: "", exePath: "" },
         events: [],           // { id, name, description, themeColor, items:[], customHtml, active, createdAt }
         resaleListings: [],   // { id, itemId, sellerId, sellerUsername, price }
-        nextId: 1
+        adminMessages: {},    // userId -> [ {fromUsername, text, createdAt} ]
+        itemReports: {},      // itemId -> [userId, ...]
+        nextId: 1,
+        nextUserId: 1,
+        nextGroupId: 1
     };
 }
 
@@ -89,6 +93,21 @@ function saveDb() {
 
 function nextId() {
     const id = db.nextId++;
+    saveDb();
+    return String(id);
+}
+
+// Los usuarios y los grupos tienen su propio contador independiente, empezando en 1.
+function nextUserId() {
+    if (!db.nextUserId) db.nextUserId = 1;
+    const id = db.nextUserId++;
+    saveDb();
+    return String(id);
+}
+
+function nextGroupId() {
+    if (!db.nextGroupId) db.nextGroupId = 1;
+    const id = db.nextGroupId++;
     saveDb();
     return String(id);
 }
@@ -174,7 +193,87 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Insignias automáticas de suscripción: aparecen mientras la suscripción esté
+// activa y desaparecen automáticamente en cuanto expira.
+function syncSubscriptionBadges(u) {
+    u.badges = u.badges || [];
+    const hasTurbo = hasActiveTurboBlock(u);
+    const hasBlock = hasActiveBlock(u); // true también si tiene turbo
+    const stripAuto = name => u.badges.filter(b => (typeof b === "object" ? b.name : b) !== name);
+
+    // Turbo Block
+    if (hasTurbo) {
+        if (!u.badges.some(b => (typeof b === "object" ? b.name : b) === "Turbo Block")) {
+            u.badges.push({ name: "Turbo Block", auto: true, addedAt: Date.now() });
+        }
+    } else {
+        u.badges = stripAuto("Turbo Block");
+    }
+    // Block (solo si no tiene ya turbo, turbo la incluye pero mantenemos insignia Block aparte
+    // únicamente cuando el usuario tiene Block "normal" activo)
+    const blockOnlyActive = !!(u.blockSub && u.blockSub.active && u.blockSub.expiresAt > Date.now());
+    if (blockOnlyActive) {
+        if (!u.badges.some(b => (typeof b === "object" ? b.name : b) === "Block")) {
+            u.badges.push({ name: "Block", auto: true, addedAt: Date.now() });
+        }
+    } else {
+        u.badges = stripAuto("Block");
+    }
+}
+
+// Vista PÚBLICA de un usuario (lo que ve cualquier otra persona). NUNCA incluye
+// el id de cuenta: el id solo lo puede ver el propio dueño (o el owner de la web).
 function publicUser(u) {
+    syncSubscriptionBadges(u);
+    const inactive = u.active === false;
+    if (inactive) {
+        // Cuenta inactiva: solo se muestran foto, nombre y el estado "Inactivo".
+        return {
+            username: u.username,
+            avatarUrl: u.avatarUrl || null,
+            avatar: u.avatarUrl || null,
+            inactive: true,
+            badges: [],
+            inventory: [],
+            friends: [],
+            bio: "",
+            blockSub: false,
+            turboBlockSub: false,
+            banned: false,
+            likesCount: 0,
+            dislikesCount: 0,
+            followersCount: 0,
+            followingCount: 0
+        };
+    }
+    return {
+        username: u.username,
+        admin: !!u.admin,
+        owner: !!u.owner,
+        badges: u.badges || [],
+        inventory: (u.inventory || []).map(id => findItem(id)).filter(Boolean),
+        equippedAccessory: u.equippedAccessory || null,
+        friends: u.friends || [],
+        profileBgColor: u.profileBgColor || null,
+        profileSoundUrl: u.profileSoundUrl || null,
+        bio: u.bio || "",
+        avatarUrl: u.avatarUrl || null,
+        avatar: u.avatarUrl || null,
+        blockSub: hasActiveBlock(u),
+        turboBlockSub: hasActiveTurboBlock(u),
+        banned: !!u.banned,
+        inactive: false,
+        likesCount: u.likesCount || 0,
+        dislikesCount: u.dislikesCount || 0,
+        followersCount: (u.followers || []).length,
+        followingCount: (u.following || []).length,
+        isAlert: !!u.banned
+    };
+}
+
+// Vista PRIVADA (solo para el propio usuario vía /api/me): incluye su id de cuenta.
+function privateUser(u) {
+    syncSubscriptionBadges(u);
     return {
         id: u.id,
         username: u.username,
@@ -186,13 +285,19 @@ function publicUser(u) {
         inventory: u.inventory || [],
         equippedAccessory: u.equippedAccessory || null,
         friends: u.friends || [],
+        friendRequests: u.friendRequests || [],
         profileBgColor: u.profileBgColor || null,
         profileSoundUrl: u.profileSoundUrl || null,
         bio: u.bio || "",
         avatarUrl: u.avatarUrl || null,
+        avatar: u.avatarUrl || null,
         blockSub: hasActiveBlock(u),
         turboBlockSub: hasActiveTurboBlock(u),
-        banned: !!u.banned
+        banned: !!u.banned,
+        active: u.active !== false,
+        followers: (u.followers || []).length,
+        following: (u.following || []).length,
+        followingIds: u.following || []
     };
 }
 
@@ -252,11 +357,11 @@ app.post("/api/register", (req, res) => {
         return res.status(400).json({ error: "Ese nombre de usuario ya existe." });
     }
     const user = {
-        id: nextId(),
+        id: nextUserId(), // id de cuenta independiente, empezando en 1
         username,
         passwordHash: hashPassword(password),
-        coins: 100,
-        dollars: 0,
+        coins: 0,
+        dollars: 1,
         admin: db.users.length === 0, // el primer usuario registrado es admin/owner por defecto
         owner: db.users.length === 0,
         badges: [],
@@ -264,8 +369,15 @@ app.post("/api/register", (req, res) => {
         equippedAccessory: null,
         friends: [],
         friendRequests: [],
+        followers: [],
+        following: [],
+        likesCount: 0,
+        dislikesCount: 0,
+        likedBy: [],
+        dislikedBy: [],
         banned: false,
         bannedUntil: null,
+        active: true,
         blockSub: { active: false, expiresAt: 0 },
         turboBlockSub: { active: false, expiresAt: 0 },
         profileBgColor: null,
@@ -279,7 +391,7 @@ app.post("/api/register", (req, res) => {
     db.users.push(user);
     saveDb();
     const token = issueToken(user.id);
-    res.json({ token, user: publicUser(user) });
+    res.json({ token, user: privateUser(user) });
 });
 
 app.post("/api/login", (req, res) => {
@@ -291,13 +403,16 @@ app.post("/api/login", (req, res) => {
     if (isBanStillActive(user)) {
         return res.status(403).json({ error: bannedMessage(user) });
     }
+    // Al iniciar sesión, la cuenta deja de estar inactiva automáticamente.
+    if (user.active === false) user.active = true;
     const token = issueToken(user.id);
-    res.json({ token, user: publicUser(user) });
+    saveDb();
+    res.json({ token, user: privateUser(user) });
 });
 
 app.get("/api/me", requireAuth, (req, res) => {
     grantDailyCoinsIfNeeded(req.user);
-    res.json(publicUser(req.user));
+    res.json(privateUser(req.user));
 });
 
 function grantDailyCoinsIfNeeded(user) {
@@ -427,17 +542,61 @@ app.post("/api/subscription/buy-turbo-block", requireAuth, (req, res) => {
     res.json({ message: "¡Suscripción Turbo Block activada!", dollars: user.dollars, freeItemGiven });
 });
 
+// --- Regalar Block / Turbo Block a un amigo ---
+const GIFT_BLOCK_PRICE_DOLLARS = 6;
+const GIFT_TURBO_BLOCK_PRICE_DOLLARS = 11;
+
+app.post("/api/subscription/gift", requireAuth, (req, res) => {
+    const { toUserId, type } = req.body || {}; // type: "block" | "turbo"
+    const giver = req.user;
+    const receiver = db.users.find(u => String(u.id) === String(toUserId));
+    if (!receiver) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (String(receiver.id) === String(giver.id)) return res.status(400).json({ error: "No puedes regalarte una suscripción a ti mismo." });
+    if (!(giver.friends || []).includes(receiver.id)) return res.status(400).json({ error: "Solo puedes regalar suscripciones a tus amigos." });
+
+    if (type === "turbo") {
+        if (giver.dollars < GIFT_TURBO_BLOCK_PRICE_DOLLARS) return res.status(400).json({ error: "No tienes 💲 suficientes." });
+        giver.dollars -= GIFT_TURBO_BLOCK_PRICE_DOLLARS;
+        const base = receiver.turboBlockSub && receiver.turboBlockSub.expiresAt > Date.now() ? receiver.turboBlockSub.expiresAt : Date.now();
+        receiver.turboBlockSub = { active: true, expiresAt: base + THIRTY_DAYS_MS };
+        // El regalador recibe además 1000 monedas por regalar Turbo Block.
+        giver.coins += 1000;
+    } else if (type === "block") {
+        if (giver.dollars < GIFT_BLOCK_PRICE_DOLLARS) return res.status(400).json({ error: "No tienes 💲 suficientes." });
+        giver.dollars -= GIFT_BLOCK_PRICE_DOLLARS;
+        const base = receiver.blockSub && receiver.blockSub.expiresAt > Date.now() ? receiver.blockSub.expiresAt : Date.now();
+        receiver.blockSub = { active: true, expiresAt: base + THIRTY_DAYS_MS };
+    } else {
+        return res.status(400).json({ error: "Tipo de regalo no válido." });
+    }
+
+    // Insignia de regalador para quien regala una suscripción.
+    giver.badges = giver.badges || [];
+    const giftBadgeName = type === "turbo" ? "🎁 Regaló Turbo Block" : "🎁 Regaló Block";
+    if (!giver.badges.some(b => (typeof b === "object" ? b.name : b) === giftBadgeName)) {
+        giver.badges.push({ name: giftBadgeName, addedAt: Date.now() });
+    }
+
+    saveDb();
+    res.json({ ok: true, message: `¡Has regalado ${type === "turbo" ? "Turbo Block" : "Block"} a ${receiver.username}!`, dollars: giver.dollars, coins: giver.coins });
+});
+
 // ---------------------------------------------------------------------------
 // CATÁLOGO / ACCESORIOS
 // ---------------------------------------------------------------------------
 
+function maskAnonymous(item) {
+    if (!item.anonymous) return item;
+    return { ...item, creatorUsername: "Anónimo" };
+}
+
 app.get("/api/accessories", (req, res) => {
-    const items = db.accessories.filter(a => !a.isGhost);
+    const items = db.accessories.filter(a => !a.isGhost && (a.reports || []).length < 10).map(maskAnonymous);
     res.json({ items });
 });
 
 app.get("/api/accessories/all", (req, res) => {
-    res.json({ items: db.accessories });
+    res.json({ items: db.accessories.map(maskAnonymous) });
 });
 
 app.post("/api/accessories/buy", requireAuth, (req, res) => {
@@ -492,19 +651,9 @@ app.post("/api/accessories/unequip", requireAuth, (req, res) => {
     res.json({ ok: true });
 });
 
-app.post("/api/accessories/sell", requireAuth, (req, res) => {
-    const { itemId } = req.body || {};
-    const user = req.user;
-    const idx = user.inventory.findIndex(id => String(id) === String(itemId));
-    if (idx === -1) return res.status(400).json({ error: "No posees este artículo." });
-    const item = findItem(itemId);
-    const refundAmount = Math.floor((item?.price || 0) * 0.5);
-    user.inventory.splice(idx, 1);
-    if (String(user.equippedAccessory) === String(itemId)) user.equippedAccessory = null;
-    user.coins += refundAmount;
-    saveDb();
-    res.json({ refundAmount, newBalance: user.coins });
-});
+// NOTA: se ha eliminado la venta directa de artículos por el 50% de su valor.
+// Ahora solo se pueden revender los Limiteds Offsale, a través del mercado de
+// reventa (/api/accessories/resell-list).
 
 app.get("/api/accessories/resale-market", (req, res) => {
     res.json({ listings: db.resaleListings });
@@ -543,26 +692,67 @@ app.post("/api/accessories/resell-buy", requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// CAMISETAS (T-SHIRTS)
+// UGC: helpers de permisos
+// ---------------------------------------------------------------------------
+
+function hasBadge(u, name) {
+    return (u.badges || []).some(b => (typeof b === "object" ? b.name : b) === name);
+}
+function isUgcPlus(u) {
+    return hasBadge(u, "🎩UGC+");
+}
+function canUploadUGC(u) {
+    // Subir artículos al catálogo es un beneficio exclusivo de Turbo Block,
+    // de la insignia 🎩UGC+, o de administradores.
+    return hasActiveTurboBlock(u) || isUgcPlus(u) || isAdminUser(u);
+}
+
+// ---------------------------------------------------------------------------
+// CAMISETAS / ACCESORIOS SUBIDOS POR USUARIOS (UGC)
 // ---------------------------------------------------------------------------
 
 app.post("/api/tshirts/upload", requireAuth, (req, res) => {
-    const { name, imageUrl, price, onlyBlock } = req.body || {};
+    const user = req.user;
+    if (!canUploadUGC(user)) {
+        return res.status(403).json({ error: "Subir artículos al catálogo requiere Suscripción Turbo Block (o la insignia 🎩UGC+)." });
+    }
+    const { name, imageUrl, price, offsale, anonymous, type } = req.body || {};
     if (!name || !imageUrl) return res.status(400).json({ error: "Faltan datos." });
+
+    const ugcPlus = isUgcPlus(user);
+    let finalPrice = Number(price) || 0;
+    let finalOffsale = !!offsale;
+
+    if (ugcPlus && !isAdminUser(user)) {
+        // Restricciones especiales de la insignia 🎩UGC+:
+        // no puede hacer limiteds, no puede vender a 0 monedas, precio mínimo 55.
+        if (!finalOffsale) {
+            if (finalPrice < 55) {
+                return res.status(400).json({ error: "Con 🎩UGC+ el precio mínimo de venta es 55 monedas (o márcalo como Offsale)." });
+            }
+        }
+    }
+
+    const itemType = (ugcPlus && (type === "hat")) ? "hat" : "tshirt";
+
     const item = {
         id: nextId(),
         name,
-        type: "tshirt",
+        type: itemType,
         imageUrl,
-        price: Number(price) || 0,
+        price: finalPrice,
         limited: false,
-        offsale: false,
-        onlyBlock: onlyBlock === true || onlyBlock === "true",
+        offsale: finalOffsale,
+        onlyBlock: false,
         isGhost: false,
         totalSold: 0,
-        creatorId: req.user.id,
-        creatorUsername: req.user.username,
-        createdByAdmin: false
+        creatorId: user.id,
+        creatorUsername: user.username,
+        anonymous: !!anonymous,
+        createdByAdmin: false,
+        createdByUgcPlus: ugcPlus,
+        comments: [],
+        reports: []
     };
     db.accessories.push(item);
     saveDb();
@@ -579,14 +769,17 @@ app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
         price: Number(price) || 0,
         limited: !!limited,
         offsale: !!offsale,
-        onlyBlock: onlyBlock === true || onlyBlock === "true",
+        onlyBlock: onlyBlock === "turbo" ? "turbo" : (onlyBlock === true || onlyBlock === "true"),
         maxPerUser: limited ? Number(maxPerUser) || 1 : null,
         maxGlobal: limited && maxGlobal ? Number(maxGlobal) : null,
         expiresAt: limited && expiresInDays ? Date.now() + Number(expiresInDays) * 86400000 : null,
         isGhost: false,
         totalSold: 0,
-        creatorUsername: "Admin",
-        createdByAdmin: true
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: true,
+        comments: [],
+        reports: []
     };
     db.accessories.push(item);
     saveDb();
@@ -609,7 +802,7 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (r
         price: Number(b.price) || 0,
         limited,
         offsale: b.offsale === "true" || b.offsale === true,
-        onlyBlock: b.onlyBlock === "true" || b.onlyBlock === true,
+        onlyBlock: b.onlyBlock === "turbo" ? "turbo" : (b.onlyBlock === "true" || b.onlyBlock === true),
         maxPerUser: limited ? Number(b.maxPerUser) || 1 : null,
         maxGlobal: limited && b.maxGlobal ? Number(b.maxGlobal) : null,
         expiresAt: limited && b.expiresInDays ? Date.now() + Number(b.expiresInDays) * 86400000 : null,
@@ -617,8 +810,11 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (r
         soundUrl: b.soundUrl || null,
         isGhost: false,
         totalSold: 0,
-        creatorUsername: "Admin",
-        createdByAdmin: true
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: true,
+        comments: [],
+        reports: []
     };
     db.accessories.push(item);
     saveDb();
@@ -638,7 +834,8 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     if (isGhost === "true") item.isGhost = true;
     if (isGhost === "false") item.isGhost = false;
     if (onlyBlock === "true") item.onlyBlock = true;
-    if (onlyBlock === "false") item.onlyBlock = false;
+    else if (onlyBlock === "turbo") item.onlyBlock = "turbo";
+    else if (onlyBlock === "false") item.onlyBlock = false;
     if (bgColor) item.bgColor = bgColor;
     if (soundUrl) item.soundUrl = soundUrl;
 
@@ -646,15 +843,111 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     res.json({ item });
 });
 
+// El propio administrador que subió el artículo puede ser consultado por cualquiera.
+app.get("/api/accessories/:id/creator", (req, res) => {
+    const item = findItem(req.params.id);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    res.json({
+        creatorUsername: item.anonymous ? "Anónimo" : (item.creatorUsername || null),
+        createdByAdmin: !!item.createdByAdmin
+    });
+});
+
+// Un admin puede borrar PARA SIEMPRE cualquier artículo UGC del catálogo.
+// Quienes lo tenían en su inventario reciben un reembolso de su precio.
+app.post("/api/admin/accessories/delete", requireAdmin, (req, res) => {
+    const { itemId } = req.body || {};
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+
+    db.users.forEach(u => {
+        const ownedCount = (u.inventory || []).filter(id => String(id) === String(item.id)).length;
+        if (ownedCount > 0) {
+            u.inventory = u.inventory.filter(id => String(id) !== String(item.id));
+            u.coins += ownedCount * (item.price || 0);
+            if (String(u.equippedAccessory) === String(item.id)) u.equippedAccessory = null;
+        }
+    });
+    db.accessories = db.accessories.filter(a => String(a.id) !== String(item.id));
+    db.resaleListings = db.resaleListings.filter(l => String(l.itemId) !== String(item.id));
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// COMENTARIOS Y DENUNCIAS DE ARTÍCULOS DEL CATÁLOGO
+// ---------------------------------------------------------------------------
+
+app.post("/api/accessories/:id/comments", requireAuth, (req, res) => {
+    const item = findItem(req.params.id);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    const { text } = req.body || {};
+    if (!text || !text.trim()) return res.status(400).json({ error: "El comentario no puede estar vacío." });
+
+    item.comments = item.comments || [];
+    const trimmed = text.trim().slice(0, 300);
+
+    // Fácil huevo de pascua: comentar "/e free" simula ganar el artículo gratis
+    // (mensaje de broma, sin dar el artículo realmente).
+    if (trimmed.toLowerCase() === "/e free") {
+        item.comments.push({
+            senderId: req.user.id,
+            senderUsername: req.user.username,
+            text: trimmed,
+            createdAt: Date.now()
+        });
+        saveDb();
+        return res.json({ ok: true, easterEgg: true, message: "¡Lo has ganado gratis! 🎉 (mensaje de broma, no se te ha dado el artículo)" });
+    }
+
+    item.comments.push({
+        senderId: req.user.id,
+        senderUsername: req.user.username,
+        text: trimmed,
+        createdAt: Date.now()
+    });
+    saveDb();
+    res.json({ ok: true, comments: item.comments });
+});
+
+app.post("/api/accessories/:id/report", requireAuth, (req, res) => {
+    const item = findItem(req.params.id);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    item.reports = item.reports || [];
+    if (!item.reports.includes(req.user.id)) item.reports.push(req.user.id);
+    saveDb();
+    res.json({ ok: true, reportsCount: item.reports.length });
+});
+
+app.get("/api/admin/reported-items", requireAdmin, (req, res) => {
+    const items = db.accessories.filter(a => (a.reports || []).length >= 10);
+    res.json({ items });
+});
+
 // ---------------------------------------------------------------------------
 // PERFIL, AVATAR, BIO
 // ---------------------------------------------------------------------------
 
 app.post("/api/profile/avatar", requireAuth, (req, res) => {
-    const { avatarUrl } = req.body || {};
-    req.user.avatarUrl = avatarUrl;
+    const { avatarUrl, avatar } = req.body || {};
+    req.user.avatarUrl = avatarUrl || avatar || null;
     saveDb();
-    res.json({ ok: true });
+    res.json({ ok: true, avatar: req.user.avatarUrl, avatarUrl: req.user.avatarUrl });
+});
+
+// Subida real de imagen (foto de perfil, icono de grupo, imagen de artículo, etc.)
+app.post("/api/upload/image", requireAuth, upload.single("image"), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No se recibió ninguna imagen." });
+    const imageUrl = fileUrl(req, req.file.filename);
+    res.json({ ok: true, imageUrl, url: imageUrl });
+});
+
+app.post("/api/profile/avatar-upload", requireAuth, upload.single("image"), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No se recibió ninguna imagen." });
+    const imageUrl = fileUrl(req, req.file.filename);
+    req.user.avatarUrl = imageUrl;
+    saveDb();
+    res.json({ ok: true, avatar: imageUrl, avatarUrl: imageUrl });
 });
 
 app.post("/api/profile/bio", requireAuth, (req, res) => {
@@ -790,20 +1083,27 @@ app.get("/api/groups", (req, res) => {
 app.get("/api/groups/:id", (req, res) => {
     const group = db.groups.find(g => String(g.id) === String(req.params.id));
     if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
-    res.json(group);
+    // enrichedMembers: la lista de miembros con su nombre y avatar, para que el
+    // frontend pueda pintarla sin tener que hacer una petición por cada uno.
+    const enrichedMembers = (group.members || []).map(id => {
+        const u = db.users.find(x => String(x.id) === String(id));
+        return u ? { id: u.id, username: u.username, avatar: u.avatarUrl || null } : null;
+    }).filter(Boolean);
+    res.json({ ...group, enrichedMembers });
 });
 
 app.post("/api/groups/create", requireAuth, (req, res) => {
-    const { name, description } = req.body || {};
+    const { name, description, iconUrl } = req.body || {};
     if (!name || !name.trim()) return res.status(400).json({ error: "El grupo necesita un nombre." });
     const user = req.user;
     if (user.coins < GROUP_CREATE_COST) return res.status(400).json({ error: "No tienes monedas suficientes para crear un grupo." });
 
     user.coins -= GROUP_CREATE_COST;
     const group = {
-        id: nextId(),
+        id: nextGroupId(), // id de grupo independiente, empezando en 1
         name: name.trim(),
         description: description || "",
+        iconUrl: iconUrl || null,
         ownerId: user.id,
         members: [user.id],
         admins: [],
@@ -820,6 +1120,18 @@ app.post("/api/groups/create", requireAuth, (req, res) => {
     db.groups.push(group);
     saveDb();
     res.json({ group, newBalance: user.coins });
+});
+
+app.post("/api/groups/:id/icon", requireAuth, (req, res) => {
+    const group = db.groups.find(g => String(g.id) === String(req.params.id));
+    if (!group) return res.status(404).json({ error: "Grupo no encontrado." });
+    const isOwner = String(group.ownerId) === String(req.user.id);
+    const isAdmin = (group.admins || []).includes(req.user.id);
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "No tienes permisos en este grupo." });
+    const { iconUrl } = req.body || {};
+    group.iconUrl = iconUrl || null;
+    saveDb();
+    res.json({ ok: true, iconUrl: group.iconUrl });
 });
 
 app.post("/api/groups/:id/join", requireAuth, (req, res) => {
@@ -1005,23 +1317,55 @@ app.post("/api/codes/redeem", requireAuth, (req, res) => {
 // TRADES (INTERCAMBIOS DE LIMITEDS)
 // ---------------------------------------------------------------------------
 
+// Límite de Limiteds Offsale que se pueden meter en un trade, según suscripción.
+function maxTradeLimiteds(u) {
+    if (hasActiveTurboBlock(u)) return 6;
+    if (hasActiveBlock(u)) return 5;
+    return 4;
+}
+
+function normalizeIds(single, arr) {
+    if (Array.isArray(arr)) return arr.filter(Boolean).map(String);
+    if (single) return [String(single)];
+    return [];
+}
+
 app.get("/api/trade/pending", requireAuth, (req, res) => {
     const pending = db.trades.filter(t => t.toUserId === req.user.id && t.status === "pending");
     res.json({ trades: pending });
 });
 
 app.post("/api/trade/offer", requireAuth, (req, res) => {
-    const { toUsername, giveItemId, giveCoins, getItemId, getCoins } = req.body || {};
+    const { toUsername, giveItemId, giveItemIds, giveCoins, getItemId, getItemIds, getCoins } = req.body || {};
     const toUser = findUserByUsername(toUsername);
     if (!toUser) return res.status(404).json({ error: "Usuario no encontrado." });
 
+    const fromUser = req.user;
+    const giveIds = normalizeIds(giveItemId, giveItemIds);
+    const getIds = normalizeIds(getItemId, getItemIds);
+
+    const myMax = maxTradeLimiteds(fromUser);
+    const theirMax = maxTradeLimiteds(toUser);
+    if (giveIds.length > myMax) {
+        return res.status(400).json({ error: `Con tu suscripción actual solo puedes ofrecer hasta ${myMax} Limiteds Offsale.` });
+    }
+    if (getIds.length > theirMax) {
+        return res.status(400).json({ error: `El otro usuario solo puede aceptar hasta ${theirMax} Limiteds Offsale en un trade.` });
+    }
+    for (const id of [...giveIds, ...getIds]) {
+        const it = findItem(id);
+        if (!it || !it.limited || !it.offsale) {
+            return res.status(400).json({ error: "Solo se pueden intercambiar Limiteds Offsale." });
+        }
+    }
+
     const trade = {
         id: nextId(),
-        fromUserId: req.user.id,
-        fromUsername: req.user.username,
+        fromUserId: fromUser.id,
+        fromUsername: fromUser.username,
         toUserId: toUser.id,
-        giveItemId, giveCoins: Number(giveCoins) || 0,
-        getItemId, getCoins: Number(getCoins) || 0,
+        giveItemIds: giveIds, giveCoins: Number(giveCoins) || 0,
+        getItemIds: getIds, getCoins: Number(getCoins) || 0,
         status: "pending",
         createdAt: Date.now()
     };
@@ -1043,15 +1387,29 @@ app.post("/api/trade/accept", requireAuth, (req, res) => {
         return res.status(400).json({ error: "Alguna de las partes no tiene monedas suficientes." });
     }
 
-    // Intercambiar items
-    if (trade.giveItemId) {
-        const idx = fromUser.inventory.findIndex(id => String(id) === String(trade.giveItemId));
-        if (idx !== -1) { fromUser.inventory.splice(idx, 1); toUser.inventory.push(trade.giveItemId); }
+    const giveIds = trade.giveItemIds || (trade.giveItemId ? [trade.giveItemId] : []);
+    const getIds = trade.getItemIds || (trade.getItemId ? [trade.getItemId] : []);
+
+    // Comprobar que ambas partes siguen teniendo todos los artículos.
+    for (const id of giveIds) {
+        if (!fromUser.inventory.some(x => String(x) === String(id))) {
+            return res.status(400).json({ error: "El otro usuario ya no tiene uno de los artículos ofrecidos." });
+        }
     }
-    if (trade.getItemId) {
-        const idx = toUser.inventory.findIndex(id => String(id) === String(trade.getItemId));
-        if (idx !== -1) { toUser.inventory.splice(idx, 1); fromUser.inventory.push(trade.getItemId); }
+    for (const id of getIds) {
+        if (!toUser.inventory.some(x => String(x) === String(id))) {
+            return res.status(400).json({ error: "Ya no tienes uno de los artículos que ibas a entregar." });
+        }
     }
+
+    giveIds.forEach(id => {
+        const idx = fromUser.inventory.findIndex(x => String(x) === String(id));
+        if (idx !== -1) { fromUser.inventory.splice(idx, 1); toUser.inventory.push(id); }
+    });
+    getIds.forEach(id => {
+        const idx = toUser.inventory.findIndex(x => String(x) === String(id));
+        if (idx !== -1) { toUser.inventory.splice(idx, 1); fromUser.inventory.push(id); }
+    });
     fromUser.coins -= trade.giveCoins;
     toUser.coins += trade.giveCoins;
     toUser.coins -= trade.getCoins;
@@ -1092,7 +1450,11 @@ app.post("/api/admin/banner", requireAdmin, (req, res) => {
 
 app.get("/api/events/active", (req, res) => {
     const event = db.events.find(e => e.active);
-    res.json({ event: event || null });
+    if (!event) return res.json({ event: null });
+    // Se incluyen los artículos completos (no solo los IDs) para que el
+    // frontend pueda mostrarlos y comprarlos directamente desde la sección del evento.
+    const resolvedItems = (event.items || []).map(id => findItem(id)).filter(Boolean).map(maskAnonymous);
+    res.json({ event: { ...event, resolvedItems } });
 });
 
 app.post("/api/admin/events/save", requireAdmin, (req, res) => {
@@ -1100,12 +1462,15 @@ app.post("/api/admin/events/save", requireAdmin, (req, res) => {
     // Solo un evento puede estar activo a la vez
     if (active) db.events.forEach(e => (e.active = false));
 
+    // Se pueden seleccionar hasta 10 artículos del catálogo para mostrar en el evento.
+    const itemIds = (Array.isArray(items) ? items : []).slice(0, 10).map(String);
+
     const event = {
         id: nextId(),
         name: name || "Evento Especial",
         description: description || "",
         themeColor: themeColor || "#ffd700",
-        items: Array.isArray(items) ? items : [],
+        items: itemIds,
         customHtml: customHtml || "",
         active: !!active,
         createdAt: Date.now()
@@ -1126,14 +1491,30 @@ app.post("/api/admin/events/delete", requireAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.post("/api/admin/starcodes/create", requireAdmin, (req, res) => {
-    const { code, ownerUsername } = req.body || {};
-    if (!code || !ownerUsername) return res.status(400).json({ error: "Faltan datos." });
-    const owner = findUserByUsername(ownerUsername);
-    if (!owner) return res.status(404).json({ error: "Usuario asociado no encontrado." });
+    // Se identifica al dueño del Star Code por su ID de cuenta (privado), no por su nombre.
+    const { code, ownerId, ownerUsername } = req.body || {};
+    if (!code || (!ownerId && !ownerUsername)) return res.status(400).json({ error: "Faltan datos (código e ID de cuenta)." });
+    const owner = ownerId
+        ? db.users.find(u => String(u.id) === String(ownerId))
+        : findUserByUsername(ownerUsername);
+    if (!owner) return res.status(404).json({ error: "No existe ninguna cuenta con ese ID." });
     if (db.starCodes.some(c => c.code.toLowerCase() === code.toLowerCase())) {
         return res.status(400).json({ error: "Ese Star Code ya existe." });
     }
     const starCode = { code, ownerId: owner.id, ownerUsername: owner.username, uses: 0 };
+    db.starCodes.push(starCode);
+    saveDb();
+    res.json({ starCode });
+});
+
+// El propio dueño de la cuenta también puede crear su Star Code usando su ID privado.
+app.post("/api/starcodes/create-own", requireAuth, (req, res) => {
+    const { code } = req.body || {};
+    if (!code || !code.trim()) return res.status(400).json({ error: "Falta el nombre del código." });
+    if (db.starCodes.some(c => c.code.toLowerCase() === code.trim().toLowerCase())) {
+        return res.status(400).json({ error: "Ese Star Code ya existe." });
+    }
+    const starCode = { code: code.trim(), ownerId: req.user.id, ownerUsername: req.user.username, uses: 0 };
     db.starCodes.push(starCode);
     saveDb();
     res.json({ starCode });
@@ -1210,15 +1591,182 @@ app.post("/api/account/delete-banned", requireAuth, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// BORRAR CUENTA AL 100% / PONERSE INACTIVO
+// ---------------------------------------------------------------------------
+
+// Borra la cuenta y TODOS sus datos del servidor (mensajes, membresías de
+// grupos, trades, reventas...). El frontend debe pedir 2 confirmaciones antes
+// de llamar a este endpoint, ya que es irreversible.
+app.post("/api/account/delete-self", requireAuth, (req, res) => {
+    const userId = req.user.id;
+
+    db.users = db.users.filter(u => u.id !== userId);
+
+    db.users.forEach(u => {
+        u.friends = (u.friends || []).filter(id => id !== userId);
+        u.friendRequests = (u.friendRequests || []).filter(id => id !== userId);
+        u.followers = (u.followers || []).filter(id => id !== userId);
+        u.following = (u.following || []).filter(id => id !== userId);
+        u.likedBy = (u.likedBy || []).filter(id => id !== userId);
+        u.dislikedBy = (u.dislikedBy || []).filter(id => id !== userId);
+    });
+
+    db.groups.forEach(g => {
+        g.members = (g.members || []).filter(id => id !== userId);
+        g.admins = (g.admins || []).filter(id => id !== userId);
+        g.bannedMembers = (g.bannedMembers || []).filter(id => id !== userId);
+    });
+
+    db.trades = db.trades.filter(t => t.fromUserId !== userId && t.toUserId !== userId);
+    db.resaleListings = db.resaleListings.filter(l => l.sellerId !== userId);
+
+    Object.keys(db.friendChats || {}).forEach(key => {
+        if (key.split("_").includes(String(userId))) delete db.friendChats[key];
+    });
+
+    if (db.adminMessages) delete db.adminMessages[userId];
+
+    // Revocar cualquier token de sesión activo de esta cuenta.
+    for (const [token, uid] of tokens.entries()) {
+        if (String(uid) === String(userId)) tokens.delete(token);
+    }
+
+    saveDb();
+    res.json({ ok: true });
+});
+
+// Ponerse inactivo: cierra la sesión y marca la cuenta como inactiva. Al
+// volver a iniciar sesión, deja de estar inactiva automáticamente.
+app.post("/api/account/set-inactive", requireAuth, (req, res) => {
+    req.user.active = false;
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (token) tokens.delete(token);
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// MENSAJES DE ADMINISTRACIÓN (los admins pueden escribir a cualquier usuario)
+// ---------------------------------------------------------------------------
+
+app.get("/api/messages", requireAuth, (req, res) => {
+    db.adminMessages = db.adminMessages || {};
+    res.json({ messages: db.adminMessages[req.user.id] || [] });
+});
+
+app.post("/api/admin/messages/send", requireAdmin, (req, res) => {
+    const { username, text } = req.body || {};
+    const target = findUserByUsername(username);
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (!text || !text.trim()) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
+
+    db.adminMessages = db.adminMessages || {};
+    db.adminMessages[target.id] = db.adminMessages[target.id] || [];
+    db.adminMessages[target.id].push({
+        fromUsername: req.user.username,
+        text: text.trim().slice(0, 2000),
+        createdAt: Date.now()
+    });
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// SOLO OWNER: LISTADO DE IDs DE CUENTA
+// ---------------------------------------------------------------------------
+
+app.get("/api/owner/account-ids", requireAuth, (req, res) => {
+    if (!req.user.owner) return res.status(403).json({ error: "Solo el Owner puede ver los IDs de cuenta." });
+    const list = db.users.map(u => ({ id: u.id, username: u.username }));
+    res.json({ users: list });
+});
+
+// ---------------------------------------------------------------------------
+// PING (mantiene la sesión/servidor "despierto")
+// ---------------------------------------------------------------------------
+
+app.post("/api/ping", (req, res) => {
+    res.json({ ok: true, t: Date.now() });
+});
+
+// ---------------------------------------------------------------------------
 // REPORTES
 // ---------------------------------------------------------------------------
 
 app.post("/api/users/:id/report", requireAuth, (req, res) => {
     const user = db.users.find(u => String(u.id) === String(req.params.id));
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (user.owner) return res.status(403).json({ error: "No se puede denunciar a la cuenta del Owner." });
     user.reportsCount = (user.reportsCount || 0) + 1;
     saveDb();
-    res.json({ ok: true });
+    res.json({ ok: true, message: "Usuario denunciado. Gracias por tu reporte." });
+});
+
+// ---------------------------------------------------------------------------
+// PERFILES PÚBLICOS: búsqueda, ficha, likes/dislikes, seguir
+// ---------------------------------------------------------------------------
+
+app.get("/api/users/search", (req, res) => {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    if (!q) return res.json({ users: [] });
+    const results = db.users
+        .filter(u => u.username.toLowerCase().includes(q))
+        .slice(0, 25)
+        .map(u => ({ id: u.id, username: u.username, avatar: u.avatarUrl || null }));
+    res.json({ users: results });
+});
+
+app.get("/api/users/profile/:id", (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.params.id) || u.username.toLowerCase() === String(req.params.id).toLowerCase());
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    const pub = publicUser(user);
+    res.json(pub);
+});
+
+app.post("/api/users/:id/like", requireAuth, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    user.likedBy = user.likedBy || [];
+    user.dislikedBy = user.dislikedBy || [];
+    user.dislikedBy = user.dislikedBy.filter(id => id !== req.user.id);
+    if (!user.likedBy.includes(req.user.id)) user.likedBy.push(req.user.id);
+    user.likesCount = user.likedBy.length;
+    user.dislikesCount = user.dislikedBy.length;
+    saveDb();
+    res.json({ likes: user.likesCount, dislikes: user.dislikesCount });
+});
+
+app.post("/api/users/:id/dislike", requireAuth, (req, res) => {
+    const user = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (user.owner) return res.status(403).json({ error: "No se puede dar dislike a la cuenta del Owner." });
+    user.likedBy = user.likedBy || [];
+    user.dislikedBy = user.dislikedBy || [];
+    user.likedBy = user.likedBy.filter(id => id !== req.user.id);
+    if (!user.dislikedBy.includes(req.user.id)) user.dislikedBy.push(req.user.id);
+    user.likesCount = user.likedBy.length;
+    user.dislikesCount = user.dislikedBy.length;
+    saveDb();
+    res.json({ likes: user.likesCount, dislikes: user.dislikesCount });
+});
+
+app.post("/api/users/:id/follow", requireAuth, (req, res) => {
+    const target = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (String(target.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes seguirte a ti mismo." });
+    req.user.following = req.user.following || [];
+    target.followers = target.followers || [];
+    const already = req.user.following.includes(target.id);
+    if (already) {
+        req.user.following = req.user.following.filter(id => id !== target.id);
+        target.followers = target.followers.filter(id => id !== req.user.id);
+    } else {
+        req.user.following.push(target.id);
+        target.followers.push(req.user.id);
+    }
+    saveDb();
+    res.json({ following: !already, followersCount: target.followers.length });
 });
 
 app.get("/api/admin/reports", requireAdmin, (req, res) => {
