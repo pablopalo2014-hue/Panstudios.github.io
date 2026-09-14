@@ -10,7 +10,7 @@
  * grupos y el catálogo seguirá igual" -> los datos NO viven en memoria, se
  * guardan en disco en cada escritura y se vuelven a cargar al arrancar, así
  * un redeploy / reinicio del servicio no borra nada.
- *
+ * 
  * NOTA IMPORTANTE PARA RENDER: los discos de Render "Free" son efímeros en
  * cada deploy si no usas un "Persistent Disk". Si quieres que los datos
  * sobrevivan a los deploys (no solo a los reinicios), añade un Persistent
