@@ -927,6 +927,7 @@ model-viewer {
                     <option value="admin">🛡️ Admin</option>
                     <option value="co-owner">👑 Co-Owner</option>
                     <option value="booster">🚀 Booster</option>
+                    <option value="🎩UGC+">🎩UGC+ (permite subir accesorios al catálogo)</option>
                     <option value="custom">✏️ Personalizada</option>
                 </select>
                 <input type="text" id="adminBadgeCustom" placeholder="Texto de la insignia personalizada" class="hidden">
@@ -956,7 +957,7 @@ model-viewer {
         <div class="section" style="border: 2px solid #ffd700; padding: 12px; border-radius: 8px;">
             <h3 style="color:#ffd700; margin-top:0;">🌟 Asociar Star Code</h3>
             <input type="text" id="adminStarCodeName" placeholder="Star Code (ej. PAN10)">
-            <input type="text" id="adminStarCodeOwner" placeholder="Usuario al que se asocia">
+            <input type="text" id="adminStarCodeOwner" placeholder="ID de cuenta al que se asocia">
             <button class="admin-button" style="width:100%;" onclick="adminCreateStarCode()">Asociar Star Code</button>
             <p id="adminStarCodeMsg"></p>
         </div>
@@ -967,7 +968,8 @@ model-viewer {
             <textarea id="adminEventDesc" placeholder="Descripción del evento"></textarea>
             <label style="font-size:12px; color:#aaa;">Color temático:</label>
             <input type="color" id="adminEventThemeColor" value="#ffd700">
-            <input type="text" id="adminEventItems" placeholder='Items del evento (JSON opcional: [{"name":"Sombrero","imageUrl":"..."}])'>
+            <label style="font-size:12px; color:#aaa;">IDs de artículos del catálogo para el evento (hasta 10, separados por comas):</label>
+            <input type="text" id="adminEventItems" placeholder="ej: 3,7,12">
             <textarea id="adminEventCustomHtml" placeholder="HTML personalizado (opcional, sustituye todo lo anterior en la home)"></textarea>
             <select id="adminEventActive">
                 <option value="true">Activo: Sí</option>
@@ -1181,7 +1183,35 @@ model-viewer {
 <div class="modal-box" style="max-width: 850px;">
     <button class="close" onclick="closeAvatarModal()">×</button>
     <h2>🎭 Personalizar Avatar & Tienda</h2>
-    
+
+    <div class="section">
+        <h3>💲 Comprar monedas</h3>
+        <select id="coinPackageSelect" style="width:auto;"></select>
+        <input type="text" id="coinsStarCodeInput" placeholder="Star Code (opcional, +10% monedas)" style="margin-top:6px;">
+        <small style="color:#888;">Si usas un Star Code, tú recibes un 110% de monedas y el 10% extra va a quien apoyas.</small>
+        <button class="form-button" style="margin-top:6px;" onclick="purchaseCoinsPackage()">Comprar</button>
+        <p id="coinsPurchaseMsg"></p>
+    </div>
+
+    <div id="ugcUploadSection" class="section hidden">
+        <h3>📤 Subir artículo al catálogo (Turbo Block / 🎩UGC+)</h3>
+        <input type="text" id="ugcItemName" placeholder="Nombre del artículo">
+        <input type="file" id="ugcItemImageFile" accept="image/*">
+        <select id="ugcItemTypeSelect" style="width:auto;">
+            <option value="tshirt">Camiseta</option>
+            <option value="hat" id="ugcHatOption" class="hidden">Sombrero/Accesorio (solo 🎩UGC+)</option>
+        </select>
+        <input type="number" id="ugcItemPrice" placeholder="Precio en monedas (0 = gratis)" min="0">
+        <label style="display:flex; align-items:center; gap:6px; margin-top:6px;">
+            <input type="checkbox" id="ugcItemOffsale" style="width:auto;"> Offsale (no en venta directa)
+        </label>
+        <label style="display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="ugcItemAnonymous" style="width:auto;"> Subir de forma anónima
+        </label>
+        <button class="form-button" style="margin-top:8px;" onclick="uploadUserItem()">Subir artículo</button>
+        <p id="ugcUploadMsg"></p>
+    </div>
+
     <div class="avatar-modal-body">
         <div style="display:flex; flex-direction:column; align-items:center;">
             <div class="avatar-viewer-box">
@@ -1227,6 +1257,17 @@ model-viewer {
 </div>
 
 <!-- MODAL INTERFAZ DE TRADE -->
+<div id="giftModal" class="modal">
+    <div class="modal-box" style="max-width:400px;">
+        <button class="close" onclick="closeGiftModal()">×</button>
+        <h2 id="giftTargetTitle">Regalar suscripción</h2>
+        <p style="color:#aaa; font-size:13px;">Elige qué quieres regalar. Se pagará con tus 💲.</p>
+        <button class="form-button" style="background:#00d2ff; color:#000;" onclick="sendGift('block')">⚡ Regalar Block — 6 💲 (1 mes)</button>
+        <button class="form-button" style="background:linear-gradient(90deg,#ff00cc,#3333ff); color:#fff;" onclick="sendGift('turbo')">🚀 Regalar Turbo Block — 11 💲 (1 mes, +1000 monedas para ti)</button>
+        <p id="giftModalMsg"></p>
+    </div>
+</div>
+
 <div id="tradeModal" class="modal">
     <div class="modal-box" style="max-width: 600px;">
         <button class="close" onclick="closeTradeModal()">×</button>
@@ -1284,29 +1325,34 @@ model-viewer {
         <div class="profile-avatar-container">
             <img id="cardAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
             <h2 id="cardUsername" style="margin:0; text-align:center;">Usuario</h2>
+            <div id="cardInactiveBadge" class="hidden" style="background:#555; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">Inactivo</div>
             <div id="cardAlertBadge" class="hidden" style="background:#ff4444; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">⚠️ EN ALERTA</div>
+            <div id="cardFollowStats" style="font-size:12px; color:#aaa; margin-top:6px;"></div>
+            <button id="cardFollowBtn" class="secondary-button" style="width:auto; margin-top:6px;" onclick="toggleFollowUserCard()">➕ Seguir</button>
         </div>
 
         <!-- REACCIONES Y REPORTES -->
-        <div style="display:flex; justify-content:center; gap:12px; margin-bottom:15px;">
+        <div id="cardReactionsArea" style="display:flex; justify-content:center; gap:12px; margin-bottom:15px;">
             <button class="secondary-button" style="width:auto; margin:0;" onclick="likeUserCard()">👍 <span id="cardLikesCount">0</span></button>
-            <button class="secondary-button" style="width:auto; margin:0;" onclick="dislikeUserCard()">👎 <span id="cardDislikesCount">0</span></button>
-            <button class="danger-button" style="padding:8px 12px; font-size:13px;" onclick="reportUserCard()">🚨 Denunciar</button>
+            <button id="cardDislikeBtn" class="secondary-button" style="width:auto; margin:0;" onclick="dislikeUserCard()">👎 <span id="cardDislikesCount">0</span></button>
+            <button id="cardReportBtn" class="danger-button" style="padding:8px 12px; font-size:13px;" onclick="reportUserCard()">🚨 Denunciar</button>
         </div>
 
-        <div class="section">
-            <h3 style="margin-top:0;">🏅 Insignias</h3>
-            <div id="cardBadges" class="badges">Ninguna.</div>
-        </div>
+        <div id="cardDetailSections">
+            <div class="section">
+                <h3 style="margin-top:0;">🏅 Insignias</h3>
+                <div id="cardBadges" class="badges">Ninguna.</div>
+            </div>
 
-        <div class="section">
-            <b>📝 Bio</b>
-            <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
-        </div>
+            <div class="section">
+                <b>📝 Bio</b>
+                <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+            </div>
 
-        <div class="section">
-            <h3>🎒 Inventario</h3>
-            <div id="cardInventory" class="shop-items">Cargando inventario...</div>
+            <div class="section">
+                <h3>🎒 Inventario</h3>
+                <div id="cardInventory" class="shop-items">Cargando inventario...</div>
+            </div>
         </div>
     </div>
 </div>
@@ -2033,11 +2079,88 @@ function outsideClose(event) {
     if (event.target.id === "accountModal") closeAccount();
 }
 
-function openAvatarModal() {
+async function openAvatarModal() {
     document.getElementById("avatarModal").style.display = "flex";
     loadShopItems();
     loadResaleMarket();
     loadBanner();
+    loadCoinPackages();
+
+    try {
+        const me = await request("/api/me");
+        const isUgcPlus = (me.badges || []).some(b => (typeof b === 'object' ? b.name : b) === "🎩UGC+");
+        const canUpload = me.turboBlockSub || isUgcPlus || me.admin || me.owner;
+        document.getElementById("ugcUploadSection").classList.toggle("hidden", !canUpload);
+        document.getElementById("ugcHatOption").classList.toggle("hidden", !isUgcPlus);
+    } catch (e) { /* si no hay sesión, se deja oculto */ }
+}
+
+async function loadCoinPackages() {
+    const select = document.getElementById("coinPackageSelect");
+    try {
+        const data = await request("/api/coins/packages");
+        select.innerHTML = "";
+        data.packages.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.coins;
+            opt.textContent = `${p.coins + (p.bonus || 0)} monedas — ${p.dollars} 💲`;
+            select.appendChild(opt);
+        });
+    } catch (e) { /* silencioso */ }
+}
+
+async function purchaseCoinsPackage() {
+    const coins = document.getElementById("coinPackageSelect").value;
+    const starCode = document.getElementById("coinsStarCodeInput").value;
+    const msg = document.getElementById("coinsPurchaseMsg");
+    try {
+        const data = await request("/api/coins/purchase", "POST", { coins: Number(coins), starCode });
+        msg.className = "success";
+        msg.textContent = data.starCodeApplied
+            ? `¡Compra realizada con el Star Code "${data.starCodeApplied}" (110%)! Nuevo saldo: ${data.coins} monedas.`
+            : `¡Compra realizada! Nuevo saldo: ${data.coins} monedas.`;
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function uploadUserItem() {
+    const msg = document.getElementById("ugcUploadMsg");
+    const fileInput = document.getElementById("ugcItemImageFile");
+    const name = document.getElementById("ugcItemName").value;
+    const price = document.getElementById("ugcItemPrice").value;
+    const offsale = document.getElementById("ugcItemOffsale").checked;
+    const anonymous = document.getElementById("ugcItemAnonymous").checked;
+    const type = document.getElementById("ugcItemTypeSelect").value;
+
+    if (!name || !fileInput.files[0]) {
+        msg.className = "error";
+        msg.textContent = "Faltan el nombre o la imagen.";
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem("gameblocks_token");
+        const formData = new FormData();
+        formData.append("image", fileInput.files[0]);
+        const uploadRes = await fetch(RENDER_API + "/api/upload/image", {
+            method: "POST", headers: { Authorization: "Bearer " + token }, body: formData
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error);
+
+        await request("/api/tshirts/upload", "POST", {
+            name, imageUrl: uploadData.imageUrl, price: Number(price) || 0, offsale, anonymous, type
+        });
+        msg.className = "success";
+        msg.textContent = "¡Artículo subido correctamente!";
+        loadShopItems();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
 }
 
 function closeAvatarModal() { document.getElementById("avatarModal").style.display = "none"; }
@@ -2409,9 +2532,34 @@ async function openUserProfileCard(userId) {
         const u = await request(`/api/users/profile/${userId}`);
         document.getElementById("cardAvatar").src = u.avatar ? absUrl(u.avatar) : "https://via.placeholder.com/110";
         document.getElementById("cardUsername").textContent = u.username;
+
+        const inactiveBadge = document.getElementById("cardInactiveBadge");
+        const detailSections = document.getElementById("cardDetailSections");
+        const reactionsArea = document.getElementById("cardReactionsArea");
+        const followBtn = document.getElementById("cardFollowBtn");
+
+        if (u.inactive) {
+            inactiveBadge.classList.remove("hidden");
+            detailSections.classList.add("hidden");
+            reactionsArea.classList.add("hidden");
+            followBtn.classList.add("hidden");
+            document.getElementById("cardFollowStats").textContent = "";
+            document.getElementById("cardAlertBadge").classList.add("hidden");
+            return;
+        }
+        inactiveBadge.classList.add("hidden");
+        detailSections.classList.remove("hidden");
+        reactionsArea.classList.remove("hidden");
+        followBtn.classList.remove("hidden");
+
         document.getElementById("cardLikesCount").textContent = u.likesCount || 0;
         document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
         document.getElementById("cardBio").textContent = u.bio || "Sin biografía.";
+        document.getElementById("cardFollowStats").textContent = `${u.followersCount || 0} seguidores · ${u.followingCount || 0} siguiendo`;
+
+        // El Owner no puede recibir denuncias ni dislikes
+        document.getElementById("cardDislikeBtn").classList.toggle("hidden", !!u.owner);
+        document.getElementById("cardReportBtn").classList.toggle("hidden", !!u.owner);
 
         if (u.isAlert) document.getElementById("cardAlertBadge").classList.remove("hidden");
         else document.getElementById("cardAlertBadge").classList.add("hidden");
@@ -2436,6 +2584,17 @@ async function openUserProfileCard(userId) {
             `;
             invDiv.appendChild(card);
         });
+    } catch (e) { alert(e.message); }
+}
+
+async function toggleFollowUserCard() {
+    if (!currentCardUserId) return;
+    try {
+        const data = await request(`/api/users/${currentCardUserId}/follow`, "POST");
+        document.getElementById("cardFollowBtn").textContent = data.following ? "✅ Siguiendo" : "➕ Seguir";
+        const statsEl = document.getElementById("cardFollowStats");
+        const parts = statsEl.textContent.split("·");
+        statsEl.textContent = `${data.followersCount} seguidores ·${parts[1] || " 0 siguiendo"}`;
     } catch (e) { alert(e.message); }
 }
 
@@ -2549,9 +2708,76 @@ async function loadShopItems() {
             }
 
             card.appendChild(btn);
+
+            // Comentarios (se pueden abrir/cerrar) y denuncia, para TODOS los artículos.
+            const toggleBtn = document.createElement("button");
+            toggleBtn.className = "secondary-button";
+            toggleBtn.style.marginTop = "4px";
+            toggleBtn.style.padding = "4px";
+            toggleBtn.style.fontSize = "11px";
+            toggleBtn.textContent = "💬 Comentarios";
+            const commentsPanel = document.createElement("div");
+            commentsPanel.className = "hidden";
+            commentsPanel.style.cssText = "text-align:left; font-size:11px; margin-top:4px; max-height:120px; overflow-y:auto; background:#0c0c0c; padding:6px; border-radius:4px;";
+            toggleBtn.onclick = () => {
+                commentsPanel.classList.toggle("hidden");
+                if (!commentsPanel.classList.contains("hidden")) loadItemComments(item.id, commentsPanel);
+            };
+            const commentForm = document.createElement("div");
+            commentForm.style.cssText = "display:flex; gap:4px; margin-top:4px;";
+            commentForm.innerHTML = `<input type="text" placeholder="Comentar..." style="margin:0; font-size:11px;" id="commentInput_${item.id}">`;
+            const sendCommentBtn = document.createElement("button");
+            sendCommentBtn.className = "form-button";
+            sendCommentBtn.style.cssText = "width:auto; margin:0; padding:4px 8px; font-size:11px;";
+            sendCommentBtn.textContent = "➤";
+            sendCommentBtn.onclick = () => postItemComment(item.id, commentsPanel);
+            commentForm.appendChild(sendCommentBtn);
+
+            const reportItemBtn = document.createElement("button");
+            reportItemBtn.className = "danger-button";
+            reportItemBtn.style.cssText = "margin-top:4px; padding:4px; font-size:11px;";
+            reportItemBtn.textContent = "🚨 Denunciar artículo";
+            reportItemBtn.onclick = () => reportItemUGC(item.id);
+
+            card.appendChild(toggleBtn);
+            card.appendChild(commentsPanel);
+            card.appendChild(commentForm);
+            card.appendChild(reportItemBtn);
+
             container.appendChild(card);
         });
     } catch (e) { container.textContent = "Error al cargar la tienda."; }
+}
+
+async function loadItemComments(itemId, panel) {
+    panel.textContent = "Cargando comentarios...";
+    try {
+        const data = await request("/api/accessories/all");
+        const item = data.items.find(i => String(i.id) === String(itemId));
+        const comments = (item && item.comments) || [];
+        if (comments.length === 0) { panel.textContent = "Sin comentarios todavía."; return; }
+        panel.innerHTML = comments.map(c => `<div><b style="color:#ff8800;">${escapeHTML(c.senderUsername)}:</b> ${escapeHTML(c.text)}</div>`).join("");
+    } catch (e) { panel.textContent = "Error al cargar comentarios."; }
+}
+
+async function postItemComment(itemId, panel) {
+    const input = document.getElementById(`commentInput_${itemId}`);
+    if (!input.value.trim()) return;
+    try {
+        const data = await request(`/api/accessories/${itemId}/comments`, "POST", { text: input.value });
+        if (data.easterEgg) alert(data.message);
+        input.value = "";
+        panel.classList.remove("hidden");
+        loadItemComments(itemId, panel);
+    } catch (e) { alert(e.message); }
+}
+
+async function reportItemUGC(itemId) {
+    if (!confirm("¿Denunciar este artículo?")) return;
+    try {
+        await request(`/api/accessories/${itemId}/report`, "POST");
+        alert("Artículo denunciado.");
+    } catch (e) { alert(e.message); }
 }
 
 async function searchUserByName(username) {
@@ -2755,6 +2981,7 @@ async function loadFriendsAndRequests() {
                         <div>
                             <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openChatModal('${f.id}', '${escapeHTML(f.username)}')">💬 Chat</button>
                             <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openTradeModal('${f.id}', '${escapeHTML(f.username)}')">🤝 Trade</button>
+                            <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px; background:#ff66cc;" onclick="openGiftModal('${f.id}', '${escapeHTML(f.username)}')">🎁 Regalar</button>
                         </div>
                     </div>
                 `;
@@ -2777,6 +3004,29 @@ async function acceptFriendRequest(requestId) {
         alert(data.message);
         loadFriendsAndRequests();
     } catch (e) { alert(e.message); }
+}
+
+let currentGiftTargetId = null;
+
+function openGiftModal(targetUserId, username) {
+    currentGiftTargetId = targetUserId;
+    document.getElementById("giftTargetTitle").textContent = "Regalar suscripción a " + username;
+    document.getElementById("giftModalMsg").textContent = "";
+    document.getElementById("giftModal").style.display = "flex";
+}
+function closeGiftModal() { document.getElementById("giftModal").style.display = "none"; currentGiftTargetId = null; }
+
+async function sendGift(type) {
+    const msg = document.getElementById("giftModalMsg");
+    try {
+        const data = await request("/api/subscription/gift", "POST", { toUserId: currentGiftTargetId, type });
+        msg.className = "success";
+        msg.textContent = data.message;
+        updateAccount();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
 }
 
 async function openTradeModal(targetUserId, username) {
