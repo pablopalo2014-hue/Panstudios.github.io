@@ -10,7 +10,7 @@
  * grupos y el catálogo seguirá igual" -> los datos NO viven en memoria, se
  * guardan en disco en cada escritura y se vuelven a cargar al arrancar, así
  * un redeploy / reinicio del servicio no borra nada.
- * 
+ *
  * NOTA IMPORTANTE PARA RENDER: los discos de Render "Free" son efímeros en
  * cada deploy si no usas un "Persistent Disk". Si quieres que los datos
  * sobrevivan a los deploys (no solo a los reinicios), añade un Persistent
@@ -70,58 +70,31 @@ function loadDb() {
             const raw = fs.readFileSync(DB_FILE, "utf-8");
             const parsed = JSON.parse(raw);
             db = Object.assign(defaultDb(), parsed);
-            
-            // 🛡️ NUEVO: Normalizar cada usuario para que nunca falten propiedades y no explote
-            db.users = (db.users || []).map(u => ({
-                inventory: [],
-                badges: [],
-                friends: [],
-                friendRequests: [],
-                followers: [],
-                following: [],
-                likedBy: [],
-                dislikedBy: [],
-                blockSub: { active: false, expiresAt: 0 },
-                turboBlockSub: { active: false, expiresAt: 0 },
-                ...u,
-                admin: !!u.admin,
-                owner: !!u.owner,
-                banned: !!u.banned,
-                active: u.active !== false
-            }));
         } else {
             saveDb();
         }
-    } catch (e)  {
+    } catch (e) {
         console.error("Error cargando la base de datos, se usa una nueva:", e.message);
     }
+}
+
+let saveTimer = null;
+function saveDb() {
+    // Debounce ligero para no escribir a disco en cada micro-cambio
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        try {
+            fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+        } catch (e) {
+            console.error("Error guardando la base de datos:", e.message);
+        }
+    }, 150);
 }
 
 function nextId() {
     const id = db.nextId++;
     saveDb();
     return String(id);
-}
-
-function saveDb() {
-    try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-
-        const tempFile = DB_FILE + ".tmp";
-
-        fs.writeFileSync(
-            tempFile,
-            JSON.stringify(db, null, 2),
-            "utf-8"
-        );
-
-        fs.renameSync(tempFile, DB_FILE);
-    } catch (e) {
-        console.error("Error guardando la base de datos:", e);
-        throw e;
-    }
 }
 
 // Los usuarios y los grupos tienen su propio contador independiente, empezando en 1.
@@ -424,21 +397,13 @@ app.post("/api/register", (req, res) => {
 app.post("/api/login", (req, res) => {
     const { username, password } = req.body || {};
     const user = findUserByUsername(username);
-    
-    // Forzar limpieza de baneo e inactividad si es la cuenta owner
-    if (user && user.username.toLowerCase() === "owner") {
-        user.banned = false;
-        user.bannedUntil = null;
-        user.active = true;
-    }
-
     if (!user || !verifyPassword(password, user.passwordHash)) {
         return res.status(400).json({ error: "Usuario o contraseña incorrectos." });
     }
     if (isBanStillActive(user)) {
         return res.status(403).json({ error: bannedMessage(user) });
     }
-
+    // Al iniciar sesión, la cuenta deja de estar inactiva automáticamente.
     if (user.active === false) user.active = true;
     const token = issueToken(user.id);
     saveDb();
