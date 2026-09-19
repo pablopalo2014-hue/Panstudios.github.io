@@ -993,6 +993,20 @@ model-viewer {
             <div id="reportedUsersInbox" style="margin-top: 10px;">Cargando reporte...</div>
         </div>
 
+        <div class="section" style="border: 2px solid #ff4444; padding: 12px; border-radius: 8px;">
+            <h3 style="color: #ff5555; margin-top:0;">📥 Artículos UGC Denunciados (10+ Denuncias)</h3>
+            <button class="secondary-button" onclick="loadReportedItemsInbox()">🔄 Actualizar Bandeja</button>
+            <div id="reportedItemsInbox" style="margin-top: 10px;">Cargando reporte...</div>
+        </div>
+
+        <div class="section" style="border: 2px solid #55aaff; padding: 12px; border-radius: 8px;">
+            <h3 style="color:#55aaff; margin-top:0;">✉️ Enviar mensaje a un usuario</h3>
+            <input type="text" id="adminMsgTargetUsername" placeholder="Nombre de usuario">
+            <textarea id="adminMsgText" placeholder="Escribe el mensaje..."></textarea>
+            <button class="admin-button" style="width:100%;" onclick="adminSendMessage()">Enviar mensaje</button>
+            <p id="adminMsgSendMsg"></p>
+        </div>
+
         <div class="section">
             <h3>⚙️ Configurar ID de Regalo Suscripción Block</h3>
             <input type="text" id="adminBlockRewardItemId" placeholder="ID del Item que se regalará al suscribirse">
@@ -1272,15 +1286,16 @@ model-viewer {
     <div class="modal-box" style="max-width: 600px;">
         <button class="close" onclick="closeTradeModal()">×</button>
         <h2 id="tradeTargetTitle" style="margin:0;">Intercambiar con Usuario</h2>
+        <p id="tradeLimitInfo" style="font-size:11px; color:#888;"></p>
         <div style="display:flex; flex-direction:column; gap:15px; margin-top:15px;">
             <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
-                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">TU ITEM (LIMITED OFFSALE)</div>
-                <select id="tradeGiveSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">TUS LIMITEDS OFFSALE (Ctrl/Cmd+clic para elegir varios)</div>
+                <select id="tradeGiveSelect" multiple size="4" style="height:auto;"></select>
                 <input type="number" id="tradeGiveCoins" placeholder="Monedas a ofrecer" value="0" min="0">
             </div>
             <div style="background:#0a0a0a; border:1px solid #222; padding:12px; border-radius:6px;">
-                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">ITEM A RECIBIR (LIMITED OFFSALE)</div>
-                <select id="tradeGetSelect"><option value="">-- Selecciona un Limited Offsale --</option></select>
+                <div style="font-size:12px; color:#aaa; font-weight:bold; margin-bottom:8px;">LIMITEDS OFFSALE A RECIBIR</div>
+                <select id="tradeGetSelect" multiple size="4" style="height:auto;"></select>
                 <input type="number" id="tradeGetCoins" placeholder="Monedas a solicitar" value="0" min="0">
             </div>
             <button class="admin-button" style="width:100%; padding: 12px;" onclick="sendTradeOffer()">Enviar Oferta de Intercambio</button>
@@ -3041,10 +3056,15 @@ async function openTradeModal(targetUserId, username) {
             request("/api/accessories/all")
         ]);
 
+        const myMax = me.turboBlockSub ? 6 : (me.blockSub ? 5 : 4);
+        const theirMax = target.turboBlockSub ? 6 : (target.blockSub ? 5 : 4);
+        document.getElementById("tradeLimitInfo").textContent =
+            `Puedes ofrecer hasta ${myMax} Limiteds Offsale, y ${username} puede aceptar hasta ${theirMax}.`;
+
         const giveSelect = document.getElementById("tradeGiveSelect");
         const getSelect = document.getElementById("tradeGetSelect");
-        giveSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
-        getSelect.innerHTML = '<option value="">-- Selecciona un Limited Offsale --</option>';
+        giveSelect.innerHTML = "";
+        getSelect.innerHTML = "";
 
         (me.inventory || []).forEach(itemId => {
             const item = allAcc.items.find(a => String(a.id) === String(itemId));
@@ -3059,26 +3079,31 @@ async function openTradeModal(targetUserId, username) {
                 getSelect.innerHTML += `<option value="${item.id}">${escapeHTML(item.name)}</option>`;
             }
         });
+
+        if (!giveSelect.innerHTML) giveSelect.innerHTML = '<option disabled>No tienes Limiteds Offsale</option>';
+        if (!getSelect.innerHTML) getSelect.innerHTML = '<option disabled>Sin Limiteds Offsale disponibles</option>';
     } catch (e) { alert(e.message); }
 }
 
 function closeTradeModal() { document.getElementById("tradeModal").style.display = "none"; }
 
+function selectedOptionValues(select) {
+    return Array.from(select.selectedOptions).map(o => o.value).filter(v => v);
+}
+
 async function sendTradeOffer() {
-    const offeredItemId = document.getElementById("tradeGiveSelect").value;
-    const offeredCoins = document.getElementById("tradeGiveCoins").value;
-    const requestedItemId = document.getElementById("tradeGetSelect").value;
-    const requestedCoins = document.getElementById("tradeGetCoins").value;
+    const giveItemIds = selectedOptionValues(document.getElementById("tradeGiveSelect"));
+    const giveCoins = document.getElementById("tradeGiveCoins").value;
+    const getItemIds = selectedOptionValues(document.getElementById("tradeGetSelect"));
+    const getCoins = document.getElementById("tradeGetCoins").value;
 
     try {
         const data = await request("/api/trade/offer", "POST", {
-            targetUserId: currentTradeTargetId,
-            offeredItemId,
-            offeredCoins,
-            requestedItemId,
-            requestedCoins
+            toUsername: document.getElementById("tradeTargetTitle").textContent.replace("Intercambiar con ", ""),
+            giveItemIds, giveCoins,
+            getItemIds, getCoins
         });
-        alert(data.message);
+        alert("¡Oferta de intercambio enviada!");
         closeTradeModal();
     } catch (e) { alert(e.message); }
 }
@@ -3086,19 +3111,25 @@ async function sendTradeOffer() {
 async function loadTrades() {
     const container = document.getElementById("tradesContainer");
     try {
-        const data = await request("/api/trade/pending");
+        const [data, allAcc] = await Promise.all([request("/api/trade/pending"), request("/api/accessories/all")]);
         container.innerHTML = "";
         if (data.trades.length === 0) {
             container.textContent = "No tienes ofertas pendientes.";
             return;
         }
+        const itemName = id => {
+            const it = allAcc.items.find(a => String(a.id) === String(id));
+            return it ? it.name : `#${id}`;
+        };
         data.trades.forEach(t => {
+            const giveIds = t.giveItemIds || (t.giveItemId ? [t.giveItemId] : []);
+            const getIds = t.getItemIds || (t.getItemId ? [t.getItemId] : []);
             const div = document.createElement("div");
             div.className = "result";
             div.innerHTML = `
-                <div><b>De:</b> ${escapeHTML(t.senderUsername)}</div>
-                <div><b>Ofrece:</b> ${t.offeredItemName} (+ ${t.offeredCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
-                <div><b>Pide:</b> ${t.requestedItemName} (+ ${t.requestedCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
+                <div><b>De:</b> ${escapeHTML(t.fromUsername)}</div>
+                <div><b>Ofrece:</b> ${giveIds.map(itemName).join(", ") || "nada"} (+ ${t.giveCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
+                <div><b>Pide:</b> ${getIds.map(itemName).join(", ") || "nada"} (+ ${t.getCoins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">)</div>
                 <button class="form-button" style="background:#28a745; color:#fff;" onclick="acceptTrade('${t.id}')">Aceptar Intercambio</button>
             `;
             container.appendChild(div);
@@ -3108,8 +3139,8 @@ async function loadTrades() {
 
 async function acceptTrade(tradeId) {
     try {
-        const data = await request("/api/trade/accept", "POST", { tradeId });
-        alert(data.message);
+        await request("/api/trade/accept", "POST", { tradeId });
+        alert("¡Intercambio realizado!");
         updateAccount();
         loadTrades();
     } catch (e) { alert(e.message); }
@@ -3240,6 +3271,53 @@ async function loadReportedUsersInbox() {
             container.appendChild(div);
         });
     } catch (e) { container.textContent = "Error al cargar reportes."; }
+}
+
+async function loadReportedItemsInbox() {
+    const container = document.getElementById("reportedItemsInbox");
+    try {
+        const data = await request("/api/admin/reported-items");
+        container.innerHTML = "";
+        if (!data.items || data.items.length === 0) {
+            container.textContent = "No hay artículos con 10 o más denuncias.";
+            return;
+        }
+        data.items.forEach(it => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.style.borderColor = "#ff4444";
+            div.innerHTML = `
+                <div><b>${escapeHTML(it.name)}</b> (ID: ${it.id})</div>
+                <div><b>Denuncias:</b> <span style="color:#ff5555; font-weight:bold;">${(it.reports || []).length}</span></div>
+                <button class="danger-button" style="padding:4px 8px; margin-top:5px;" onclick="adminDeleteReportedItem('${it.id}')">🗑️ Borrar artículo (reembolsa a los dueños)</button>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar denuncias de artículos."; }
+}
+
+async function adminDeleteReportedItem(itemId) {
+    if (!confirm("¿Borrar este artículo del catálogo para siempre? Se reembolsará a quienes lo tengan.")) return;
+    try {
+        await request("/api/admin/accessories/delete", "POST", { itemId });
+        loadReportedItemsInbox();
+        loadShopItems();
+    } catch (e) { alert(e.message); }
+}
+
+async function adminSendMessage() {
+    const username = document.getElementById("adminMsgTargetUsername").value.trim();
+    const text = document.getElementById("adminMsgText").value;
+    const msg = document.getElementById("adminMsgSendMsg");
+    try {
+        await request("/api/admin/messages/send", "POST", { username, text });
+        msg.className = "success";
+        msg.textContent = "Mensaje enviado.";
+        document.getElementById("adminMsgText").value = "";
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
 }
 
 async function adminRenameReported(userId) {
@@ -3478,15 +3556,15 @@ async function adminUnbanUser() {
 
 async function adminCreateStarCode() {
     const code = document.getElementById("adminStarCodeName").value.trim();
-    const ownerUsername = document.getElementById("adminStarCodeOwner").value.trim();
+    const ownerId = document.getElementById("adminStarCodeOwner").value.trim();
     const msg = document.getElementById("adminStarCodeMsg");
-    if (!code || !ownerUsername) {
+    if (!code || !ownerId) {
         msg.className = "error";
-        msg.textContent = "Indica el código y el usuario.";
+        msg.textContent = "Indica el código y el ID de cuenta.";
         return;
     }
     try {
-        await request("/api/admin/starcodes/create", "POST", { code, ownerUsername });
+        await request("/api/admin/starcodes/create", "POST", { code, ownerId });
         msg.className = "success";
         msg.textContent = "Star Code asociado correctamente.";
     } catch (e) {
@@ -3504,14 +3582,8 @@ async function adminSaveEvent() {
     const active = document.getElementById("adminEventActive").value === "true";
     const msg = document.getElementById("adminEventMsg");
 
-    let items = [];
-    if (itemsRaw) {
-        try { items = JSON.parse(itemsRaw); } catch (e) {
-            msg.className = "error";
-            msg.textContent = "El JSON de items no es válido.";
-            return;
-        }
-    }
+    // Hasta 10 IDs de artículos del catálogo, separados por comas.
+    const items = itemsRaw ? itemsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 10) : [];
 
     try {
         await request("/api/admin/events/save", "POST", { name, description, themeColor, items, customHtml, active });
@@ -3595,11 +3667,15 @@ async function loadEventSection() {
         }
         const themeColor = ev.themeColor || "#ffd700";
         let itemsHtml = "";
-        if (ev.items && ev.items.length > 0) {
+        if (ev.resolvedItems && ev.resolvedItems.length > 0) {
             itemsHtml = `<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">` +
-                ev.items.map(it => `<div style="background:#181818; border:1px solid ${themeColor}; border-radius:6px; padding:8px; text-align:center; width:100px;">
-                    ${it.imageUrl ? `<img src="${it.imageUrl}" style="width:100%; height:60px; object-fit:contain;">` : ""}
+                ev.resolvedItems.map(it => `<div style="background:#181818; border:1px solid ${themeColor}; border-radius:6px; padding:8px; text-align:center; width:110px;">
+                    <img src="${absUrl(it.imageUrl)}" style="width:100%; height:60px; object-fit:contain;">
                     <div style="font-size:11px; margin-top:4px;">${escapeHTML(it.name || "")}</div>
+                    <div style="font-size:10px; color:#aaa;">${it.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
+                    ${it.offsale
+                        ? `<button class="secondary-button" style="width:100%; margin-top:4px; padding:3px; font-size:10px;" disabled>Offsale</button>`
+                        : `<button class="form-button" style="width:100%; margin-top:4px; padding:3px; font-size:10px;" onclick="buyAccessory('${it.id}')">Comprar</button>`}
                 </div>`).join("") + `</div>`;
         }
         box.innerHTML = `
