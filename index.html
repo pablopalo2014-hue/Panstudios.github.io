@@ -589,7 +589,7 @@ model-viewer {
 
 <div class="topbar">
     <div class="topbar-left">
-        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios...">
+        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios..." onkeydown="if(event.key==='Enter') searchUsers();">
         <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
@@ -1171,42 +1171,6 @@ model-viewer {
         <div id="myAdminMessages">No tienes mensajes.</div>
     </div>
 
-    <div class="section">
-        <h3>🌟 Crear mi Star Code</h3>
-        <small style="color:#888;">Usa tu ID de cuenta privado, se asociará automáticamente a ti.</small>
-        <input type="text" id="ownStarCodeName" placeholder="Nombre del Star Code" style="margin-top:6px;">
-        <button class="form-button" onclick="createOwnStarCode()">Crear Star Code</button>
-        <p id="ownStarCodeMsg"></p>
-    </div>
-
-    <div id="ownerAccountIdsPanel" class="section hidden">
-        <h3>👑 IDs de todas las cuentas (Solo Owner)</h3>
-        <div id="ownerAccountIdsList">Cargando...</div>
-    </div>
-
-    <button class="secondary-button" onclick="setAccountInactive()">😴 Ponerme inactivo (cierra sesión)</button>
-    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
-    <button class="danger-button" style="margin-top:8px;" onclick="deleteAccountFully()">🗑️ Borrar mi cuenta permanentemente (100%)</button>
-</div>
-
-</div>
-</div>
-
-<!-- MODAL TIENDA Y AVATAR -->
-<div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
-<div class="modal-box" style="max-width: 850px;">
-    <button class="close" onclick="closeAvatarModal()">×</button>
-    <h2>🎭 Personalizar Avatar & Tienda</h2>
-
-    <div class="section">
-        <h3>💲 Comprar monedas</h3>
-        <select id="coinPackageSelect" style="width:auto;"></select>
-        <input type="text" id="coinsStarCodeInput" placeholder="Star Code (opcional, +10% monedas)" style="margin-top:6px;">
-        <small style="color:#888;">Si usas un Star Code, tú recibes un 110% de monedas y el 10% extra va a quien apoyas.</small>
-        <button class="form-button" style="margin-top:6px;" onclick="purchaseCoinsPackage()">Comprar</button>
-        <p id="coinsPurchaseMsg"></p>
-    </div>
-
     <div id="ugcUploadSection" class="section hidden">
         <h3>📤 Subir artículo al catálogo (Turbo Block / 🎩UGC+)</h3>
         <input type="text" id="ugcItemName" placeholder="Nombre del artículo">
@@ -1226,6 +1190,48 @@ model-viewer {
         <p id="ugcUploadMsg"></p>
     </div>
 
+    <div id="ownerAccountIdsPanel" class="section hidden">
+        <h3>👑 IDs de todas las cuentas (Solo Owner)</h3>
+        <div id="ownerAccountIdsList">Cargando...</div>
+    </div>
+
+    <div id="ownerGiveItemPanel" class="section hidden">
+        <h3>🎁 Regalar artículo a un usuario (Solo Owner)</h3>
+        <input type="text" id="ownerGiveItemUsername" placeholder="Nombre de usuario">
+        <input type="text" id="ownerGiveItemId" placeholder="ID del artículo del catálogo">
+        <button class="admin-button" style="width:100%;" onclick="ownerGiveItem()">Entregar artículo</button>
+        <p id="ownerGiveItemMsg"></p>
+    </div>
+
+    <div id="ownerTeapotPanel" class="section hidden" style="border:2px solid #cc99ff; padding:12px; border-radius:8px;">
+        <h3 style="color:#cc99ff; margin-top:0;">🫖 Crear Teapot (Solo Owner)</h3>
+        <small style="color:#888;">Al equiparlo, sustituye tu tarjeta pública por el HTML personalizado.</small>
+        <input type="text" id="teapotName" placeholder="Nombre del Teapot" style="margin-top:6px;">
+        <input type="text" id="teapotImageUrl" placeholder="URL del icono (catálogo)">
+        <textarea id="teapotCustomHtml" placeholder="HTML personalizado de la tarjeta pública"></textarea>
+        <input type="number" id="teapotPrice" placeholder="Precio en monedas" value="0" min="0">
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="teapotOffsale" style="width:auto;"> Offsale</label>
+        <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="teapotLimited" style="width:auto;"> Limited</label>
+        <input type="number" id="teapotMaxPerUser" placeholder="Máx. copias por usuario (si es Limited)" min="1">
+        <input type="text" id="teapotLinkedStarCode" placeholder="Star Code enlazado (opcional)">
+        <button class="admin-button" style="width:100%;" onclick="ownerCreateTeapot()">Crear Teapot</button>
+        <p id="ownerTeapotMsg"></p>
+    </div>
+
+    <button class="secondary-button" onclick="setAccountInactive()">😴 Ponerme inactivo (cierra sesión)</button>
+    <button class="secondary-button" onclick="logout()">Cerrar sesión</button>
+    <button class="danger-button" style="margin-top:8px;" onclick="deleteAccountFully()">🗑️ Borrar mi cuenta permanentemente (100%)</button>
+</div>
+
+</div>
+</div>
+
+<!-- MODAL TIENDA Y AVATAR -->
+<div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
+<div class="modal-box" style="max-width: 850px;">
+    <button class="close" onclick="closeAvatarModal()">×</button>
+    <h2>🎭 Personalizar Avatar & Tienda</h2>
+
     <div class="avatar-modal-body">
         <div style="display:flex; flex-direction:column; align-items:center;">
             <div class="avatar-viewer-box">
@@ -1242,6 +1248,7 @@ model-viewer {
                 <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
                     <option value="hat">Sombreros / Accesorios 3D</option>
                     <option value="tshirt">Camisetas</option>
+                    <option value="teapot">🫖 Teapots</option>
                     <option value="gear">⚙️ Gears</option>
                 </select>
             </div>
@@ -1335,7 +1342,7 @@ model-viewer {
 
 <!-- TARJETA PÚBLICA DE PERFIL DE USUARIO -->
 <div id="userProfileCardModal" class="modal" onclick="outsideCloseUserCard(event)">
-    <div class="modal-box" style="max-width: 480px;">
+    <div id="userProfileCardBox" class="modal-box" style="max-width: 480px;">
         <button class="close" onclick="closeUserProfileCard()">×</button>
         <div class="profile-avatar-container">
             <img id="cardAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
@@ -1343,6 +1350,7 @@ model-viewer {
             <div id="cardInactiveBadge" class="hidden" style="background:#555; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">Inactivo</div>
             <div id="cardAlertBadge" class="hidden" style="background:#ff4444; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">⚠️ EN ALERTA</div>
             <div id="cardFollowStats" style="font-size:12px; color:#aaa; margin-top:6px;"></div>
+            <div id="cardIdLabel" class="hidden" style="font-size:11px; color:#666; margin-top:2px;"></div>
             <button id="cardFollowBtn" class="secondary-button" style="width:auto; margin-top:6px;" onclick="toggleFollowUserCard()">➕ Seguir</button>
         </div>
 
@@ -1390,6 +1398,14 @@ let profileAudio = null;
 setInterval(() => {
     fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
 }, 10000);
+
+// Mejora de calidad de vida: la tecla Escape cierra cualquier modal abierto.
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll(".modal").forEach(m => {
+        if (m.style.display === "flex") m.style.display = "none";
+    });
+});
 
 function escapeHTML(str) {
     if (typeof str !== 'string') return str;
@@ -2099,47 +2115,10 @@ async function openAvatarModal() {
     loadShopItems();
     loadResaleMarket();
     loadBanner();
-    loadCoinPackages();
-
-    try {
-        const me = await request("/api/me");
-        const isUgcPlus = (me.badges || []).some(b => (typeof b === 'object' ? b.name : b) === "🎩UGC+");
-        const canUpload = me.turboBlockSub || isUgcPlus || me.admin || me.owner;
-        document.getElementById("ugcUploadSection").classList.toggle("hidden", !canUpload);
-        document.getElementById("ugcHatOption").classList.toggle("hidden", !isUgcPlus);
-    } catch (e) { /* si no hay sesión, se deja oculto */ }
 }
 
-async function loadCoinPackages() {
-    const select = document.getElementById("coinPackageSelect");
-    try {
-        const data = await request("/api/coins/packages");
-        select.innerHTML = "";
-        data.packages.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p.coins;
-            opt.textContent = `${p.coins + (p.bonus || 0)} monedas — ${p.dollars} 💲`;
-            select.appendChild(opt);
-        });
-    } catch (e) { /* silencioso */ }
-}
-
-async function purchaseCoinsPackage() {
-    const coins = document.getElementById("coinPackageSelect").value;
-    const starCode = document.getElementById("coinsStarCodeInput").value;
-    const msg = document.getElementById("coinsPurchaseMsg");
-    try {
-        const data = await request("/api/coins/purchase", "POST", { coins: Number(coins), starCode });
-        msg.className = "success";
-        msg.textContent = data.starCodeApplied
-            ? `¡Compra realizada con el Star Code "${data.starCodeApplied}" (110%)! Nuevo saldo: ${data.coins} monedas.`
-            : `¡Compra realizada! Nuevo saldo: ${data.coins} monedas.`;
-        updateAccount();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
+// (La compra de monedas se hace desde la pantalla dedicada "currencyModal",
+// ver openCurrencyModal()/loadCurrencyPackages() más abajo — no desde aquí.)
 
 async function uploadUserItem() {
     const msg = document.getElementById("ugcUploadMsg");
@@ -2300,13 +2279,35 @@ async function setAccountInactive() {
     } catch (e) { alert(e.message); }
 }
 
-async function createOwnStarCode() {
-    const code = document.getElementById("ownStarCodeName").value;
-    const msg = document.getElementById("ownStarCodeMsg");
+async function ownerGiveItem() {
+    const username = document.getElementById("ownerGiveItemUsername").value.trim();
+    const itemId = document.getElementById("ownerGiveItemId").value.trim();
+    const msg = document.getElementById("ownerGiveItemMsg");
     try {
-        const data = await request("/api/starcodes/create-own", "POST", { code });
+        const data = await request("/api/owner/give-item", "POST", { username, itemId });
         msg.className = "success";
-        msg.textContent = `¡Star Code "${data.starCode.code}" creado!`;
+        msg.textContent = data.message;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function ownerCreateTeapot() {
+    const msg = document.getElementById("ownerTeapotMsg");
+    try {
+        await request("/api/owner/teapots/upload", "POST", {
+            name: document.getElementById("teapotName").value,
+            imageUrl: document.getElementById("teapotImageUrl").value,
+            customHtml: document.getElementById("teapotCustomHtml").value,
+            price: document.getElementById("teapotPrice").value,
+            offsale: document.getElementById("teapotOffsale").checked,
+            limited: document.getElementById("teapotLimited").checked,
+            maxPerUser: document.getElementById("teapotMaxPerUser").value,
+            linkedStarCode: document.getElementById("teapotLinkedStarCode").value
+        });
+        msg.className = "success";
+        msg.textContent = "¡Teapot creado! Puedes gestionarlo como cualquier artículo del catálogo.";
     } catch (e) {
         msg.className = "error";
         msg.textContent = e.message;
@@ -2389,9 +2390,13 @@ async function updateAccount() {
         if (ownerIdsPanel) {
             if (me.owner) {
                 ownerIdsPanel.classList.remove("hidden");
+                document.getElementById("ownerGiveItemPanel").classList.remove("hidden");
+                document.getElementById("ownerTeapotPanel").classList.remove("hidden");
                 loadOwnerAccountIds();
             } else {
                 ownerIdsPanel.classList.add("hidden");
+                document.getElementById("ownerGiveItemPanel").classList.add("hidden");
+                document.getElementById("ownerTeapotPanel").classList.add("hidden");
             }
         }
 
@@ -2399,6 +2404,13 @@ async function updateAccount() {
         loadMyInventory();
         loadFriendsAndRequests();
         loadMyAdminMessages();
+
+        // Subir UGC (camisetas) es de Turbo Block o 🎩UGC+; los accesorios/sombreros
+        // dentro de ese formulario siguen siendo exclusivos de 🎩UGC+.
+        const isUgcPlusForUpload = (me.badges || []).some(b => (typeof b === 'object' ? b.name : b) === "🎩UGC+");
+        const canUploadUgc = me.turboBlockSub || isUgcPlusForUpload || me.admin || me.owner;
+        document.getElementById("ugcUploadSection").classList.toggle("hidden", !canUploadUgc);
+        document.getElementById("ugcHatOption").classList.toggle("hidden", !isUgcPlusForUpload);
     } catch (e) {
         if (e.message.includes("baneado")) showBannedView();
         else logout();
@@ -2538,6 +2550,16 @@ async function searchUsers() {
     } catch (e) { alert(e.message); }
 }
 
+let cardAudio = null;
+function applyCardStyling(bgColor, soundUrl) {
+    const box = document.getElementById("userProfileCardBox");
+    box.style.backgroundColor = bgColor || "#111";
+    if (cardAudio) { cardAudio.pause(); cardAudio = null; }
+    if (soundUrl) {
+        try { cardAudio = new Audio(absUrl(soundUrl)); cardAudio.play().catch(() => {}); } catch (e) {}
+    }
+}
+
 async function openUserProfileCard(userId) {
     currentCardUserId = userId;
     const modal = document.getElementById("userProfileCardModal");
@@ -2547,6 +2569,7 @@ async function openUserProfileCard(userId) {
         const u = await request(`/api/users/profile/${userId}`);
         document.getElementById("cardAvatar").src = u.avatar ? absUrl(u.avatar) : "https://via.placeholder.com/110";
         document.getElementById("cardUsername").textContent = u.username;
+        applyCardStyling(u.profileBgColor, u.profileSoundUrl);
 
         const inactiveBadge = document.getElementById("cardInactiveBadge");
         const detailSections = document.getElementById("cardDetailSections");
@@ -2567,10 +2590,42 @@ async function openUserProfileCard(userId) {
         reactionsArea.classList.remove("hidden");
         followBtn.classList.remove("hidden");
 
+        // Si el usuario tiene equipado un Teapot, su tarjeta pública se
+        // sustituye por el HTML personalizado del Owner.
+        if (u.teapotHtml) {
+            detailSections.innerHTML = `<div class="section">${u.teapotHtml}</div>`;
+            document.getElementById("cardFollowStats").textContent = `${u.followersCount || 0} seguidores · ${u.followingCount || 0} siguiendo`;
+            return;
+        } else if (!detailSections.querySelector("#cardBadges")) {
+            // Si una apertura anterior sustituyó el contenido por un teapot, lo restauramos.
+            detailSections.innerHTML = `
+                <div class="section">
+                    <h3 style="margin-top:0;">🏅 Insignias</h3>
+                    <div id="cardBadges" class="badges">Ninguna.</div>
+                </div>
+                <div class="section">
+                    <b>📝 Bio</b>
+                    <p id="cardBio" style="background: rgba(0,0,0,0.5); padding: 12px; border-radius: 5px; border: 1px solid #333; color: #ccc;">Sin biografía.</p>
+                </div>
+                <div class="section">
+                    <h3>🎒 Inventario</h3>
+                    <div id="cardInventory" class="shop-items">Cargando inventario...</div>
+                </div>
+            `;
+        }
+
         document.getElementById("cardLikesCount").textContent = u.likesCount || 0;
         document.getElementById("cardDislikesCount").textContent = u.dislikesCount || 0;
         document.getElementById("cardBio").textContent = u.bio || "Sin biografía.";
         document.getElementById("cardFollowStats").textContent = `${u.followersCount || 0} seguidores · ${u.followingCount || 0} siguiendo`;
+
+        const idLabel = document.getElementById("cardIdLabel");
+        if (u.id) {
+            idLabel.textContent = "ID: " + u.id;
+            idLabel.classList.remove("hidden");
+        } else {
+            idLabel.classList.add("hidden");
+        }
 
         // El Owner no puede recibir denuncias ni dislikes
         document.getElementById("cardDislikeBtn").classList.toggle("hidden", !!u.owner);
@@ -2613,7 +2668,10 @@ async function toggleFollowUserCard() {
     } catch (e) { alert(e.message); }
 }
 
-function closeUserProfileCard() { document.getElementById("userProfileCardModal").style.display = "none"; }
+function closeUserProfileCard() {
+    document.getElementById("userProfileCardModal").style.display = "none";
+    if (cardAudio) { cardAudio.pause(); cardAudio = null; }
+}
 function outsideCloseUserCard(event) { if (event.target.id === "userProfileCardModal") closeUserProfileCard(); }
 
 async function likeUserCard() {
@@ -2704,8 +2762,10 @@ async function loadShopItems() {
                 ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
             `;
 
-            const owned = ownedIds.has(String(item.id));
+            const ownedCount = (me && me.inventory) ? me.inventory.filter(id => String(id) === String(item.id)).length : 0;
+            const owned = ownedCount > 0;
             const isEquipped = me && String(me.equippedAccessory) === String(item.id);
+            const canBuyMore = item.limited && item.maxPerUser && ownedCount < item.maxPerUser;
 
             const btn = document.createElement("button");
             btn.className = "form-button";
@@ -2723,6 +2783,15 @@ async function loadShopItems() {
             }
 
             card.appendChild(btn);
+
+            if (owned && canBuyMore && !item.offsale) {
+                const buyMoreBtn = document.createElement("button");
+                buyMoreBtn.className = "secondary-button";
+                buyMoreBtn.style.cssText = "margin-top:4px; padding:4px; font-size:11px;";
+                buyMoreBtn.textContent = `Comprar otra copia (${ownedCount}/${item.maxPerUser})`;
+                buyMoreBtn.onclick = () => buyAccessory(item.id);
+                card.appendChild(buyMoreBtn);
+            }
 
             // Comentarios (se pueden abrir/cerrar) y denuncia, para TODOS los artículos.
             const toggleBtn = document.createElement("button");
@@ -2994,6 +3063,7 @@ async function loadFriendsAndRequests() {
                             <b>${escapeHTML(f.username)}</b>
                         </div>
                         <div>
+                            <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openUserProfileCard('${f.id}')">👤 Perfil</button>
                             <button class="secondary-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openChatModal('${f.id}', '${escapeHTML(f.username)}')">💬 Chat</button>
                             <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px;" onclick="openTradeModal('${f.id}', '${escapeHTML(f.username)}')">🤝 Trade</button>
                             <button class="admin-button" style="width:auto; margin:0; padding:4px 8px; font-size:12px; background:#ff66cc;" onclick="openGiftModal('${f.id}', '${escapeHTML(f.username)}')">🎁 Regalar</button>
