@@ -34,6 +34,88 @@ const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// ---------------------------------------------------------------------------
+// COPIA DE SEGURIDAD EN GITHUB (persistencia real en Render Free, sin disco)
+// ---------------------------------------------------------------------------
+// El disco de un servicio "Free" de Render se borra en cada deploy y, a
+// veces, en cada reinicio del contenedor. Para que las cuentas, grupos y
+// catálogo SIEMPRE sobrevivan (aunque Render borre el disco), este servidor
+// puede guardar automáticamente una copia de la base de datos en un
+// repositorio de GitHub (gratis) y recuperarla al arrancar si el disco local
+// está vacío. Para activarlo, configura estas 2 variables de entorno en
+// Render (pestaña "Environment"):
+//   GITHUB_TOKEN  -> un Personal Access Token de GitHub con permiso "repo"
+//   GITHUB_REPO   -> "tu-usuario/tu-repositorio" (puede ser un repo privado
+//                     vacío creado solo para esto)
+// Si no configuras estas variables, el servidor sigue funcionando igual que
+// antes (solo con el fichero local), simplemente sin esta protección extra.
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || null;
+const GITHUB_REPO = process.env.GITHUB_REPO || null; // formato "usuario/repo"
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "main";
+const GITHUB_BACKUP_PATH = process.env.GITHUB_BACKUP_PATH || "gameblocks-backup/db.json";
+const GITHUB_BACKUP_ENABLED = !!(GITHUB_TOKEN && GITHUB_REPO);
+
+let githubBackupSha = null;
+
+async function githubApiFetch(url, options = {}) {
+    return fetch(url, {
+        ...options,
+        headers: {
+            Authorization: `Bearer ${GITHUB_TOKEN}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+            ...(options.headers || {})
+        }
+    });
+}
+
+async function pullDbFromGithub() {
+    if (!GITHUB_BACKUP_ENABLED) return null;
+    try {
+        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}?ref=${GITHUB_BRANCH}`;
+        const res = await githubApiFetch(url);
+        if (res.status !== 200) return null;
+        const data = await res.json();
+        githubBackupSha = data.sha;
+        const jsonStr = Buffer.from(data.content, "base64").toString("utf-8");
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error("[GitHub backup] No se pudo descargar la copia de seguridad:", e.message);
+        return null;
+    }
+}
+
+async function pushDbToGithub() {
+    if (!GITHUB_BACKUP_ENABLED) return;
+    try {
+        if (!githubBackupSha) {
+            const checkUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}?ref=${GITHUB_BRANCH}`;
+            const checkRes = await githubApiFetch(checkUrl);
+            if (checkRes.status === 200) githubBackupSha = (await checkRes.json()).sha;
+        }
+        const content = Buffer.from(JSON.stringify(db, null, 2)).toString("base64");
+        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}`;
+        const res = await githubApiFetch(url, {
+            method: "PUT",
+            body: JSON.stringify({
+                message: `Backup automático de Game Blocks (${new Date().toISOString()})`,
+                content,
+                branch: GITHUB_BRANCH,
+                ...(githubBackupSha ? { sha: githubBackupSha } : {})
+            })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            githubBackupSha = data.content && data.content.sha;
+        } else {
+            githubBackupSha = null; // se reconsulta la próxima vez
+            console.error("[GitHub backup] Fallo al subir backup:", res.status, await res.text());
+        }
+    } catch (e) {
+        console.error("[GitHub backup] Error al subir backup:", e.message);
+    }
+}
+
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(UPLOADS_DIR));
@@ -64,31 +146,62 @@ function defaultDb() {
 
 let db = defaultDb();
 
-function loadDb() {
+async function loadDb() {
     try {
+        // 1) Si hay un fichero local con datos reales, se usa (es lo más rápido).
         if (fs.existsSync(DB_FILE)) {
             const raw = fs.readFileSync(DB_FILE, "utf-8");
             const parsed = JSON.parse(raw);
-            db = Object.assign(defaultDb(), parsed);
-        } else {
-            saveDb();
+            const hasRealData = parsed && Array.isArray(parsed.users) && parsed.users.length > 0;
+            if (hasRealData) {
+                db = Object.assign(defaultDb(), parsed);
+                // Aun así, se sube una copia a GitHub por si el disco local se borra pronto.
+                if (GITHUB_BACKUP_ENABLED) pushDbToGithub();
+                return;
+            }
         }
+
+        // 2) Si el disco local está vacío (típico tras un redeploy en Render Free
+        //    sin Persistent Disk), se intenta recuperar la última copia de GitHub.
+        if (GITHUB_BACKUP_ENABLED) {
+            const remote = await pullDbFromGithub();
+            if (remote && Array.isArray(remote.users)) {
+                db = Object.assign(defaultDb(), remote);
+                console.log("[GitHub backup] Base de datos restaurada desde GitHub correctamente.");
+                saveDbNow();
+                return;
+            }
+        }
+
+        // 3) No hay nada en ningún sitio: base de datos nueva.
+        saveDb();
     } catch (e) {
         console.error("Error cargando la base de datos, se usa una nueva:", e.message);
     }
 }
 
 let saveTimer = null;
+let githubSaveTimer = null;
+
+function saveDbNow() {
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    } catch (e) {
+        console.error("Error guardando la base de datos:", e.message);
+    }
+}
+
 function saveDb() {
     // Debounce ligero para no escribir a disco en cada micro-cambio
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        try {
-            fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-        } catch (e) {
-            console.error("Error guardando la base de datos:", e.message);
-        }
-    }, 150);
+    saveTimer = setTimeout(saveDbNow, 150);
+
+    // Copia de seguridad a GitHub con un debounce mayor (evita saturar la API
+    // de GitHub cuando hay muchos cambios seguidos).
+    if (GITHUB_BACKUP_ENABLED) {
+        clearTimeout(githubSaveTimer);
+        githubSaveTimer = setTimeout(pushDbToGithub, 4000);
+    }
 }
 
 function nextId() {
@@ -112,7 +225,9 @@ function nextGroupId() {
     return String(id);
 }
 
-loadDb();
+// La carga real de la base de datos (y, si aplica, del backup de GitHub) se
+// lanza al final del fichero, justo antes de app.listen(), para no arrancar
+// a aceptar peticiones antes de tener los datos listos.
 
 // ---------------------------------------------------------------------------
 // UTILIDADES
@@ -185,6 +300,15 @@ function isAdminUser(user) {
     });
 }
 
+// No exige sesión, pero si hay un token válido, lo añade a req.user (para
+// endpoints públicos que dan algo extra si estás autenticado, p.ej. ver el ID
+// de un amigo en su ficha).
+function optionalAuth(req, res, next) {
+    const user = getUserFromReq(req);
+    if (user) req.user = user;
+    next();
+}
+
 function requireAdmin(req, res, next) {
     const user = getUserFromReq(req);
     if (!user) return res.status(401).json({ error: "No autenticado." });
@@ -223,6 +347,18 @@ function syncSubscriptionBadges(u) {
 
 // Vista PÚBLICA de un usuario (lo que ve cualquier otra persona). NUNCA incluye
 // el id de cuenta: el id solo lo puede ver el propio dueño (o el owner de la web).
+// Si el usuario tiene equipado un artículo que cambia el color de fondo o
+// reproduce un sonido, esto se calcula siempre a partir del artículo
+// equipado (no de un valor guardado aparte), así que se ve igual para
+// cualquiera que visite su tarjeta pública, y persiste tras recargar.
+function equippedStyling(u) {
+    const item = u.equippedAccessory ? findItem(u.equippedAccessory) : null;
+    return {
+        bgColor: (item && item.bgColor) || null,
+        soundUrl: (item && item.soundUrl) || null
+    };
+}
+
 function publicUser(u) {
     syncSubscriptionBadges(u);
     const inactive = u.active === false;
@@ -254,8 +390,8 @@ function publicUser(u) {
         inventory: (u.inventory || []).map(id => findItem(id)).filter(Boolean),
         equippedAccessory: u.equippedAccessory || null,
         friends: u.friends || [],
-        profileBgColor: u.profileBgColor || null,
-        profileSoundUrl: u.profileSoundUrl || null,
+        profileBgColor: equippedStyling(u).bgColor,
+        profileSoundUrl: equippedStyling(u).soundUrl,
         bio: u.bio || "",
         avatarUrl: u.avatarUrl || null,
         avatar: u.avatarUrl || null,
@@ -267,7 +403,11 @@ function publicUser(u) {
         dislikesCount: u.dislikesCount || 0,
         followersCount: (u.followers || []).length,
         followingCount: (u.following || []).length,
-        isAlert: !!u.banned
+        isAlert: !!u.banned,
+        teapotHtml: (() => {
+            const eq = u.equippedAccessory ? findItem(u.equippedAccessory) : null;
+            return (eq && eq.type === "teapot") ? (eq.customHtml || "") : null;
+        })()
     };
 }
 
@@ -286,8 +426,8 @@ function privateUser(u) {
         equippedAccessory: u.equippedAccessory || null,
         friends: u.friends || [],
         friendRequests: u.friendRequests || [],
-        profileBgColor: u.profileBgColor || null,
-        profileSoundUrl: u.profileSoundUrl || null,
+        profileBgColor: equippedStyling(u).bgColor,
+        profileSoundUrl: equippedStyling(u).soundUrl,
         bio: u.bio || "",
         avatarUrl: u.avatarUrl || null,
         avatar: u.avatarUrl || null,
@@ -629,6 +769,18 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
     user.coins -= item.price;
     user.inventory.push(item.id);
     item.totalSold = (item.totalSold || 0) + 1;
+
+    // Si el artículo (p.ej. un Teapot) tiene un Star Code enlazado, su dueño
+    // recibe un 10% del precio en monedas, como apoyo.
+    if (item.linkedStarCode) {
+        const sc = db.starCodes.find(c => c.code.toLowerCase() === String(item.linkedStarCode).toLowerCase());
+        if (sc) {
+            const owner = db.users.find(u => String(u.id) === String(sc.ownerId));
+            if (owner) owner.coins += Math.floor(item.price * 0.1);
+            sc.uses = (sc.uses || 0) + 1;
+        }
+    }
+
     saveDb();
     res.json({ newBalance: user.coins });
 });
@@ -825,6 +977,7 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl } = req.body || {};
     const item = findItem(itemId);
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    if (item.type === "teapot") return res.status(403).json({ error: "Los Teapots solo los puede editar el Owner." });
 
     if (price !== undefined && price !== "") item.price = Number(price);
     if (limited === "true") item.limited = true;
@@ -838,6 +991,67 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     else if (onlyBlock === "false") item.onlyBlock = false;
     if (bgColor) item.bgColor = bgColor;
     if (soundUrl) item.soundUrl = soundUrl;
+
+    saveDb();
+    res.json({ item });
+});
+
+// ---------------------------------------------------------------------------
+// TEAPOTS: artículo especial exclusivo del OWNER (ni siquiera los admins).
+// Al equiparlo, reemplaza tu tarjeta pública por un HTML personalizado.
+// Se puede vender, poner offsale, hacer limited, o enlazarle un Star Code.
+// ---------------------------------------------------------------------------
+
+function requireOwner(req, res, next) {
+    if (!req.user || !req.user.owner) return res.status(403).json({ error: "Solo el Owner puede hacer esto." });
+    next();
+}
+
+app.post("/api/owner/teapots/upload", requireAuth, requireOwner, (req, res) => {
+    const b = req.body || {};
+    const limited = b.limited === true || b.limited === "true";
+    const item = {
+        id: nextId(),
+        name: b.name || "Teapot",
+        type: "teapot",
+        imageUrl: b.imageUrl || "",
+        customHtml: b.customHtml || "",
+        price: Number(b.price) || 0,
+        limited,
+        offsale: b.offsale === true || b.offsale === "true",
+        onlyBlock: false,
+        maxPerUser: limited ? Number(b.maxPerUser) || 1 : null,
+        maxGlobal: limited && b.maxGlobal ? Number(b.maxGlobal) : null,
+        linkedStarCode: b.linkedStarCode || null,
+        isGhost: false,
+        totalSold: 0,
+        creatorId: req.user.id,
+        creatorUsername: req.user.username,
+        createdByAdmin: true,
+        comments: [],
+        reports: []
+    };
+    db.accessories.push(item);
+    saveDb();
+    res.json({ item });
+});
+
+app.post("/api/owner/teapots/edit", requireAuth, requireOwner, (req, res) => {
+    const { itemId, name, imageUrl, customHtml, price, limited, offsale, maxPerUser, maxGlobal, linkedStarCode } = req.body || {};
+    const item = findItem(itemId);
+    if (!item || item.type !== "teapot") return res.status(404).json({ error: "Teapot no encontrado." });
+
+    if (name) item.name = name;
+    if (imageUrl) item.imageUrl = imageUrl;
+    if (customHtml !== undefined) item.customHtml = customHtml;
+    if (price !== undefined && price !== "") item.price = Number(price);
+    if (limited === true || limited === "true") item.limited = true;
+    if (limited === false || limited === "false") item.limited = false;
+    if (offsale === true || offsale === "true") item.offsale = true;
+    if (offsale === false || offsale === "false") item.offsale = false;
+    if (maxPerUser) item.maxPerUser = Number(maxPerUser);
+    if (maxGlobal) item.maxGlobal = Number(maxGlobal);
+    if (linkedStarCode !== undefined) item.linkedStarCode = linkedStarCode || null;
 
     saveDb();
     res.json({ item });
@@ -1507,19 +1721,6 @@ app.post("/api/admin/starcodes/create", requireAdmin, (req, res) => {
     res.json({ starCode });
 });
 
-// El propio dueño de la cuenta también puede crear su Star Code usando su ID privado.
-app.post("/api/starcodes/create-own", requireAuth, (req, res) => {
-    const { code } = req.body || {};
-    if (!code || !code.trim()) return res.status(400).json({ error: "Falta el nombre del código." });
-    if (db.starCodes.some(c => c.code.toLowerCase() === code.trim().toLowerCase())) {
-        return res.status(400).json({ error: "Ese Star Code ya existe." });
-    }
-    const starCode = { code: code.trim(), ownerId: req.user.id, ownerUsername: req.user.username, uses: 0 };
-    db.starCodes.push(starCode);
-    saveDb();
-    res.json({ starCode });
-});
-
 // ---------------------------------------------------------------------------
 // ADMIN: USUARIOS, INSIGNIAS, BANEOS
 // ---------------------------------------------------------------------------
@@ -1650,6 +1851,19 @@ app.post("/api/account/set-inactive", requireAuth, (req, res) => {
 // MENSAJES DE ADMINISTRACIÓN (los admins pueden escribir a cualquier usuario)
 // ---------------------------------------------------------------------------
 
+// Solo el Owner puede regalar artículos del catálogo directamente a un usuario.
+app.post("/api/owner/give-item", requireAuth, requireOwner, (req, res) => {
+    const { username, itemId } = req.body || {};
+    const target = findUserByUsername(username);
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    target.inventory.push(item.id);
+    item.totalSold = (item.totalSold || 0) + 1;
+    saveDb();
+    res.json({ ok: true, message: `Se ha entregado "${item.name}" a ${target.username}.` });
+});
+
 app.get("/api/messages", requireAuth, (req, res) => {
     db.adminMessages = db.adminMessages || {};
     res.json({ messages: db.adminMessages[req.user.id] || [] });
@@ -1717,10 +1931,17 @@ app.get("/api/users/search", (req, res) => {
     res.json({ users: results });
 });
 
-app.get("/api/users/profile/:id", (req, res) => {
+app.get("/api/users/profile/:id", optionalAuth, (req, res) => {
     const user = db.users.find(u => String(u.id) === String(req.params.id) || u.username.toLowerCase() === String(req.params.id).toLowerCase());
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
     const pub = publicUser(user);
+    // Un amigo (o el propio Owner) sí puede ver el ID de esta cuenta.
+    const requester = req.user;
+    const isFriend = requester && (user.friends || []).includes(requester.id);
+    const isSelf = requester && String(requester.id) === String(user.id);
+    if (requester && (isFriend || isSelf || requester.owner)) {
+        pub.id = user.id;
+    }
     res.json(pub);
 });
 
@@ -1870,7 +2091,29 @@ app.get("/", (req, res) => res.send("Game Blocks API funcionando correctamente."
 app.get("/api/health", (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 // ---------------------------------------------------------------------------
-app.listen(PORT, () => {
-    console.log(`Game Blocks server escuchando en el puerto ${PORT}`);
-    console.log(`Base de datos persistente en: ${DB_FILE}`);
+app.get("/api/admin/backup-status", requireAdmin, (req, res) => {
+    res.json({
+        githubBackupEnabled: GITHUB_BACKUP_ENABLED,
+        repo: GITHUB_BACKUP_ENABLED ? GITHUB_REPO : null,
+        path: GITHUB_BACKUP_ENABLED ? GITHUB_BACKUP_PATH : null
+    });
 });
+
+app.post("/api/admin/backup-now", requireAdmin, async (req, res) => {
+    if (!GITHUB_BACKUP_ENABLED) {
+        return res.status(400).json({ error: "El backup en GitHub no está configurado (faltan GITHUB_TOKEN / GITHUB_REPO)." });
+    }
+    await pushDbToGithub();
+    res.json({ ok: true, message: "Copia de seguridad subida a GitHub." });
+});
+
+(async () => {
+    await loadDb();
+    app.listen(PORT, () => {
+        console.log(`Game Blocks server escuchando en el puerto ${PORT}`);
+        console.log(`Base de datos persistente en: ${DB_FILE}`);
+        console.log(GITHUB_BACKUP_ENABLED
+            ? `[GitHub backup] Activado -> ${GITHUB_REPO} (${GITHUB_BACKUP_PATH})`
+            : `[GitHub backup] Desactivado (configura GITHUB_TOKEN y GITHUB_REPO para activarlo).`);
+    });
+})();
