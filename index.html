@@ -191,10 +191,10 @@ body.has-sidebar .main-content {
 }
 
 .currency-icon-small {
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
     object-fit: contain;
-    vertical-align: -3px;
+    vertical-align: -1px;
     display: inline-block;
 }
 
@@ -503,9 +503,16 @@ model-viewer {
 
 .shop-items {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(5, 1fr);
     gap: 10px;
     width: 100%;
+}
+
+@media (max-width: 900px) {
+    .shop-items { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 560px) {
+    .shop-items { grid-template-columns: repeat(2, 1fr); }
 }
 
 .shop-card {
@@ -912,10 +919,11 @@ model-viewer {
 <div id="accountView" class="hidden">
     <div class="profile-avatar-container">
         <img id="myAvatar" class="profile-avatar" src="https://via.placeholder.com/110" alt="Foto de perfil">
-        <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="editAvatar()">
-        <button class="secondary-button" style="width: auto; padding: 6px 12px; margin-top: 0;" onclick="document.getElementById('avatarFileInput').click()">🖼️ Cambiar foto</button>
-        <div id="avatarUploadMsg" style="font-size:11px; margin-top:4px;"></div>
+        <small style="color:#777;">La foto de perfil se elige equipando un artículo "Foto de perfil" del catálogo.</small>
         <div id="myAccountIdLabel" style="font-size:11px; color:#888; margin-top:4px;"></div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:8px;">
+            <input type="checkbox" id="inventoryPublicToggle" style="width:auto;" onchange="toggleInventoryPublic()"> Mostrar mi inventario en mi tarjeta pública
+        </label>
     </div>
 
     <h2 id="welcome" style="text-align: center; margin-top: 0;">Mi cuenta</h2>
@@ -1205,11 +1213,6 @@ model-viewer {
     </div>
 
     <div class="section">
-        <h3>🔎 Resultados de Búsqueda</h3>
-        <div id="searchResults"></div>
-    </div>
-
-    <div class="section">
         <h3>🤝 Intercambios (Trades)</h3>
         <button class="secondary-button" onclick="loadTrades()">🔄 Cargar ofertas recibidas</button>
         <div id="tradesContainer"></div>
@@ -1233,10 +1236,12 @@ model-viewer {
     <div id="ugcUploadSection" class="section hidden">
         <h3>📤 Subir artículo al catálogo (Turbo Block / 🎩UGC+)</h3>
         <input type="text" id="ugcItemName" placeholder="Nombre del artículo">
+        <textarea id="ugcItemDescription" placeholder="Descripción (opcional)" style="min-height:50px;"></textarea>
         <input type="file" id="ugcItemImageFile" accept="image/*">
         <select id="ugcItemTypeSelect" style="width:auto;">
             <option value="tshirt">Camiseta</option>
             <option value="hat" id="ugcHatOption" class="hidden">Sombrero/Accesorio (solo 🎩UGC+)</option>
+            <option value="pfp" id="ugcPfpOption" class="hidden">🖼️ Foto de perfil (solo admins/🎩UGC+)</option>
         </select>
         <input type="number" id="ugcItemPrice" placeholder="Precio en monedas (0 = gratis)" min="0">
         <label style="display:flex; align-items:center; gap:6px; margin-top:6px;">
@@ -1247,11 +1252,6 @@ model-viewer {
         </label>
         <button class="form-button" style="margin-top:8px;" onclick="uploadUserItem()">Subir artículo</button>
         <p id="ugcUploadMsg"></p>
-    </div>
-
-    <div id="ownerAccountIdsPanel" class="section hidden">
-        <h3>👑 IDs de todas las cuentas (Solo Owner)</h3>
-        <div id="ownerAccountIdsList">Cargando...</div>
     </div>
 
     <div id="ownerGiveItemPanel" class="section hidden">
@@ -1287,9 +1287,9 @@ model-viewer {
 
 <!-- MODAL TIENDA Y AVATAR -->
 <div id="avatarModal" class="modal" onclick="outsideCloseAvatar(event)">
-<div class="modal-box" style="max-width: 850px;">
+<div class="modal-box" style="max-width: 1150px; width: 95%;">
     <button class="close" onclick="closeAvatarModal()">×</button>
-    <h2>🎭 Personalizar Avatar & Tienda</h2>
+    <h2>🛒 Tienda</h2>
 
     <div class="avatar-modal-body">
         <div style="display:flex; flex-direction:column; align-items:center;">
@@ -1303,10 +1303,11 @@ model-viewer {
         <div style="flex:1; min-width: 260px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <h3 style="margin:0;">🛒 Catálogo</h3>
-                
+                <input id="shopSearchInput" type="text" placeholder="Buscar en la tienda..." style="width:auto; min-width:160px; margin:0; padding:6px 10px;" oninput="loadShopItems()">
                 <select id="catalogTypeSelect" style="width:auto; margin:0; padding:6px 10px;" onchange="loadShopItems()">
                     <option value="hat">Sombreros / Accesorios 3D</option>
                     <option value="tshirt">Camisetas</option>
+                    <option value="pfp">🖼️ Fotos de perfil</option>
                     <option value="teapot">🫖 Teapots</option>
                     <option value="gear">⚙️ Gears</option>
                 </select>
@@ -1345,6 +1346,14 @@ model-viewer {
         <button class="form-button" style="background:#00d2ff; color:#000;" onclick="sendGift('block')">⚡ Regalar Block — 6 💲 (1 mes)</button>
         <button class="form-button" style="background:linear-gradient(90deg,#ff00cc,#3333ff); color:#fff;" onclick="sendGift('turbo')">🚀 Regalar Turbo Block — 11 💲 (1 mes, +1000 monedas para ti)</button>
         <p id="giftModalMsg"></p>
+    </div>
+</div>
+
+<div id="searchResultsModal" class="modal" onclick="if(event.target.id==='searchResultsModal') closeSearchResultsModal();">
+    <div class="modal-box" style="max-width:480px;">
+        <button class="close" onclick="closeSearchResultsModal()">×</button>
+        <h2>🔎 Resultados de búsqueda</h2>
+        <div id="searchResults">Buscando...</div>
     </div>
 </div>
 
@@ -2377,20 +2386,6 @@ async function ownerCreateTeapot() {
     }
 }
 
-async function loadOwnerAccountIds() {
-    const container = document.getElementById("ownerAccountIdsList");
-    try {
-        const data = await request("/api/owner/account-ids");
-        container.innerHTML = "";
-        data.users.forEach(u => {
-            const div = document.createElement("div");
-            div.style.fontSize = "12px";
-            div.style.color = "#ccc";
-            div.textContent = `ID ${u.id} — ${u.username}`;
-            container.appendChild(div);
-        });
-    } catch (e) { container.textContent = "Error al cargar."; }
-}
 
 async function loadMyAdminMessages() {
     const container = document.getElementById("myAdminMessages");
@@ -2426,7 +2421,8 @@ async function updateAccount() {
         document.getElementById("userCoinsText").textContent = me.coins || 0;
         document.getElementById("userDollarsText").textContent = me.dollars || 0;
         document.getElementById("myBio").value = me.bio || "";
-        document.getElementById("myAccountIdLabel").textContent = "🔒 Tu ID de cuenta (privado, solo tú lo ves): " + me.id;
+        document.getElementById("myAccountIdLabel").textContent = "🆔 Tu ID de cuenta (ahora es público): " + me.id;
+        document.getElementById("inventoryPublicToggle").checked = me.inventoryPublic !== false;
 
         document.getElementById("accountButton").classList.remove("hidden");
         document.getElementById("loginBtn").classList.add("hidden");
@@ -2449,18 +2445,12 @@ async function updateAccount() {
             document.getElementById("adminPanel").classList.add("hidden");
         }
 
-        const ownerIdsPanel = document.getElementById("ownerAccountIdsPanel");
-        if (ownerIdsPanel) {
-            if (me.owner) {
-                ownerIdsPanel.classList.remove("hidden");
-                document.getElementById("ownerGiveItemPanel").classList.remove("hidden");
-                document.getElementById("ownerTeapotPanel").classList.remove("hidden");
-                loadOwnerAccountIds();
-            } else {
-                ownerIdsPanel.classList.add("hidden");
-                document.getElementById("ownerGiveItemPanel").classList.add("hidden");
-                document.getElementById("ownerTeapotPanel").classList.add("hidden");
-            }
+        if (me.owner) {
+            document.getElementById("ownerGiveItemPanel").classList.remove("hidden");
+            document.getElementById("ownerTeapotPanel").classList.remove("hidden");
+        } else {
+            document.getElementById("ownerGiveItemPanel").classList.add("hidden");
+            document.getElementById("ownerTeapotPanel").classList.add("hidden");
         }
 
         applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
@@ -2474,38 +2464,18 @@ async function updateAccount() {
         const canUploadUgc = me.turboBlockSub || isUgcPlusForUpload || me.admin || me.owner;
         document.getElementById("ugcUploadSection").classList.toggle("hidden", !canUploadUgc);
         document.getElementById("ugcHatOption").classList.toggle("hidden", !isUgcPlusForUpload);
+        document.getElementById("ugcPfpOption").classList.toggle("hidden", !(isUgcPlusForUpload || me.admin || me.owner));
     } catch (e) {
         if (e.message.includes("baneado")) showBannedView();
         else logout();
     }
 }
 
-async function editAvatar() {
-    const fileInput = document.getElementById("avatarFileInput");
-    const msg = document.getElementById("avatarUploadMsg");
-    if (!fileInput.files || !fileInput.files[0]) return;
-
-    const formData = new FormData();
-    formData.append("image", fileInput.files[0]);
-
+async function toggleInventoryPublic() {
+    const checked = document.getElementById("inventoryPublicToggle").checked;
     try {
-        const token = localStorage.getItem("gameblocks_token");
-        const res = await fetch(RENDER_API + "/api/profile/avatar-upload", {
-            method: "POST",
-            headers: { Authorization: "Bearer " + token },
-            body: formData
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error al subir la imagen.");
-        document.getElementById("myAvatar").src = absUrl(data.avatar);
-        msg.className = "success";
-        msg.textContent = "¡Foto de perfil actualizada!";
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    } finally {
-        fileInput.value = "";
-    }
+        await request("/api/profile/inventory-visibility", "POST", { public: checked });
+    } catch (e) { alert(e.message); }
 }
 
 async function saveBio() {
@@ -2593,10 +2563,14 @@ async function createGameCode() {
     }
 }
 
+function closeSearchResultsModal() { document.getElementById("searchResultsModal").style.display = "none"; }
+
 async function searchUsers() {
     const q = document.getElementById("searchInput").value;
-    const container = document.getElementById("searchResults");
     if (!q) return;
+    document.getElementById("searchResultsModal").style.display = "flex";
+    const container = document.getElementById("searchResults");
+    container.textContent = "Buscando...";
 
     try {
         const data = await request(`/api/users/search?q=${encodeURIComponent(q)}`);
@@ -2615,7 +2589,7 @@ async function searchUsers() {
                         <b>${escapeHTML(u.username)}</b>
                     </div>
                     <div>
-                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="openUserProfileCard('${u.id}')">Ver Perfil</button>
+                        <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="closeSearchResultsModal(); openUserProfileCard('${u.id}')">Ver Perfil</button>
                         <button class="secondary-button" style="width:auto; margin:0; padding:6px 10px;" onclick="sendFriendRequest('${u.id}')">➕ Agregar</button>
                     </div>
                 </div>
@@ -2805,9 +2779,11 @@ async function loadShopItems() {
         const ownedIds = new Set((me && me.inventory) ? me.inventory.map(String) : []);
 
         const adminFilter = document.getElementById("tshirtAdminFilter").value;
+        const searchQuery = (document.getElementById("shopSearchInput").value || "").trim().toLowerCase();
         const itemsFiltered = data.items.filter(item => {
             if (item.type !== type) return false;
             if ((type === "tshirt" || type === "hat") && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
+            if (searchQuery && !item.name.toLowerCase().includes(searchQuery)) return false;
             return true;
         });
 
@@ -2832,6 +2808,7 @@ async function loadShopItems() {
             card.innerHTML = `
                 <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
+                ${item.description ? `<div style="font-size:10px; color:#999; margin:2px 0;">${escapeHTML(item.description)}</div>` : ""}
                 <div class="item-id-label">ID: ${item.id}</div>
                 <div class="copies-sold-label">${soldLabel}</div>
                 <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
@@ -2840,7 +2817,12 @@ async function loadShopItems() {
 
             const ownedCount = (me && me.inventory) ? me.inventory.filter(id => String(id) === String(item.id)).length : 0;
             const owned = ownedCount > 0;
-            const isEquipped = me && String(me.equippedAccessory) === String(item.id);
+            const equippedHats = (me && me.equippedHats) || [];
+            const isEquipped = !me ? false
+                : item.type === "hat" ? equippedHats.some(id => String(id) === String(item.id))
+                : item.type === "teapot" ? String(me.equippedTeapot) === String(item.id)
+                : item.type === "pfp" ? String(me.equippedPfp) === String(item.id)
+                : false;
             const canBuyMore = item.limited && item.maxPerUser && ownedCount < item.maxPerUser;
 
             const btn = document.createElement("button");
@@ -2850,8 +2832,13 @@ async function loadShopItems() {
             btn.style.fontSize = "12px";
 
             if (owned) {
-                btn.textContent = isEquipped ? "Desequipar" : "Equipar";
-                btn.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
+                if (item.type === "hat" && !isEquipped && equippedHats.length >= 3) {
+                    btn.textContent = "Máx. 3 sombreros";
+                    btn.disabled = true;
+                } else {
+                    btn.textContent = isEquipped ? "Desequipar" : "Equipar";
+                    btn.onclick = () => isEquipped ? unequipAccessory(item.id) : equipAccessory(item.id);
+                }
             } else {
                 btn.textContent = item.offsale ? "Offsale" : "Comprar";
                 btn.disabled = item.offsale;
@@ -2982,12 +2969,19 @@ async function loadMyInventory() {
 
             const card = document.createElement("div");
             card.className = "shop-card";
-            const isEquipped = String(me.equippedAccessory) === String(itemId);
+
+            const equippedHats = me.equippedHats || [];
+            const isEquipped = item.type === "hat" ? equippedHats.some(id => String(id) === String(itemId))
+                : item.type === "teapot" ? String(me.equippedTeapot) === String(itemId)
+                : item.type === "pfp" ? String(me.equippedPfp) === String(itemId)
+                : false;
 
             card.innerHTML = `
                 <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)} (x${counts[itemId]})</div>
+                ${item.description ? `<div style="font-size:10px; color:#999;">${escapeHTML(item.description)}</div>` : ""}
                 <div class="item-id-label">ID: ${item.id}</div>
+                ${isEquipped ? `<div style="font-size:10px; color:#28a745; font-weight:bold;">✔ Equipado</div>` : ""}
             `;
 
             const btnEquip = document.createElement("button");
@@ -2995,8 +2989,25 @@ async function loadMyInventory() {
             btnEquip.style.marginTop = "4px";
             btnEquip.style.padding = "4px";
             btnEquip.style.fontSize = "11px";
-            btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
-            btnEquip.onclick = () => isEquipped ? unequipAccessory() : equipAccessory(item.id);
+
+            if (item.type === "hat") {
+                if (isEquipped) {
+                    btnEquip.textContent = "Desequipar";
+                    btnEquip.onclick = () => unequipAccessory(item.id);
+                } else if (equippedHats.length >= 3) {
+                    btnEquip.textContent = "Máx. 3 sombreros";
+                    btnEquip.disabled = true;
+                } else {
+                    btnEquip.textContent = `Equipar (${equippedHats.length}/3)`;
+                    btnEquip.onclick = () => equipAccessory(item.id);
+                }
+            } else if (item.type === "teapot" || item.type === "pfp") {
+                btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
+                btnEquip.onclick = () => isEquipped ? unequipAccessory(item.id) : equipAccessory(item.id);
+            } else {
+                btnEquip.textContent = "No equipable";
+                btnEquip.disabled = true;
+            }
 
             card.appendChild(btnEquip);
 
@@ -3022,15 +3033,17 @@ async function equipAccessory(itemId) {
         applyProfileStyling(data.profileBgColor, data.profileSoundUrl);
         const item = (await request("/api/accessories/all")).items.find(a => String(a.id) === String(itemId));
         if (item && item.glbUrl) document.getElementById("accessoryViewer").src = item.glbUrl;
+        if (item && item.type === "pfp") document.getElementById("myAvatar").src = absUrl(item.imageUrl);
         loadMyInventory();
     } catch (e) { alert(e.message); }
 }
 
-async function unequipAccessory() {
+async function unequipAccessory(itemId) {
     try {
-        await request("/api/accessories/unequip", "POST");
-        applyProfileStyling(null, null);
-        document.getElementById("accessoryViewer").src = "";
+        const data = await request("/api/accessories/unequip", "POST", { itemId });
+        const me = await request("/api/me");
+        applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
+        document.getElementById("myAvatar").src = me.avatar ? absUrl(me.avatar) : "https://via.placeholder.com/110";
         loadMyInventory();
     } catch (e) { alert(e.message); }
 }
