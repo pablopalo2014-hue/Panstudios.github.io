@@ -44,6 +44,56 @@ body {
     gap: 10px;
 }
 
+.topbar-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar {
+    position: fixed;
+    top: 65px;
+    left: 0;
+    width: 88px;
+    bottom: 0;
+    background: #0a1440;
+    border-right: 2px solid #14225e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 6px;
+    overflow-y: auto;
+    z-index: 900;
+}
+
+.sidebar-btn {
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 4px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.3;
+}
+
+body.has-sidebar .hero,
+body.has-sidebar .main-content {
+    padding-left: 100px;
+}
+
+@media (max-width: 700px) {
+    .sidebar { display: none; }
+    body.has-sidebar .hero,
+    body.has-sidebar .main-content { padding-left: 20px; }
+    .topbar-center { display: none; }
+}
+
 .top-search {
     width: 200px;
     padding: 8px 12px;
@@ -585,33 +635,42 @@ model-viewer {
 </style>
 </head>
 
-<body>
+<body class="has-sidebar">
 
 <div class="topbar">
     <div class="topbar-left">
-        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios..." onkeydown="if(event.key==='Enter') searchUsers();">
-        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
         <button class="top-button" style="padding: 8px 12px; background: #28a745; color: #fff;" onclick="launchGame()">▶️ Abrir</button>
     </div>
+    <div class="topbar-center">
+        <input id="searchInput" class="top-search" type="text" placeholder="Buscar usuarios..." onkeydown="if(event.key==='Enter') searchUsers();">
+        <button class="top-button" style="padding: 8px 12px;" onclick="searchUsers()">🔍</button>
+    </div>
     <div class="topbar-right">
-        <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="openCurrencyModal()">
+        <div class="coin-display" id="userCoinsDisplay" title="Tus monedas" onclick="toggleCoinsMenu(event)">
             <img src="dineros.png" class="currency-icon" alt="Monedas"> <span id="userCoinsText">0</span>
+        </div>
+        <div id="coinsMenu" class="hidden" style="position:absolute; top:60px; right:120px; background:#111; border:1px solid #444; border-radius:6px; padding:6px; z-index:1200; min-width:170px;">
+            <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openTransactionsModal();">📊 Mis transacciones</button>
+            <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openCurrencyModal();">💲 Comprar monedas</button>
         </div>
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
             💲 <span id="userDollarsText">0</span>
         </div>
-        <button class="top-button" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥 Grupos</button>
-        <button class="top-button" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡ Block Sub</button>
-        <button class="top-button" style="background: linear-gradient(90deg,#ff00cc,#3333ff); color: #fff;" onclick="openTurboBlockModal()">🚀 Turbo Block</button>
-        <button class="top-button" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🎭 Avatar & Tienda</button>
         <a class="top-button" href="https://pablopalo2014.itch.io/game-blocks">Descargar</a>
-        <button id="accountButton" class="top-button hidden" onclick="openAccount()">👤 Ver mi cuenta</button>
     </div>
+</div>
+
+<div class="sidebar">
+    <button class="sidebar-btn" style="background: #ff8800; color: #000;" onclick="openGroupsModal()">👥<br>Grupos</button>
+    <button class="sidebar-btn" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡<br>Block Sub</button>
+    <button class="sidebar-btn" style="background: linear-gradient(90deg,#ff00cc,#3333ff); color: #fff;" onclick="openTurboBlockModal()">🚀<br>Turbo Block</button>
+    <button class="sidebar-btn" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🛒<br>Tienda</button>
+    <button id="accountButton" class="sidebar-btn hidden" style="background:#222; color:#fff; border:1px solid #444;" onclick="openAccount()">👤<br>Mi cuenta</button>
 </div>
 
 <section class="hero">
     <img class="logo" src="game blocks logo(1).png" alt="Game Blocks Logo">
-    <h1 id="heroSlogan" class="slogan hidden">Potenciando la construcción (Edición 2007)</h1>
+    <h1 id="heroSlogan" class="slogan">Potenciando la construcción (Edición 2007)</h1>
 
     <!-- CAMBIAR COLOR DE FONDO LOCAL -->
     <div style="background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 8px; border: 1px solid #444; margin-bottom: 20px;">
@@ -1393,10 +1452,14 @@ let currentCardUserId = null;
 let currentOpenGroupId = null;
 let profileAudio = null;
 
-// Cada 10 segundos se envía un "ping" vacío al servidor (mantiene la sesión
-// y el servidor activos, especialmente en hostings gratuitos que "duermen").
+// Cada 10 segundos se envía un paquete al servidor con el contenido "HOLA"
+// (mantiene el servidor despierto y evita que Render lo reinicie/borre por
+// inactividad). La persistencia real ante un borrado del disco de Render la
+// da el backup automático a GitHub (ver GITHUB_TOKEN / GITHUB_REPO en el
+// servidor); este ping es la segunda capa de protección: evita que el
+// servicio se llegue a dormir o reiniciar por falta de actividad.
 setInterval(() => {
-    fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+    fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "text/plain" }, body: "HOLA" }).catch(() => {});
 }, 10000);
 
 // Mejora de calidad de vida: la tecla Escape cierra cualquier modal abierto.
@@ -2464,6 +2527,19 @@ function saveExePath() {
     document.getElementById("exeMessage").className = "success";
     document.getElementById("exeMessage").textContent = "Configuración guardada.";
 }
+
+function toggleCoinsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById("coinsMenu");
+    menu.classList.toggle("hidden");
+}
+function closeCoinsMenu() { document.getElementById("coinsMenu").classList.add("hidden"); }
+document.addEventListener("click", (e) => {
+    const menu = document.getElementById("coinsMenu");
+    if (menu && !menu.classList.contains("hidden") && !menu.contains(e.target) && e.target.id !== "userCoinsDisplay" && !e.target.closest("#userCoinsDisplay")) {
+        menu.classList.add("hidden");
+    }
+});
 
 function launchGame() {
     const p = localStorage.getItem("gameblocks_exe_path");
