@@ -138,6 +138,9 @@ function defaultDb() {
         resaleListings: [],   // { id, itemId, sellerId, sellerUsername, price }
         adminMessages: {},    // userId -> [ {fromUsername, text, createdAt} ]
         itemReports: {},      // itemId -> [userId, ...]
+        transactions: [],     // ventas de artículos y compras de monedas
+        forumCategories: [],  // { id, name, description, adminOnly, createdAt }
+        forumPosts: [],       // { id, categoryId, authorId, authorUsername, title, content, createdAt }
         nextId: 1,
         nextUserId: 1,
         nextGroupId: 1
@@ -2055,6 +2058,81 @@ app.post("/api/owner/give-item", requireAuth, requireOwner, (req, res) => {
     item.totalSold = (item.totalSold || 0) + 1;
     saveDb();
     res.json({ ok: true, message: `Se ha entregado "${item.name}" a ${target.username}.` });
+});
+
+// ---------------------------------------------------------------------------
+// FORO GLOBAL (categorías creadas por admins, publicaciones de usuarios)
+// ---------------------------------------------------------------------------
+
+app.get("/api/forum/categories", (req, res) => {
+    res.json({ categories: db.forumCategories || [] });
+});
+
+app.post("/api/admin/forum/categories", requireAdmin, (req, res) => {
+    const { name, description, adminOnly } = req.body || {};
+    if (!name || !name.trim()) return res.status(400).json({ error: "Falta el nombre de la categoría." });
+    const category = {
+        id: nextId(),
+        name: name.trim(),
+        description: description || "",
+        adminOnly: !!adminOnly,
+        createdAt: Date.now()
+    };
+    db.forumCategories = db.forumCategories || [];
+    db.forumCategories.push(category);
+    saveDb();
+    res.json({ category });
+});
+
+app.post("/api/admin/forum/categories/delete", requireAdmin, (req, res) => {
+    const { categoryId } = req.body || {};
+    db.forumCategories = (db.forumCategories || []).filter(c => String(c.id) !== String(categoryId));
+    db.forumPosts = (db.forumPosts || []).filter(p => String(p.categoryId) !== String(categoryId));
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.get("/api/forum/categories/:id/posts", (req, res) => {
+    const posts = (db.forumPosts || [])
+        .filter(p => String(p.categoryId) === String(req.params.id))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    res.json({ posts });
+});
+
+app.post("/api/forum/posts", requireAuth, (req, res) => {
+    const { categoryId, title, content } = req.body || {};
+    const category = (db.forumCategories || []).find(c => String(c.id) === String(categoryId));
+    if (!category) return res.status(404).json({ error: "Categoría no encontrada." });
+    if (category.adminOnly && !isAdminUser(req.user)) {
+        return res.status(403).json({ error: "Esta categoría es solo para publicaciones de administradores." });
+    }
+    if (!title || !title.trim() || !content || !content.trim()) {
+        return res.status(400).json({ error: "Faltan el título o el contenido." });
+    }
+    const post = {
+        id: nextId(),
+        categoryId,
+        authorId: req.user.id,
+        authorUsername: req.user.username,
+        title: title.trim().slice(0, 150),
+        content: content.trim().slice(0, 3000),
+        createdAt: Date.now()
+    };
+    db.forumPosts = db.forumPosts || [];
+    db.forumPosts.push(post);
+    saveDb();
+    res.json({ post });
+});
+
+app.post("/api/forum/posts/delete", requireAuth, (req, res) => {
+    const { postId } = req.body || {};
+    const post = (db.forumPosts || []).find(p => String(p.id) === String(postId));
+    if (!post) return res.status(404).json({ error: "Publicación no encontrada." });
+    const isAuthor = String(post.authorId) === String(req.user.id);
+    if (!isAuthor && !isAdminUser(req.user)) return res.status(403).json({ error: "No puedes borrar esta publicación." });
+    db.forumPosts = db.forumPosts.filter(p => String(p.id) !== String(postId));
+    saveDb();
+    res.json({ ok: true });
 });
 
 app.get("/api/messages", requireAuth, (req, res) => {
