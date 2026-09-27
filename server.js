@@ -352,19 +352,25 @@ function syncSubscriptionBadges(u) {
 // equipado (no de un valor guardado aparte), así que se ve igual para
 // cualquiera que visite su tarjeta pública, y persiste tras recargar.
 function equippedStyling(u) {
-    const item = u.equippedAccessory ? findItem(u.equippedAccessory) : null;
+    const candidates = [
+        ...(u.equippedHats || []).map(id => findItem(id)),
+        u.equippedTeapot ? findItem(u.equippedTeapot) : null
+    ].filter(Boolean);
+    const withBg = candidates.find(it => it.bgColor);
+    const withSound = candidates.find(it => it.soundUrl);
     return {
-        bgColor: (item && item.bgColor) || null,
-        soundUrl: (item && item.soundUrl) || null
+        bgColor: (withBg && withBg.bgColor) || null,
+        soundUrl: (withSound && withSound.soundUrl) || null
     };
 }
 
-function publicUser(u) {
+function publicUser(u, viewer) {
     syncSubscriptionBadges(u);
     const inactive = u.active === false;
     if (inactive) {
         // Cuenta inactiva: solo se muestran foto, nombre y el estado "Inactivo".
         return {
+            id: u.id,
             username: u.username,
             avatarUrl: u.avatarUrl || null,
             avatar: u.avatarUrl || null,
@@ -382,19 +388,34 @@ function publicUser(u) {
             followingCount: 0
         };
     }
+
+    // Foto de perfil: si tiene equipado un artículo tipo "pfp", esa imagen
+    // sustituye a la subida a mano.
+    const pfpItem = u.equippedPfp ? findItem(u.equippedPfp) : null;
+    const effectiveAvatar = (pfpItem && pfpItem.imageUrl) || u.avatarUrl || null;
+
+    // El inventario solo se muestra si el usuario lo tiene en público, salvo
+    // que quien mira sea el Owner (que siempre puede verlo).
+    const isOwnerViewer = !!(viewer && viewer.owner);
+    const showInventory = u.inventoryPublic !== false || isOwnerViewer;
+
     return {
+        id: u.id, // los IDs de cuenta son públicos
         username: u.username,
         admin: !!u.admin,
         owner: !!u.owner,
         badges: u.badges || [],
-        inventory: (u.inventory || []).map(id => findItem(id)).filter(Boolean),
-        equippedAccessory: u.equippedAccessory || null,
+        inventory: showInventory ? (u.inventory || []).map(id => findItem(id)).filter(Boolean) : [],
+        inventoryPublic: u.inventoryPublic !== false,
+        equippedHats: u.equippedHats || [],
+        equippedTeapot: u.equippedTeapot || null,
+        equippedPfp: u.equippedPfp || null,
         friends: u.friends || [],
         profileBgColor: equippedStyling(u).bgColor,
         profileSoundUrl: equippedStyling(u).soundUrl,
         bio: u.bio || "",
-        avatarUrl: u.avatarUrl || null,
-        avatar: u.avatarUrl || null,
+        avatarUrl: effectiveAvatar,
+        avatar: effectiveAvatar,
         blockSub: hasActiveBlock(u),
         turboBlockSub: hasActiveTurboBlock(u),
         banned: !!u.banned,
@@ -405,8 +426,8 @@ function publicUser(u) {
         followingCount: (u.following || []).length,
         isAlert: !!u.banned,
         teapotHtml: (() => {
-            const eq = u.equippedAccessory ? findItem(u.equippedAccessory) : null;
-            return (eq && eq.type === "teapot") ? (eq.customHtml || "") : null;
+            const eq = u.equippedTeapot ? findItem(u.equippedTeapot) : null;
+            return eq ? (eq.customHtml || "") : null;
         })()
     };
 }
@@ -414,6 +435,8 @@ function publicUser(u) {
 // Vista PRIVADA (solo para el propio usuario vía /api/me): incluye su id de cuenta.
 function privateUser(u) {
     syncSubscriptionBadges(u);
+    const pfpItem = u.equippedPfp ? findItem(u.equippedPfp) : null;
+    const effectiveAvatar = (pfpItem && pfpItem.imageUrl) || u.avatarUrl || null;
     return {
         id: u.id,
         username: u.username,
@@ -423,14 +446,18 @@ function privateUser(u) {
         owner: !!u.owner,
         badges: u.badges || [],
         inventory: u.inventory || [],
-        equippedAccessory: u.equippedAccessory || null,
+        inventoryPublic: u.inventoryPublic !== false,
+        equippedHats: u.equippedHats || [],
+        equippedTeapot: u.equippedTeapot || null,
+        equippedPfp: u.equippedPfp || null,
         friends: u.friends || [],
         friendRequests: u.friendRequests || [],
         profileBgColor: equippedStyling(u).bgColor,
         profileSoundUrl: equippedStyling(u).soundUrl,
         bio: u.bio || "",
-        avatarUrl: u.avatarUrl || null,
-        avatar: u.avatarUrl || null,
+        avatarUrl: effectiveAvatar,
+        avatar: effectiveAvatar,
+        rawAvatarUrl: u.avatarUrl || null,
         blockSub: hasActiveBlock(u),
         turboBlockSub: hasActiveTurboBlock(u),
         banned: !!u.banned,
@@ -506,7 +533,11 @@ app.post("/api/register", (req, res) => {
         owner: db.users.length === 0,
         badges: [],
         inventory: [],
-        equippedAccessory: null,
+        equippedHats: [],
+        equippedTeapot: null,
+        equippedPfp: null,
+        inventoryPublic: true,
+        itemAcquiredTimes: {},
         friends: [],
         friendRequests: [],
         followers: [],
@@ -624,6 +655,19 @@ app.post("/api/coins/purchase", requireAuth, (req, res) => {
     }
 
     user.coins += totalCoins;
+
+    db.transactions = db.transactions || [];
+    db.transactions.push({
+        id: nextId(),
+        type: "coin_purchase",
+        userId: user.id,
+        username: user.username,
+        coinsBought: totalCoins,
+        dollarsSpent: pkg.dollars,
+        starCodeApplied,
+        createdAt: Date.now()
+    });
+
     saveDb();
     res.json({ coins: user.coins, dollars: user.dollars, starCodeApplied });
 });
@@ -735,6 +779,18 @@ app.get("/api/accessories", (req, res) => {
     res.json({ items });
 });
 
+app.get("/api/transactions/mine", requireAuth, (req, res) => {
+    db.transactions = db.transactions || [];
+    const sales = db.transactions.filter(t => t.type === "sale" && String(t.sellerId) === String(req.user.id));
+    const purchases = db.transactions.filter(t => t.type === "coin_purchase" && String(t.userId) === String(req.user.id));
+    const totalEarned = sales.reduce((sum, t) => sum + t.amount, 0);
+    res.json({
+        sales: sales.sort((a, b) => b.createdAt - a.createdAt),
+        purchases: purchases.sort((a, b) => b.createdAt - a.createdAt),
+        totalEarned
+    });
+});
+
 app.get("/api/accessories/all", (req, res) => {
     res.json({ items: db.accessories.map(maskAnonymous) });
 });
@@ -770,6 +826,36 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
     user.inventory.push(item.id);
     item.totalSold = (item.totalSold || 0) + 1;
 
+    // Periodo de retención: se guarda cuándo se adquirió esta copia, para
+    // poder exigir 3 días antes de poder revenderla/tradearla si es un
+    // limited (los admins se saltan esta restricción, ver canResellOrTrade).
+    user.itemAcquiredTimes = user.itemAcquiredTimes || {};
+    user.itemAcquiredTimes[item.id] = user.itemAcquiredTimes[item.id] || [];
+    user.itemAcquiredTimes[item.id].push(Date.now());
+
+    // Si el artículo lo creó un usuario (no un admin), ese usuario se lleva
+    // el precio en monedas como ganancia por la venta, y se registra la
+    // transacción para que la pueda consultar en "Mis transacciones".
+    if (item.creatorId && !item.createdByAdmin && String(item.creatorId) !== String(user.id) && item.price > 0) {
+        const creator = db.users.find(u => String(u.id) === String(item.creatorId));
+        if (creator) {
+            creator.coins += item.price;
+            db.transactions = db.transactions || [];
+            db.transactions.push({
+                id: nextId(),
+                type: "sale",
+                itemId: item.id,
+                itemName: item.name,
+                buyerId: user.id,
+                buyerUsername: user.username,
+                sellerId: creator.id,
+                sellerUsername: creator.username,
+                amount: item.price,
+                createdAt: Date.now()
+            });
+        }
+    }
+
     // Si el artículo (p.ej. un Teapot) tiene un Star Code enlazado, su dueño
     // recibe un 10% del precio en monedas, como apoyo.
     if (item.linkedStarCode) {
@@ -785,6 +871,26 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
     res.json({ newBalance: user.coins });
 });
 
+// Comprueba si el usuario puede revender/tradear una copia de este artículo.
+// Los limiteds recién comprados tienen 3 días de retención antes de poder
+// revenderse o tradearse; los admins no tienen esta restricción.
+function canResellOrTrade(user, itemId) {
+    if (isAdminUser(user)) return true;
+    const times = (user.itemAcquiredTimes && user.itemAcquiredTimes[itemId]) || [];
+    if (times.length === 0) return true; // sin registro (artículo antiguo/heredado): se permite
+    const oldest = Math.min(...times);
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    return (Date.now() - oldest) >= THREE_DAYS_MS;
+}
+
+function retentionRemaining(user, itemId) {
+    const times = (user.itemAcquiredTimes && user.itemAcquiredTimes[itemId]) || [];
+    if (times.length === 0) return 0;
+    const oldest = Math.min(...times);
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    return Math.max(0, THREE_DAYS_MS - (Date.now() - oldest));
+}
+
 app.post("/api/accessories/equip", requireAuth, (req, res) => {
     const { itemId } = req.body || {};
     const user = req.user;
@@ -792,15 +898,53 @@ app.post("/api/accessories/equip", requireAuth, (req, res) => {
         return res.status(400).json({ error: "No posees este artículo." });
     }
     const item = findItem(itemId);
-    user.equippedAccessory = itemId;
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+
+    user.equippedHats = user.equippedHats || [];
+    if (item.type === "hat") {
+        if (!user.equippedHats.some(id => String(id) === String(itemId))) {
+            if (user.equippedHats.length >= 3) {
+                return res.status(400).json({ error: "Ya tienes 3 sombreros equipados (el máximo). Desequipa uno primero." });
+            }
+            user.equippedHats.push(itemId);
+        }
+    } else if (item.type === "teapot") {
+        user.equippedTeapot = itemId; // solo 1 a la vez
+    } else if (item.type === "pfp") {
+        user.equippedPfp = itemId; // solo 1 a la vez
+    } else {
+        // Camisetas u otros tipos sin slot de equipo propio: se ignoran aquí.
+        return res.status(400).json({ error: "Este tipo de artículo no se puede equipar." });
+    }
+
     saveDb();
-    res.json({ profileBgColor: item?.bgColor || null, profileSoundUrl: item?.soundUrl || null });
+    res.json({
+        equippedHats: user.equippedHats,
+        equippedTeapot: user.equippedTeapot || null,
+        equippedPfp: user.equippedPfp || null,
+        profileBgColor: equippedStyling(user).bgColor,
+        profileSoundUrl: equippedStyling(user).soundUrl
+    });
 });
 
 app.post("/api/accessories/unequip", requireAuth, (req, res) => {
-    req.user.equippedAccessory = null;
+    const { itemId } = req.body || {};
+    const user = req.user;
+    user.equippedHats = user.equippedHats || [];
+
+    if (itemId) {
+        // Desequipar un artículo concreto (p.ej. uno de los 3 sombreros).
+        user.equippedHats = user.equippedHats.filter(id => String(id) !== String(itemId));
+        if (String(user.equippedTeapot) === String(itemId)) user.equippedTeapot = null;
+        if (String(user.equippedPfp) === String(itemId)) user.equippedPfp = null;
+    } else {
+        // Compatibilidad: sin itemId, se desequipa todo.
+        user.equippedHats = [];
+        user.equippedTeapot = null;
+        user.equippedPfp = null;
+    }
     saveDb();
-    res.json({ ok: true });
+    res.json({ ok: true, equippedHats: user.equippedHats, equippedTeapot: user.equippedTeapot || null, equippedPfp: user.equippedPfp || null });
 });
 
 // NOTA: se ha eliminado la venta directa de artículos por el 50% de su valor.
@@ -817,6 +961,11 @@ app.post("/api/accessories/resell-list", requireAuth, (req, res) => {
     const item = findItem(itemId);
     if (!item || !item.limited || !item.offsale) return res.status(400).json({ error: "Solo se pueden revender Limiteds Offsale." });
     if (!user.inventory.some(id => String(id) === String(itemId))) return res.status(400).json({ error: "No posees este artículo." });
+    if (!canResellOrTrade(user, itemId)) {
+        const ms = retentionRemaining(user, itemId);
+        const hours = Math.ceil(ms / (60 * 60 * 1000));
+        return res.status(400).json({ error: `Este Limited está en periodo de retención. Podrás revenderlo en ~${hours}h.` });
+    }
 
     const listing = { id: nextId(), itemId, sellerId: user.id, sellerUsername: user.username, price: Number(price) || 0 };
     db.resaleListings.push(listing);
@@ -834,9 +983,15 @@ app.post("/api/accessories/resell-buy", requireAuth, (req, res) => {
 
     const idx = seller ? seller.inventory.findIndex(id => String(id) === String(listing.itemId)) : -1;
     if (seller && idx !== -1) seller.inventory.splice(idx, 1);
+    if (seller && seller.itemAcquiredTimes && seller.itemAcquiredTimes[listing.itemId]) {
+        seller.itemAcquiredTimes[listing.itemId].shift();
+    }
     buyer.coins -= listing.price;
     if (seller) seller.coins += listing.price;
     buyer.inventory.push(listing.itemId);
+    buyer.itemAcquiredTimes = buyer.itemAcquiredTimes || {};
+    buyer.itemAcquiredTimes[listing.itemId] = buyer.itemAcquiredTimes[listing.itemId] || [];
+    buyer.itemAcquiredTimes[listing.itemId].push(Date.now());
 
     db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id);
     saveDb();
@@ -868,15 +1023,23 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
     if (!canUploadUGC(user)) {
         return res.status(403).json({ error: "Subir artículos al catálogo requiere Suscripción Turbo Block (o la insignia 🎩UGC+)." });
     }
-    const { name, imageUrl, price, offsale, anonymous, type } = req.body || {};
+    const { name, imageUrl, price, offsale, anonymous, type, description } = req.body || {};
     if (!name || !imageUrl) return res.status(400).json({ error: "Faltan datos." });
 
     const ugcPlus = isUgcPlus(user);
+    const canMakePfp = ugcPlus || isAdminUser(user);
     let finalPrice = Number(price) || 0;
     let finalOffsale = !!offsale;
 
-    if (ugcPlus && !isAdminUser(user)) {
-        // Restricciones especiales de la insignia 🎩UGC+:
+    // Las fotos de perfil (tipo "pfp") solo las pueden subir admins o 🎩UGC+.
+    // Los 🎩UGC+ pueden ponerlas gratis (0 monedas) sin problema.
+    const wantsPfp = type === "pfp";
+    if (wantsPfp && !canMakePfp) {
+        return res.status(403).json({ error: "Solo los administradores o la insignia 🎩UGC+ pueden subir fotos de perfil al catálogo." });
+    }
+
+    if (ugcPlus && !isAdminUser(user) && !wantsPfp) {
+        // Restricciones especiales de la insignia 🎩UGC+ (no aplican a las fotos de perfil):
         // no puede hacer limiteds, no puede vender a 0 monedas, precio mínimo 55.
         if (!finalOffsale) {
             if (finalPrice < 55) {
@@ -885,13 +1048,14 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
         }
     }
 
-    const itemType = (ugcPlus && (type === "hat")) ? "hat" : "tshirt";
+    const itemType = wantsPfp ? "pfp" : ((ugcPlus && type === "hat") ? "hat" : "tshirt");
 
     const item = {
         id: nextId(),
         name,
         type: itemType,
         imageUrl,
+        description: (description || "").slice(0, 300),
         price: finalPrice,
         limited: false,
         offsale: finalOffsale,
@@ -912,12 +1076,13 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
 });
 
 app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
-    const { name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price } = req.body || {};
+    const { name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price, description, type } = req.body || {};
     const item = {
         id: nextId(),
         name,
-        type: "tshirt",
+        type: (type === "pfp") ? "pfp" : "tshirt",
         imageUrl,
+        description: (description || "").slice(0, 300),
         price: Number(price) || 0,
         limited: !!limited,
         offsale: !!offsale,
@@ -951,6 +1116,7 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (r
         type: "hat",
         glbUrl: fileUrl(req, req.file.filename),
         imageUrl: b.imageUrl || "",
+        description: (b.description || "").slice(0, 300),
         price: Number(b.price) || 0,
         limited,
         offsale: b.offsale === "true" || b.offsale === true,
@@ -974,7 +1140,7 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (r
 });
 
 app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
-    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl } = req.body || {};
+    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl, description } = req.body || {};
     const item = findItem(itemId);
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (item.type === "teapot") return res.status(403).json({ error: "Los Teapots solo los puede editar el Owner." });
@@ -991,6 +1157,7 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     else if (onlyBlock === "false") item.onlyBlock = false;
     if (bgColor) item.bgColor = bgColor;
     if (soundUrl) item.soundUrl = soundUrl;
+    if (description !== undefined) item.description = (description || "").slice(0, 300);
 
     saveDb();
     res.json({ item });
@@ -1015,6 +1182,7 @@ app.post("/api/owner/teapots/upload", requireAuth, requireOwner, (req, res) => {
         name: b.name || "Teapot",
         type: "teapot",
         imageUrl: b.imageUrl || "",
+        description: (b.description || "").slice(0, 300),
         customHtml: b.customHtml || "",
         price: Number(b.price) || 0,
         limited,
@@ -1079,7 +1247,9 @@ app.post("/api/admin/accessories/delete", requireAdmin, (req, res) => {
         if (ownedCount > 0) {
             u.inventory = u.inventory.filter(id => String(id) !== String(item.id));
             u.coins += ownedCount * (item.price || 0);
-            if (String(u.equippedAccessory) === String(item.id)) u.equippedAccessory = null;
+            u.equippedHats = (u.equippedHats || []).filter(id => String(id) !== String(item.id));
+            if (String(u.equippedTeapot) === String(item.id)) u.equippedTeapot = null;
+            if (String(u.equippedPfp) === String(item.id)) u.equippedPfp = null;
         }
     });
     db.accessories = db.accessories.filter(a => String(a.id) !== String(item.id));
@@ -1142,26 +1312,16 @@ app.get("/api/admin/reported-items", requireAdmin, (req, res) => {
 // PERFIL, AVATAR, BIO
 // ---------------------------------------------------------------------------
 
-app.post("/api/profile/avatar", requireAuth, (req, res) => {
-    const { avatarUrl, avatar } = req.body || {};
-    req.user.avatarUrl = avatarUrl || avatar || null;
-    saveDb();
-    res.json({ ok: true, avatar: req.user.avatarUrl, avatarUrl: req.user.avatarUrl });
-});
+// NOTA: se ha eliminado la subida libre de foto de perfil (algunos usuarios
+// subían imágenes inapropiadas). Ahora la foto de perfil se elige equipando
+// un artículo del catálogo de tipo "pfp" (ver /api/tshirts/upload con
+// type=pfp, solo admins/🎩UGC+ pueden crearlos).
 
-// Subida real de imagen (foto de perfil, icono de grupo, imagen de artículo, etc.)
+// Subida real de imagen (icono de grupo, imagen de artículo, Teapot, etc.)
 app.post("/api/upload/image", requireAuth, upload.single("image"), (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No se recibió ninguna imagen." });
     const imageUrl = fileUrl(req, req.file.filename);
     res.json({ ok: true, imageUrl, url: imageUrl });
-});
-
-app.post("/api/profile/avatar-upload", requireAuth, upload.single("image"), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: "No se recibió ninguna imagen." });
-    const imageUrl = fileUrl(req, req.file.filename);
-    req.user.avatarUrl = imageUrl;
-    saveDb();
-    res.json({ ok: true, avatar: imageUrl, avatarUrl: imageUrl });
 });
 
 app.post("/api/profile/bio", requireAuth, (req, res) => {
@@ -1169,6 +1329,13 @@ app.post("/api/profile/bio", requireAuth, (req, res) => {
     req.user.bio = (bio || "").slice(0, 500);
     saveDb();
     res.json({ ok: true });
+});
+
+app.post("/api/profile/inventory-visibility", requireAuth, (req, res) => {
+    const { public: isPublic } = req.body || {};
+    req.user.inventoryPublic = !!isPublic;
+    saveDb();
+    res.json({ ok: true, inventoryPublic: req.user.inventoryPublic });
 });
 
 // ---------------------------------------------------------------------------
@@ -1192,8 +1359,10 @@ app.get("/api/friends/requests", requireAuth, (req, res) => {
 });
 
 app.post("/api/friends/request", requireAuth, (req, res) => {
-    const { username } = req.body || {};
-    const target = findUserByUsername(username);
+    const { username, userId } = req.body || {};
+    const target = userId
+        ? db.users.find(u => String(u.id) === String(userId))
+        : findUserByUsername(username);
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
     if (target.id === req.user.id) return res.status(400).json({ error: "No puedes añadirte a ti mismo." });
     target.friendRequests = target.friendRequests || [];
@@ -1572,6 +1741,16 @@ app.post("/api/trade/offer", requireAuth, (req, res) => {
             return res.status(400).json({ error: "Solo se pueden intercambiar Limiteds Offsale." });
         }
     }
+    for (const id of giveIds) {
+        if (!canResellOrTrade(fromUser, id)) {
+            return res.status(400).json({ error: `Uno de tus artículos aún está en periodo de retención (3 días desde que lo compraste).` });
+        }
+    }
+    for (const id of getIds) {
+        if (!canResellOrTrade(toUser, id)) {
+            return res.status(400).json({ error: `Uno de los artículos que pides aún está en periodo de retención para su dueño.` });
+        }
+    }
 
     const trade = {
         id: nextId(),
@@ -1618,11 +1797,25 @@ app.post("/api/trade/accept", requireAuth, (req, res) => {
 
     giveIds.forEach(id => {
         const idx = fromUser.inventory.findIndex(x => String(x) === String(id));
-        if (idx !== -1) { fromUser.inventory.splice(idx, 1); toUser.inventory.push(id); }
+        if (idx !== -1) {
+            fromUser.inventory.splice(idx, 1);
+            toUser.inventory.push(id);
+            if (fromUser.itemAcquiredTimes && fromUser.itemAcquiredTimes[id]) fromUser.itemAcquiredTimes[id].shift();
+            toUser.itemAcquiredTimes = toUser.itemAcquiredTimes || {};
+            toUser.itemAcquiredTimes[id] = toUser.itemAcquiredTimes[id] || [];
+            toUser.itemAcquiredTimes[id].push(Date.now()); // nuevo propietario: nuevo periodo de retención
+        }
     });
     getIds.forEach(id => {
         const idx = toUser.inventory.findIndex(x => String(x) === String(id));
-        if (idx !== -1) { toUser.inventory.splice(idx, 1); fromUser.inventory.push(id); }
+        if (idx !== -1) {
+            toUser.inventory.splice(idx, 1);
+            fromUser.inventory.push(id);
+            if (toUser.itemAcquiredTimes && toUser.itemAcquiredTimes[id]) toUser.itemAcquiredTimes[id].shift();
+            fromUser.itemAcquiredTimes = fromUser.itemAcquiredTimes || {};
+            fromUser.itemAcquiredTimes[id] = fromUser.itemAcquiredTimes[id] || [];
+            fromUser.itemAcquiredTimes[id].push(Date.now());
+        }
     });
     fromUser.coins -= trade.giveCoins;
     toUser.coins += trade.giveCoins;
@@ -1934,14 +2127,7 @@ app.get("/api/users/search", (req, res) => {
 app.get("/api/users/profile/:id", optionalAuth, (req, res) => {
     const user = db.users.find(u => String(u.id) === String(req.params.id) || u.username.toLowerCase() === String(req.params.id).toLowerCase());
     if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
-    const pub = publicUser(user);
-    // Un amigo (o el propio Owner) sí puede ver el ID de esta cuenta.
-    const requester = req.user;
-    const isFriend = requester && (user.friends || []).includes(requester.id);
-    const isSelf = requester && String(requester.id) === String(user.id);
-    if (requester && (isFriend || isSelf || requester.owner)) {
-        pub.id = user.id;
-    }
+    const pub = publicUser(user, req.user);
     res.json(pub);
 });
 
