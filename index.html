@@ -672,6 +672,7 @@ model-viewer {
     <button class="sidebar-btn" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡<br>Block Sub</button>
     <button class="sidebar-btn" style="background: linear-gradient(90deg,#ff00cc,#3333ff); color: #fff;" onclick="openTurboBlockModal()">🚀<br>Turbo Block</button>
     <button class="sidebar-btn" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🛒<br>Tienda</button>
+    <button class="sidebar-btn" style="background: #22aa66; color: #fff;" onclick="openForumModal()">📋<br>Foro</button>
     <button id="accountButton" class="sidebar-btn hidden" style="background:#222; color:#fff; border:1px solid #444;" onclick="openAccount()">👤<br>Mi cuenta</button>
 </div>
 
@@ -1338,14 +1339,51 @@ model-viewer {
 </div>
 
 <!-- MODAL INTERFAZ DE TRADE -->
-<div id="giftModal" class="modal">
-    <div class="modal-box" style="max-width:400px;">
-        <button class="close" onclick="closeGiftModal()">×</button>
-        <h2 id="giftTargetTitle">Regalar suscripción</h2>
-        <p style="color:#aaa; font-size:13px;">Elige qué quieres regalar. Se pagará con tus 💲.</p>
-        <button class="form-button" style="background:#00d2ff; color:#000;" onclick="sendGift('block')">⚡ Regalar Block — 6 💲 (1 mes)</button>
-        <button class="form-button" style="background:linear-gradient(90deg,#ff00cc,#3333ff); color:#fff;" onclick="sendGift('turbo')">🚀 Regalar Turbo Block — 11 💲 (1 mes, +1000 monedas para ti)</button>
-        <p id="giftModalMsg"></p>
+<div id="transactionsModal" class="modal" onclick="if(event.target.id==='transactionsModal') closeTransactionsModal();">
+    <div class="modal-box" style="max-width:600px;">
+        <button class="close" onclick="closeTransactionsModal()">×</button>
+        <h2>📊 Mis transacciones</h2>
+        <div class="section">
+            <h3 style="margin-top:0;">🛍️ Ventas de tu ropa</h3>
+            <p>Total ganado: <b id="txTotalEarned">0</b> <img src="dineros.png" class="currency-icon-small" alt="Monedas"></p>
+            <div id="txSalesList">Cargando...</div>
+        </div>
+        <div class="section">
+            <h3>💲 Compras de monedas</h3>
+            <div id="txPurchasesList">Cargando...</div>
+        </div>
+    </div>
+</div>
+
+<div id="forumModal" class="modal" onclick="if(event.target.id==='forumModal') closeForumModal();">
+    <div class="modal-box" style="max-width:650px;">
+        <button class="close" onclick="closeForumModal()">×</button>
+        <h2>📋 Foro</h2>
+        <div id="forumCategoriesView">
+            <div id="forumAdminCreateCategory" class="section hidden">
+                <h3 style="margin-top:0;">➕ Crear categoría (admin)</h3>
+                <input type="text" id="forumNewCatName" placeholder="Nombre de la categoría">
+                <textarea id="forumNewCatDesc" placeholder="Descripción (opcional)"></textarea>
+                <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" id="forumNewCatAdminOnly" style="width:auto;"> Solo admins pueden publicar aquí
+                </label>
+                <button class="admin-button" style="width:100%;" onclick="createForumCategory()">Crear categoría</button>
+                <p id="forumNewCatMsg"></p>
+            </div>
+            <div id="forumCategoriesList">Cargando categorías...</div>
+        </div>
+        <div id="forumPostsView" class="hidden">
+            <button class="secondary-button" onclick="backToForumCategories()">⬅ Volver a categorías</button>
+            <h3 id="forumCategoryTitle"></h3>
+            <p id="forumCategoryDesc" style="color:#aaa; font-size:13px;"></p>
+            <div id="forumNewPostArea">
+                <input type="text" id="forumPostTitle" placeholder="Título">
+                <textarea id="forumPostContent" placeholder="Escribe tu publicación..."></textarea>
+                <button class="form-button" onclick="createForumPost()">Publicar</button>
+                <p id="forumPostMsg"></p>
+            </div>
+            <div id="forumPostsList" style="margin-top:12px;">Cargando publicaciones...</div>
+        </div>
     </div>
 </div>
 
@@ -1354,6 +1392,17 @@ model-viewer {
         <button class="close" onclick="closeSearchResultsModal()">×</button>
         <h2>🔎 Resultados de búsqueda</h2>
         <div id="searchResults">Buscando...</div>
+    </div>
+</div>
+
+<div id="giftModal" class="modal">
+    <div class="modal-box" style="max-width:400px;">
+        <button class="close" onclick="closeGiftModal()">×</button>
+        <h2 id="giftTargetTitle">Regalar suscripción</h2>
+        <p style="color:#aaa; font-size:13px;">Elige qué quieres regalar. Se pagará con tus 💲.</p>
+        <button class="form-button" style="background:#00d2ff; color:#000;" onclick="sendGift('block')">⚡ Regalar Block — 6 💲 (1 mes)</button>
+        <button class="form-button" style="background:linear-gradient(90deg,#ff00cc,#3333ff); color:#fff;" onclick="sendGift('turbo')">🚀 Regalar Turbo Block — 11 💲 (1 mes, +1000 monedas para ti)</button>
+        <p id="giftModalMsg"></p>
     </div>
 </div>
 
@@ -1465,8 +1514,7 @@ let profileAudio = null;
 // (mantiene el servidor despierto y evita que Render lo reinicie/borre por
 // inactividad). La persistencia real ante un borrado del disco de Render la
 // da el backup automático a GitHub (ver GITHUB_TOKEN / GITHUB_REPO en el
-// servidor); este ping es la segunda capa de protección: evita que el
-// servicio se llegue a dormir o reiniciar por falta de actividad.
+// servidor); este ping es la segunda capa de protección.
 setInterval(() => {
     fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "text/plain" }, body: "HOLA" }).catch(() => {});
 }, 10000);
@@ -2200,6 +2248,7 @@ async function uploadUserItem() {
     const offsale = document.getElementById("ugcItemOffsale").checked;
     const anonymous = document.getElementById("ugcItemAnonymous").checked;
     const type = document.getElementById("ugcItemTypeSelect").value;
+    const description = document.getElementById("ugcItemDescription").value;
 
     if (!name || !fileInput.files[0]) {
         msg.className = "error";
@@ -2218,7 +2267,7 @@ async function uploadUserItem() {
         if (!uploadRes.ok) throw new Error(uploadData.error);
 
         await request("/api/tshirts/upload", "POST", {
-            name, imageUrl: uploadData.imageUrl, price: Number(price) || 0, offsale, anonymous, type
+            name, imageUrl: uploadData.imageUrl, price: Number(price) || 0, offsale, anonymous, type, description
         });
         msg.className = "success";
         msg.textContent = "¡Artículo subido correctamente!";
@@ -2387,6 +2436,7 @@ async function ownerCreateTeapot() {
 }
 
 
+
 async function loadMyAdminMessages() {
     const container = document.getElementById("myAdminMessages");
     try {
@@ -2500,16 +2550,174 @@ function saveExePath() {
 
 function toggleCoinsMenu(event) {
     event.stopPropagation();
-    const menu = document.getElementById("coinsMenu");
-    menu.classList.toggle("hidden");
+    document.getElementById("coinsMenu").classList.toggle("hidden");
 }
 function closeCoinsMenu() { document.getElementById("coinsMenu").classList.add("hidden"); }
 document.addEventListener("click", (e) => {
     const menu = document.getElementById("coinsMenu");
-    if (menu && !menu.classList.contains("hidden") && !menu.contains(e.target) && e.target.id !== "userCoinsDisplay" && !e.target.closest("#userCoinsDisplay")) {
+    if (menu && !menu.classList.contains("hidden") && !menu.contains(e.target) && !e.target.closest("#userCoinsDisplay")) {
         menu.classList.add("hidden");
     }
 });
+
+function closeTransactionsModal() { document.getElementById("transactionsModal").style.display = "none"; }
+
+async function openTransactionsModal() {
+    document.getElementById("transactionsModal").style.display = "flex";
+    const salesList = document.getElementById("txSalesList");
+    const purchasesList = document.getElementById("txPurchasesList");
+    salesList.textContent = "Cargando...";
+    purchasesList.textContent = "Cargando...";
+    try {
+        const data = await request("/api/transactions/mine");
+        document.getElementById("txTotalEarned").textContent = data.totalEarned || 0;
+
+        salesList.innerHTML = "";
+        if (!data.sales || data.sales.length === 0) {
+            salesList.textContent = "Todavía nadie ha comprado tu ropa.";
+        } else {
+            data.sales.forEach(t => {
+                const div = document.createElement("div");
+                div.className = "result";
+                div.innerHTML = `<b>${escapeHTML(t.buyerUsername)}</b> compró <b>${escapeHTML(t.itemName)}</b> — +${t.amount} <img src="dineros.png" class="currency-icon-small" alt="Monedas"><br><small style="color:#888;">${new Date(t.createdAt).toLocaleString()}</small>`;
+                salesList.appendChild(div);
+            });
+        }
+
+        purchasesList.innerHTML = "";
+        if (!data.purchases || data.purchases.length === 0) {
+            purchasesList.textContent = "Todavía no has comprado monedas.";
+        } else {
+            data.purchases.forEach(t => {
+                const div = document.createElement("div");
+                div.className = "result";
+                div.innerHTML = `Compraste <b>${t.coinsBought}</b> monedas por <b>${t.dollarsSpent}</b> 💲${t.starCodeApplied ? ` (Star Code: ${escapeHTML(t.starCodeApplied)})` : ""}<br><small style="color:#888;">${new Date(t.createdAt).toLocaleString()}</small>`;
+                purchasesList.appendChild(div);
+            });
+        }
+    } catch (e) {
+        salesList.textContent = "Error al cargar.";
+        purchasesList.textContent = "";
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FORO
+// ---------------------------------------------------------------------------
+
+let currentForumCategoryId = null;
+
+function closeForumModal() { document.getElementById("forumModal").style.display = "none"; }
+
+async function openForumModal() {
+    document.getElementById("forumModal").style.display = "flex";
+    document.getElementById("forumCategoriesView").classList.remove("hidden");
+    document.getElementById("forumPostsView").classList.add("hidden");
+
+    try {
+        const me = localStorage.getItem("gameblocks_token") ? await request("/api/me").catch(() => null) : null;
+        document.getElementById("forumAdminCreateCategory").classList.toggle("hidden", !(me && (me.admin || me.owner)));
+    } catch (e) {}
+
+    loadForumCategories();
+}
+
+async function loadForumCategories() {
+    const container = document.getElementById("forumCategoriesList");
+    container.textContent = "Cargando categorías...";
+    try {
+        const data = await request("/api/forum/categories");
+        if (!data.categories || data.categories.length === 0) {
+            container.textContent = "Todavía no hay categorías en el foro.";
+            return;
+        }
+        container.innerHTML = "";
+        data.categories.forEach(cat => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.style.cursor = "pointer";
+            div.innerHTML = `
+                <b>${escapeHTML(cat.name)}</b>${cat.adminOnly ? ' <span style="color:#ff8800; font-size:11px;">[Solo Admins]</span>' : ""}
+                ${cat.description ? `<div style="font-size:12px; color:#aaa;">${escapeHTML(cat.description)}</div>` : ""}
+            `;
+            div.onclick = () => openForumCategory(cat);
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar categorías."; }
+}
+
+async function createForumCategory() {
+    const name = document.getElementById("forumNewCatName").value;
+    const description = document.getElementById("forumNewCatDesc").value;
+    const adminOnly = document.getElementById("forumNewCatAdminOnly").checked;
+    const msg = document.getElementById("forumNewCatMsg");
+    try {
+        await request("/api/admin/forum/categories", "POST", { name, description, adminOnly });
+        msg.className = "success";
+        msg.textContent = "¡Categoría creada!";
+        document.getElementById("forumNewCatName").value = "";
+        document.getElementById("forumNewCatDesc").value = "";
+        loadForumCategories();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+function openForumCategory(cat) {
+    currentForumCategoryId = cat.id;
+    document.getElementById("forumCategoriesView").classList.add("hidden");
+    document.getElementById("forumPostsView").classList.remove("hidden");
+    document.getElementById("forumCategoryTitle").textContent = cat.name;
+    document.getElementById("forumCategoryDesc").textContent = cat.description || "";
+    loadForumPosts();
+}
+
+function backToForumCategories() {
+    document.getElementById("forumCategoriesView").classList.remove("hidden");
+    document.getElementById("forumPostsView").classList.add("hidden");
+    currentForumCategoryId = null;
+}
+
+async function loadForumPosts() {
+    const container = document.getElementById("forumPostsList");
+    container.textContent = "Cargando publicaciones...";
+    try {
+        const data = await request(`/api/forum/categories/${currentForumCategoryId}/posts`);
+        if (!data.posts || data.posts.length === 0) {
+            container.textContent = "Todavía no hay publicaciones en esta categoría.";
+            return;
+        }
+        container.innerHTML = "";
+        data.posts.forEach(p => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `
+                <b>${escapeHTML(p.title)}</b><br>
+                <span style="white-space:pre-wrap;">${escapeHTML(p.content)}</span><br>
+                <small style="color:#888;">Por ${escapeHTML(p.authorUsername)} — ${new Date(p.createdAt).toLocaleString()}</small>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) { container.textContent = "Error al cargar publicaciones."; }
+}
+
+async function createForumPost() {
+    const title = document.getElementById("forumPostTitle").value;
+    const content = document.getElementById("forumPostContent").value;
+    const msg = document.getElementById("forumPostMsg");
+    try {
+        await request("/api/forum/posts", "POST", { categoryId: currentForumCategoryId, title, content });
+        msg.className = "success";
+        msg.textContent = "¡Publicado!";
+        document.getElementById("forumPostTitle").value = "";
+        document.getElementById("forumPostContent").value = "";
+        loadForumPosts();
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
 
 function launchGame() {
     const p = localStorage.getItem("gameblocks_exe_path");
@@ -3040,7 +3248,7 @@ async function equipAccessory(itemId) {
 
 async function unequipAccessory(itemId) {
     try {
-        const data = await request("/api/accessories/unequip", "POST", { itemId });
+        await request("/api/accessories/unequip", "POST", { itemId });
         const me = await request("/api/me");
         applyProfileStyling(me.profileBgColor, me.profileSoundUrl);
         document.getElementById("myAvatar").src = me.avatar ? absUrl(me.avatar) : "https://via.placeholder.com/110";
