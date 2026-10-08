@@ -139,8 +139,7 @@ function defaultDb() {
         adminMessages: {},    // userId -> [ {fromUsername, text, createdAt} ]
         itemReports: {},      // itemId -> [userId, ...]
         transactions: [],     // ventas de artículos y compras de monedas
-        forumCategories: [],  // { id, name, description, adminOnly, createdAt }
-        forumPosts: [],       // { id, categoryId, authorId, authorUsername, title, content, createdAt }
+        blogPosts: [],         // { id, title, content, imageUrl, authorUsername, createdAt }
         nextId: 1,
         nextUserId: 1,
         nextGroupId: 1
@@ -448,6 +447,9 @@ function privateUser(u) {
         id: u.id,
         username: u.username,
         coins: u.coins,
+        blocks: u.blocks || 0,
+        allowFriendRequests: u.allowFriendRequests !== false,
+        allowTradeWithoutFriends: !!u.allowTradeWithoutFriends,
         dollars: u.dollars,
         admin: !!u.admin,
         owner: !!u.owner,
@@ -519,6 +521,45 @@ function fileUrl(req, filename) {
 }
 
 // ---------------------------------------------------------------------------
+// WEBHOOK DE DISCORD: avisa cuando se crea un artículo nuevo
+// ---------------------------------------------------------------------------
+
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1556278291021828107/imSv8j3cbfiTE2yEM5ybCQcI1xqR9rbTMGjt47PSnupduHuc-hEOOVHa_Bsm9aPr-gMI";
+const DISCORD_LIMITED_ROLE_MENTION = "<@&1556278688817877152>";
+
+async function sendDiscordWebhook(content) {
+    try {
+        await fetch(DISCORD_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content })
+        });
+    } catch (e) {
+        console.error("[Discord webhook] Error al enviar mensaje:", e.message);
+    }
+}
+
+function describeItemPrice(item) {
+    if ((item.price || 0) === 0 && (item.priceBlocks || 0) === 0) return "Gratis";
+    const parts = [];
+    if (item.price > 0) parts.push(`${item.price} monedas`);
+    if (item.priceBlocks > 0) parts.push(`${item.priceBlocks} Bloques 🟥`);
+    return parts.join(" + ");
+}
+
+function notifyDiscordNewLimited(item) {
+    sendDiscordWebhook(`Nuevo item limited ${item.name} ${DISCORD_LIMITED_ROLE_MENTION}`);
+}
+
+function notifyDiscordNewItem(item) {
+    if (item.limited) {
+        notifyDiscordNewLimited(item);
+    } else {
+        sendDiscordWebhook(`Nuevo item: ${item.name} por ${describeItemPrice(item)}`);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AUTENTICACIÓN
 // ---------------------------------------------------------------------------
 
@@ -536,6 +577,11 @@ app.post("/api/register", (req, res) => {
         passwordHash: hashPassword(password),
         coins: 0,
         dollars: 1,
+        blocks: 0, // Bloques 🟥: moneda premium del juego
+        gamexMonthKey: null,
+        gamexConversionsThisMonth: 0,
+        allowFriendRequests: true,
+        allowTradeWithoutFriends: false,
         admin: db.users.length === 0, // el primer usuario registrado es admin/owner por defecto
         owner: db.users.length === 0,
         badges: [],
@@ -593,14 +639,13 @@ app.get("/api/me", requireAuth, (req, res) => {
     res.json(privateUser(req.user));
 });
 
+// Las monedas diarias se han quitado: ahora la recompensa diaria es de
+// 10 Bloques 🟥 (la nueva moneda premium del juego).
 function grantDailyCoinsIfNeeded(user) {
     const now = new Date();
     const todayKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`;
     if (user._lastDailyKey === todayKey) return;
-    let amount = 10;
-    if (hasActiveTurboBlock(user)) amount = 50;
-    else if (hasActiveBlock(user)) amount = 34;
-    user.coins += amount;
+    user.blocks = (user.blocks || 0) + 10;
     user._lastDailyKey = todayKey;
     saveDb();
 }
@@ -813,11 +858,16 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
             return res.status(400).json({ error: "Este artículo limitado se ha agotado." });
         }
     }
+    const priceBlocks = Number(item.priceBlocks) || 0;
     if (user.coins < item.price) {
         return res.status(400).json({ error: "No tienes monedas suficientes." });
     }
+    if (priceBlocks > 0 && (user.blocks || 0) < priceBlocks) {
+        return res.status(400).json({ error: "No tienes suficientes Bloques 🟥." });
+    }
 
     user.coins -= item.price;
+    if (priceBlocks > 0) user.blocks = (user.blocks || 0) - priceBlocks;
     user.inventory.push(item.id);
     item.totalSold = (item.totalSold || 0) + 1;
 
@@ -831,10 +881,12 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
     // Si el artículo lo creó un usuario (no un admin), ese usuario se lleva
     // el precio en monedas como ganancia por la venta, y se registra la
     // transacción para "Mis transacciones".
-    if (item.creatorId && !item.createdByAdmin && String(item.creatorId) !== String(user.id) && item.price > 0) {
+    if (item.creatorId && !item.createdByAdmin && String(item.creatorId) !== String(user.id) && (item.price > 0 || priceBlocks > 0)) {
         const creator = db.users.find(u => String(u.id) === String(item.creatorId));
         if (creator) {
             creator.coins += item.price;
+            // Por cada artículo que te compren recibes 5 Bloques 🟥, además de las monedas.
+            creator.blocks = (creator.blocks || 0) + SALE_BLOCKS_REWARD;
             db.transactions = db.transactions || [];
             db.transactions.push({
                 id: nextId(),
@@ -846,6 +898,7 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
                 sellerId: creator.id,
                 sellerUsername: creator.username,
                 amount: item.price,
+                blocksEarned: SALE_BLOCKS_REWARD,
                 createdAt: Date.now()
             });
         }
@@ -885,6 +938,58 @@ function retentionRemaining(user, itemId) {
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
     return Math.max(0, THREE_DAYS_MS - (Date.now() - oldest));
 }
+
+// ---------------------------------------------------------------------------
+// BLOQUES 🟥 (segunda moneda premium) y gamEX
+// ---------------------------------------------------------------------------
+
+const BLOCKS_PRICE_PER_COIN = 20; // comprar 1 bloque cuesta 20 monedas
+const GAMEX_RATE_BLOCKS_PER_COIN = 20; // convertir 20 bloques = 1 moneda
+const GAMEX_MAX_CONVERSIONS_PER_MONTH = 20;
+const SALE_BLOCKS_REWARD = 5;
+
+app.post("/api/blocks/buy", requireAuth, (req, res) => {
+    const { amount } = req.body || {};
+    const user = req.user;
+    const blocksToBuy = Math.floor(Number(amount));
+    if (!blocksToBuy || blocksToBuy <= 0) return res.status(400).json({ error: "Cantidad no válida." });
+    const cost = blocksToBuy * BLOCKS_PRICE_PER_COIN;
+    if (user.coins < cost) return res.status(400).json({ error: "No tienes monedas suficientes." });
+    user.coins -= cost;
+    user.blocks = (user.blocks || 0) + blocksToBuy;
+    saveDb();
+    res.json({ coins: user.coins, blocks: user.blocks });
+});
+
+app.post("/api/blocks/gamex-convert", requireAuth, (req, res) => {
+    const { blocks } = req.body || {};
+    const user = req.user;
+    const blocksToConvert = Math.floor(Number(blocks));
+    if (!blocksToConvert || blocksToConvert <= 0 || blocksToConvert % GAMEX_RATE_BLOCKS_PER_COIN !== 0) {
+        return res.status(400).json({ error: `Debes convertir en múltiplos de ${GAMEX_RATE_BLOCKS_PER_COIN} bloques.` });
+    }
+    const now = new Date();
+    const monthKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}`;
+    if (user.gamexMonthKey !== monthKey) {
+        user.gamexMonthKey = monthKey;
+        user.gamexConversionsThisMonth = 0;
+    }
+    if ((user.gamexConversionsThisMonth || 0) >= GAMEX_MAX_CONVERSIONS_PER_MONTH) {
+        return res.status(400).json({ error: `Ya has hecho el máximo de ${GAMEX_MAX_CONVERSIONS_PER_MONTH} conversiones este mes.` });
+    }
+    if ((user.blocks || 0) < blocksToConvert) return res.status(400).json({ error: "No tienes suficientes bloques." });
+
+    const coinsGained = blocksToConvert / GAMEX_RATE_BLOCKS_PER_COIN;
+    user.blocks -= blocksToConvert;
+    user.coins += coinsGained;
+    user.gamexConversionsThisMonth = (user.gamexConversionsThisMonth || 0) + 1;
+    saveDb();
+    res.json({
+        coins: user.coins,
+        blocks: user.blocks,
+        conversionsLeft: GAMEX_MAX_CONVERSIONS_PER_MONTH - user.gamexConversionsThisMonth
+    });
+});
 
 app.get("/api/transactions/mine", requireAuth, (req, res) => {
     db.transactions = db.transactions || [];
@@ -959,6 +1064,21 @@ app.get("/api/accessories/resale-market", (req, res) => {
     res.json({ listings: db.resaleListings });
 });
 
+// Página de detalle de un artículo: toda su info + (si aplica) sus reventas,
+// para que la tienda ya no necesite una página de reventa aparte.
+app.get("/api/accessories/:id/detail", (req, res) => {
+    const item = findItem(req.params.id);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    const listings = db.resaleListings
+        .filter(l => String(l.itemId) === String(item.id))
+        .sort((a, b) => a.price - b.price);
+    res.json({
+        item: maskAnonymous(item),
+        resaleListings: listings,
+        bestResalePrice: listings.length > 0 ? listings[0].price : null
+    });
+});
+
 app.post("/api/accessories/resell-list", requireAuth, (req, res) => {
     const { itemId, price } = req.body || {};
     const user = req.user;
@@ -1026,13 +1146,22 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
     if (!canUploadUGC(user)) {
         return res.status(403).json({ error: "Subir artículos al catálogo requiere Suscripción Turbo Block (o la insignia 🎩UGC+)." });
     }
-    const { name, imageUrl, price, offsale, anonymous, type, description } = req.body || {};
+    const { name, imageUrl, price, priceBlocks, offsale, anonymous, type, description } = req.body || {};
     if (!name || !imageUrl) return res.status(400).json({ error: "Faltan datos." });
 
     const ugcPlus = isUgcPlus(user);
     const canMakePfp = ugcPlus || isAdminUser(user);
     let finalPrice = Number(price) || 0;
     let finalOffsale = !!offsale;
+
+    // Vender por Bloques (solos o junto a monedas) es exclusivo de admins y 🎩UGC+.
+    let finalPriceBlocks = 0;
+    if (priceBlocks && Number(priceBlocks) > 0) {
+        if (!ugcPlus && !isAdminUser(user)) {
+            return res.status(403).json({ error: "Solo los administradores o la insignia 🎩UGC+ pueden vender artículos por Bloques 🟥." });
+        }
+        finalPriceBlocks = Number(priceBlocks);
+    }
 
     // Las fotos de perfil (tipo "pfp") solo las pueden subir admins o 🎩UGC+.
     // Los 🎩UGC+ pueden ponerlas gratis (0 monedas) sin problema.
@@ -1060,6 +1189,7 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
         imageUrl,
         description: (description || "").slice(0, 300),
         price: finalPrice,
+        priceBlocks: finalPriceBlocks,
         limited: false,
         offsale: finalOffsale,
         onlyBlock: false,
@@ -1075,11 +1205,12 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
     };
     db.accessories.push(item);
     saveDb();
+    notifyDiscordNewItem(item);
     res.json({ item });
 });
 
 app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
-    const { name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price, description, type } = req.body || {};
+    const { name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price, priceBlocks, description, type } = req.body || {};
     const item = {
         id: nextId(),
         name,
@@ -1087,6 +1218,7 @@ app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
         imageUrl,
         description: (description || "").slice(0, 300),
         price: Number(price) || 0,
+        priceBlocks: Number(priceBlocks) || 0,
         limited: !!limited,
         offsale: !!offsale,
         onlyBlock: onlyBlock === "turbo" ? "turbo" : (onlyBlock === true || onlyBlock === "true"),
@@ -1103,6 +1235,7 @@ app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
     };
     db.accessories.push(item);
     saveDb();
+    notifyDiscordNewItem(item);
     res.json({ item });
 });
 
@@ -1110,17 +1243,22 @@ app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
 // ACCESORIOS 3D (Admin)
 // ---------------------------------------------------------------------------
 
-app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (req, res) => {
+app.post("/api/admin/accessories/upload", requireAdmin, upload.fields([{ name: "glb", maxCount: 1 }, { name: "image", maxCount: 1 }]), (req, res) => {
     const b = req.body || {};
     const limited = b.limited === "true" || b.limited === true;
+    const glbFile = req.files && req.files.glb && req.files.glb[0];
+    const imageFile = req.files && req.files.image && req.files.image[0];
+    if (!glbFile) return res.status(400).json({ error: "Falta el archivo .glb del modelo 3D." });
     const item = {
         id: nextId(),
         name: b.name,
         type: "hat",
-        glbUrl: fileUrl(req, req.file.filename),
-        imageUrl: b.imageUrl || "",
+        glbUrl: fileUrl(req, glbFile.filename),
+        // La miniatura ahora es siempre un archivo subido al servidor, no un enlace externo.
+        imageUrl: imageFile ? fileUrl(req, imageFile.filename) : "",
         description: (b.description || "").slice(0, 300),
         price: Number(b.price) || 0,
+        priceBlocks: Number(b.priceBlocks) || 0,
         limited,
         offsale: b.offsale === "true" || b.offsale === true,
         onlyBlock: b.onlyBlock === "turbo" ? "turbo" : (b.onlyBlock === "true" || b.onlyBlock === true),
@@ -1139,16 +1277,19 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.single("glb"), (r
     };
     db.accessories.push(item);
     saveDb();
+    notifyDiscordNewItem(item);
     res.json({ item });
 });
 
 app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
-    const { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl, description } = req.body || {};
+    const { itemId, price, priceBlocks, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl, description } = req.body || {};
     const item = findItem(itemId);
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (item.type === "teapot") return res.status(403).json({ error: "Los Teapots solo los puede editar el Owner." });
 
     if (price !== undefined && price !== "") item.price = Number(price);
+    if (priceBlocks !== undefined && priceBlocks !== "") item.priceBlocks = Number(priceBlocks);
+    const wasLimited = item.limited;
     if (limited === "true") item.limited = true;
     if (limited === "false") item.limited = false;
     if (offsale === "true") item.offsale = true;
@@ -1161,6 +1302,8 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     if (bgColor) item.bgColor = bgColor;
     if (soundUrl) item.soundUrl = soundUrl;
     if (description !== undefined) item.description = (description || "").slice(0, 300);
+
+    if (!wasLimited && item.limited) notifyDiscordNewLimited(item);
 
     saveDb();
     res.json({ item });
@@ -1204,6 +1347,7 @@ app.post("/api/owner/teapots/upload", requireAuth, requireOwner, (req, res) => {
     };
     db.accessories.push(item);
     saveDb();
+    notifyDiscordNewItem(item);
     res.json({ item });
 });
 
@@ -1212,6 +1356,7 @@ app.post("/api/owner/teapots/edit", requireAuth, requireOwner, (req, res) => {
     const item = findItem(itemId);
     if (!item || item.type !== "teapot") return res.status(404).json({ error: "Teapot no encontrado." });
 
+    const wasLimited = item.limited;
     if (name) item.name = name;
     if (imageUrl) item.imageUrl = imageUrl;
     if (customHtml !== undefined) item.customHtml = customHtml;
@@ -1223,6 +1368,8 @@ app.post("/api/owner/teapots/edit", requireAuth, requireOwner, (req, res) => {
     if (maxPerUser) item.maxPerUser = Number(maxPerUser);
     if (maxGlobal) item.maxGlobal = Number(maxGlobal);
     if (linkedStarCode !== undefined) item.linkedStarCode = linkedStarCode || null;
+
+    if (!wasLimited && item.limited) notifyDiscordNewLimited(item);
 
     saveDb();
     res.json({ item });
@@ -1367,25 +1514,37 @@ app.post("/api/friends/request", requireAuth, (req, res) => {
         : findUserByUsername(username);
     if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
     if (target.id === req.user.id) return res.status(400).json({ error: "No puedes añadirte a ti mismo." });
+    if (target.allowFriendRequests === false) {
+        return res.status(403).json({ error: `${target.username} no acepta solicitudes de amistad.` });
+    }
     target.friendRequests = target.friendRequests || [];
     if (!target.friendRequests.includes(req.user.id)) target.friendRequests.push(req.user.id);
+    saveDb();
+    res.json({ ok: true, message: `¡Solicitud de amistad enviada a ${target.username}!` });
+});
+
+app.post("/api/profile/settings", requireAuth, (req, res) => {
+    const { allowFriendRequests, allowTradeWithoutFriends } = req.body || {};
+    if (allowFriendRequests !== undefined) req.user.allowFriendRequests = !!allowFriendRequests;
+    if (allowTradeWithoutFriends !== undefined) req.user.allowTradeWithoutFriends = !!allowTradeWithoutFriends;
     saveDb();
     res.json({ ok: true });
 });
 
 app.post("/api/friends/accept", requireAuth, (req, res) => {
-    const { userId } = req.body || {};
+    const { userId, requestId } = req.body || {};
+    const targetId = userId || requestId;
     const user = req.user;
-    user.friendRequests = (user.friendRequests || []).filter(id => id !== userId);
+    user.friendRequests = (user.friendRequests || []).filter(id => String(id) !== String(targetId));
     user.friends = user.friends || [];
-    if (!user.friends.includes(userId)) user.friends.push(userId);
-    const other = db.users.find(u => u.id === userId);
+    if (!user.friends.includes(targetId)) user.friends.push(targetId);
+    const other = db.users.find(u => String(u.id) === String(targetId));
     if (other) {
         other.friends = other.friends || [];
         if (!other.friends.includes(user.id)) other.friends.push(user.id);
     }
     saveDb();
-    res.json({ ok: true });
+    res.json({ ok: true, message: other ? `Ahora eres amigo de ${other.username}.` : "Solicitud aceptada." });
 });
 
 // ---------------------------------------------------------------------------
@@ -1726,6 +1885,10 @@ app.post("/api/trade/offer", requireAuth, (req, res) => {
     if (!toUser) return res.status(404).json({ error: "Usuario no encontrado." });
 
     const fromUser = req.user;
+    const areFriends = (fromUser.friends || []).includes(toUser.id);
+    if (!areFriends && !toUser.allowTradeWithoutFriends) {
+        return res.status(403).json({ error: `${toUser.username} solo permite tradear con amigos.` });
+    }
     const giveIds = normalizeIds(giveItemId, giveItemIds);
     const getIds = normalizeIds(getItemId, getItemIds);
 
@@ -2060,76 +2223,36 @@ app.post("/api/owner/give-item", requireAuth, requireOwner, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// FORO GLOBAL (categorías creadas por admins, publicaciones de usuarios)
+// BLOG (los admins publican con imagen, título y contenido; los usuarios solo leen)
 // ---------------------------------------------------------------------------
 
-app.get("/api/forum/categories", (req, res) => {
-    res.json({ categories: db.forumCategories || [] });
-});
-
-app.post("/api/admin/forum/categories", requireAdmin, (req, res) => {
-    const { name, description, adminOnly } = req.body || {};
-    if (!name || !name.trim()) return res.status(400).json({ error: "Falta el nombre de la categoría." });
-    const category = {
-        id: nextId(),
-        name: name.trim(),
-        description: description || "",
-        adminOnly: !!adminOnly,
-        createdAt: Date.now()
-    };
-    db.forumCategories = db.forumCategories || [];
-    db.forumCategories.push(category);
-    saveDb();
-    res.json({ category });
-});
-
-app.post("/api/admin/forum/categories/delete", requireAdmin, (req, res) => {
-    const { categoryId } = req.body || {};
-    db.forumCategories = (db.forumCategories || []).filter(c => String(c.id) !== String(categoryId));
-    db.forumPosts = (db.forumPosts || []).filter(p => String(p.categoryId) !== String(categoryId));
-    saveDb();
-    res.json({ ok: true });
-});
-
-app.get("/api/forum/categories/:id/posts", (req, res) => {
-    const posts = (db.forumPosts || [])
-        .filter(p => String(p.categoryId) === String(req.params.id))
-        .sort((a, b) => b.createdAt - a.createdAt);
+app.get("/api/blog/posts", (req, res) => {
+    const posts = (db.blogPosts || []).slice().sort((a, b) => b.createdAt - a.createdAt);
     res.json({ posts });
 });
 
-app.post("/api/forum/posts", requireAuth, (req, res) => {
-    const { categoryId, title, content } = req.body || {};
-    const category = (db.forumCategories || []).find(c => String(c.id) === String(categoryId));
-    if (!category) return res.status(404).json({ error: "Categoría no encontrada." });
-    if (category.adminOnly && !isAdminUser(req.user)) {
-        return res.status(403).json({ error: "Esta categoría es solo para publicaciones de administradores." });
-    }
+app.post("/api/admin/blog/posts", requireAdmin, (req, res) => {
+    const { title, content, imageUrl } = req.body || {};
     if (!title || !title.trim() || !content || !content.trim()) {
         return res.status(400).json({ error: "Faltan el título o el contenido." });
     }
     const post = {
         id: nextId(),
-        categoryId,
-        authorId: req.user.id,
-        authorUsername: req.user.username,
         title: title.trim().slice(0, 150),
-        content: content.trim().slice(0, 3000),
+        content: content.trim().slice(0, 5000),
+        imageUrl: imageUrl || null,
+        authorUsername: req.user.username,
         createdAt: Date.now()
     };
-    db.forumPosts = db.forumPosts || [];
-    db.forumPosts.push(post);
+    db.blogPosts = db.blogPosts || [];
+    db.blogPosts.push(post);
     saveDb();
     res.json({ post });
 });
 
-app.post("/api/forum/posts/delete", requireAuth, (req, res) => {
+app.post("/api/admin/blog/posts/delete", requireAdmin, (req, res) => {
     const { postId } = req.body || {};
-    const post = (db.forumPosts || []).find(p => String(p.id) === String(postId));
-    if (!post) return res.status(404).json({ error: "Publicación no encontrada." });
-    const isAuthor = String(post.authorId) === String(req.user.id);
-    if (!isAuthor && !isAdminUser(req.user)) return res.status(403).json({ error: "No puedes borrar esta publicación." });
-    db.forumPosts = db.forumPosts.filter(p => String(p.id) !== String(postId));
+    db.blogPosts = (db.blogPosts || []).filter(p => String(p.id) !== String(postId));
     saveDb();
     res.json({ ok: true });
 });
