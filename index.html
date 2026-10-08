@@ -660,6 +660,9 @@ model-viewer {
             <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openTransactionsModal();">📊 Mis transacciones</button>
             <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openCurrencyModal();">💲 Comprar monedas</button>
         </div>
+        <div class="dollar-display" id="userBlocksDisplay" title="Tus Bloques" onclick="openCurrencyModal()">
+            🟥 <span id="userBlocksText">0</span>
+        </div>
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
             💲 <span id="userDollarsText">0</span>
         </div>
@@ -672,7 +675,7 @@ model-viewer {
     <button class="sidebar-btn" style="background: #00d2ff; color: #000;" onclick="openBlockSubModal()">⚡<br>Block Sub</button>
     <button class="sidebar-btn" style="background: linear-gradient(90deg,#ff00cc,#3333ff); color: #fff;" onclick="openTurboBlockModal()">🚀<br>Turbo Block</button>
     <button class="sidebar-btn" style="background: #7a4cff; color: #fff;" onclick="openAvatarModal()">🛒<br>Tienda</button>
-    <button class="sidebar-btn" style="background: #22aa66; color: #fff;" onclick="openForumModal()">📋<br>Foro</button>
+    <button class="sidebar-btn" style="background: #22aa66; color: #fff;" onclick="openBlogModal()">📰<br>Blog</button>
     <button id="accountButton" class="sidebar-btn hidden" style="background:#222; color:#fff; border:1px solid #444;" onclick="openAccount()">👤<br>Mi cuenta</button>
 </div>
 
@@ -879,6 +882,22 @@ model-viewer {
             <input type="text" id="currencyStarCode" placeholder="Introduce un Star Code">
         </div>
         <p id="currencyPurchaseMsg"></p>
+
+        <div class="section" style="margin-top:15px;">
+            <h3 style="margin-top:0;">🟥 Comprar Bloques con monedas</h3>
+            <small style="color:#888;">1 Bloque = 20 monedas. Tus Bloques: <b id="currencyBlocksModal">0</b> 🟥. Además recibes 10 al día y 5 por cada prenda tuya que te compren.</small>
+            <input type="number" id="buyBlocksAmount" placeholder="Cantidad de Bloques" min="1" style="margin-top:6px;">
+            <button class="form-button" onclick="buyBlocksWithCoins()">Comprar Bloques</button>
+            <p id="buyBlocksMsg"></p>
+        </div>
+
+        <div class="section">
+            <h3 style="margin-top:0;">🏦 gamEX</h3>
+            <small style="color:#888;">Convierte tus Bloques en monedas: 20 🟥 = 1 moneda (máximo 20 conversiones al mes, en múltiplos de 20).</small>
+            <input type="number" id="gamexBlocksAmount" placeholder="Bloques a convertir (múltiplo de 20)" min="20" step="20" style="margin-top:6px;">
+            <button class="form-button" onclick="gamexConvert()">Convertir en monedas</button>
+            <p id="gamexMsg"></p>
+        </div>
     </div>
 </div>
 
@@ -924,6 +943,12 @@ model-viewer {
         <div id="myAccountIdLabel" style="font-size:11px; color:#888; margin-top:4px;"></div>
         <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:8px;">
             <input type="checkbox" id="inventoryPublicToggle" style="width:auto;" onchange="toggleInventoryPublic()"> Mostrar mi inventario en mi tarjeta pública
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:4px;">
+            <input type="checkbox" id="allowFriendRequestsToggle" style="width:auto;" onchange="saveProfileSettings()"> Permitir que me envíen solicitudes de amistad
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:4px;">
+            <input type="checkbox" id="allowTradeWithoutFriendsToggle" style="width:auto;" onchange="saveProfileSettings()"> Permitir trades con gente que no es mi amiga
         </label>
     </div>
 
@@ -1113,8 +1138,15 @@ model-viewer {
                 <option value="false">¿Solo Block?: No</option>
                 <option value="true">¿Solo Block?: Sí</option>
             </select>
-            <input type="text" id="adminTshirtImgUrl" placeholder="URL de la imagen PNG/JPG">
+            <label style="font-size:12px; color:#aaa;">Imagen (archivo PNG/JPG):</label>
+            <input type="file" id="adminTshirtImgFile" accept="image/*">
+            <textarea id="adminTshirtDescription" placeholder="Descripción (opcional)"></textarea>
+            <select id="adminTshirtType" style="width:auto;">
+                <option value="tshirt">Camiseta</option>
+                <option value="pfp">Foto de perfil</option>
+            </select>
             <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
+            <input type="number" id="adminTshirtPriceBlocks" placeholder="Coste en Bloques 🟥 (opcional)" min="0">
             <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
             <p id="adminTshirtMsg"></p>
         </div>
@@ -1175,7 +1207,10 @@ model-viewer {
             <label style="font-size:12px; color:#aaa;">URL Audio Perfil al Equipar (.mp3):</label>
             <input type="text" id="accessorySoundUrl" placeholder="https://ejemplo.com/audio.mp3">
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
-            <input type="text" id="accessoryPngUrl" placeholder="Imagen Thumbnail (URL PNG)">
+            <input type="number" id="accessoryPriceBlocks" placeholder="Precio en Bloques 🟥 (0 = sin precio en bloques)" min="0">
+            <textarea id="accessoryDescription" placeholder="Descripción del artículo (opcional)"></textarea>
+            <label style="font-size:12px; color:#aaa;">Miniatura del catálogo (archivo PNG/JPG):</label>
+            <input type="file" id="accessoryThumbFile" accept="image/*">
             <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
             <p id="accessoryUploadMsg"></p>
         </div>
@@ -1245,6 +1280,7 @@ model-viewer {
             <option value="pfp" id="ugcPfpOption" class="hidden">🖼️ Foto de perfil (solo admins/🎩UGC+)</option>
         </select>
         <input type="number" id="ugcItemPrice" placeholder="Precio en monedas (0 = gratis)" min="0">
+        <input type="number" id="ugcItemPriceBlocks" placeholder="Precio en Bloques 🟥 (solo admins/🎩UGC+)" min="0">
         <label style="display:flex; align-items:center; gap:6px; margin-top:6px;">
             <input type="checkbox" id="ugcItemOffsale" style="width:auto;"> Offsale (no en venta directa)
         </label>
@@ -1328,9 +1364,6 @@ model-viewer {
             </div>
 
             <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
-
-            <h3 style="margin-top:20px;">🏷️ Mercado de Reventa (Limiteds Offsale)</h3>
-            <div id="resaleMarketContainer" class="shop-items">Cargando mercado de reventa...</div>
         </div>
     </div>
 
@@ -1355,35 +1388,26 @@ model-viewer {
     </div>
 </div>
 
-<div id="forumModal" class="modal" onclick="if(event.target.id==='forumModal') closeForumModal();">
+<div id="blogModal" class="modal" onclick="if(event.target.id==='blogModal') closeBlogModal();">
     <div class="modal-box" style="max-width:650px;">
-        <button class="close" onclick="closeForumModal()">×</button>
-        <h2>📋 Foro</h2>
-        <div id="forumCategoriesView">
-            <div id="forumAdminCreateCategory" class="section hidden">
-                <h3 style="margin-top:0;">➕ Crear categoría (admin)</h3>
-                <input type="text" id="forumNewCatName" placeholder="Nombre de la categoría">
-                <textarea id="forumNewCatDesc" placeholder="Descripción (opcional)"></textarea>
-                <label style="display:flex; align-items:center; gap:6px;">
-                    <input type="checkbox" id="forumNewCatAdminOnly" style="width:auto;"> Solo admins pueden publicar aquí
-                </label>
-                <button class="admin-button" style="width:100%;" onclick="createForumCategory()">Crear categoría</button>
-                <p id="forumNewCatMsg"></p>
-            </div>
-            <div id="forumCategoriesList">Cargando categorías...</div>
+        <button class="close" onclick="closeBlogModal()">×</button>
+        <h2>📰 Blog</h2>
+        <div id="blogAdminCreate" class="section hidden">
+            <h3 style="margin-top:0;">➕ Nueva publicación (admin)</h3>
+            <input type="text" id="blogPostTitle" placeholder="Título">
+            <input type="file" id="blogPostImage" accept="image/*">
+            <textarea id="blogPostContent" placeholder="Contenido de la publicación"></textarea>
+            <button class="admin-button" style="width:100%;" onclick="createBlogPost()">Publicar</button>
+            <p id="blogPostMsg"></p>
         </div>
-        <div id="forumPostsView" class="hidden">
-            <button class="secondary-button" onclick="backToForumCategories()">⬅ Volver a categorías</button>
-            <h3 id="forumCategoryTitle"></h3>
-            <p id="forumCategoryDesc" style="color:#aaa; font-size:13px;"></p>
-            <div id="forumNewPostArea">
-                <input type="text" id="forumPostTitle" placeholder="Título">
-                <textarea id="forumPostContent" placeholder="Escribe tu publicación..."></textarea>
-                <button class="form-button" onclick="createForumPost()">Publicar</button>
-                <p id="forumPostMsg"></p>
-            </div>
-            <div id="forumPostsList" style="margin-top:12px;">Cargando publicaciones...</div>
-        </div>
+        <div id="blogPostsList">Cargando publicaciones...</div>
+    </div>
+</div>
+
+<div id="itemDetailModal" class="modal" onclick="if(event.target.id==='itemDetailModal') closeItemDetail();">
+    <div class="modal-box" style="max-width:760px;">
+        <button class="close" onclick="closeItemDetail()">×</button>
+        <div id="itemDetailBody">Cargando...</div>
     </div>
 </div>
 
@@ -1468,6 +1492,11 @@ model-viewer {
             <div id="cardAlertBadge" class="hidden" style="background:#ff4444; color:#fff; font-weight:bold; padding:4px 10px; border-radius:12px; font-size:12px; margin-top:5px;">⚠️ EN ALERTA</div>
             <div id="cardFollowStats" style="font-size:12px; color:#aaa; margin-top:6px;"></div>
             <div id="cardIdLabel" class="hidden" style="font-size:11px; color:#666; margin-top:2px;"></div>
+            <div id="cardAvatarSection" class="hidden" style="margin-top:8px; text-align:center;">
+                <model-viewer id="cardNoobViewer" src="noob.glb" alt="Avatar" camera-controls auto-rotate style="width:200px; height:220px; background:#0c0c0c; border-radius:8px; margin:0 auto;"></model-viewer>
+                <div id="cardHatsRow" style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:4px;"></div>
+            </div>
+            <button id="cardTradeBtn" class="secondary-button hidden" style="width:auto; margin-top:6px;" onclick="tradeFromCard()">🤝 Tradear</button>
             <button id="cardFollowBtn" class="secondary-button" style="width:auto; margin-top:6px;" onclick="toggleFollowUserCard()">➕ Seguir</button>
         </div>
 
@@ -1518,6 +1547,12 @@ let profileAudio = null;
 setInterval(() => {
     fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "text/plain" }, body: "HOLA" }).catch(() => {});
 }, 10000);
+
+// Segunda capa extra: cada 40 segundos se envía otro aviso al servidor para
+// que no se apague por inactividad.
+setInterval(() => {
+    fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "text/plain" }, body: "KEEPALIVE" }).catch(() => {});
+}, 40000);
 
 // Mejora de calidad de vida: la tecla Escape cierra cualquier modal abierto.
 document.addEventListener("keydown", (e) => {
@@ -2108,6 +2143,9 @@ function openCurrencyModal() {
     }
     document.getElementById("currencyModal").style.display = "flex";
     loadCurrencyPackages();
+    request("/api/me").then(me => {
+        document.getElementById("currencyBlocksModal").textContent = me.blocks || 0;
+    }).catch(() => {});
 }
 
 function closeCurrencyModal() { document.getElementById("currencyModal").style.display = "none"; }
@@ -2173,6 +2211,7 @@ async function loadCurrencyPackages() {
         ]);
         document.getElementById("currencyDollarsModal").textContent = me.dollars || 0;
         document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        document.getElementById("userBlocksText").textContent = me.blocks || 0;
         container.innerHTML = "";
 
         packagesData.packages.forEach((pkg, index) => {
@@ -2267,7 +2306,9 @@ async function uploadUserItem() {
         if (!uploadRes.ok) throw new Error(uploadData.error);
 
         await request("/api/tshirts/upload", "POST", {
-            name, imageUrl: uploadData.imageUrl, price: Number(price) || 0, offsale, anonymous, type, description
+            name, imageUrl: uploadData.imageUrl, price: Number(price) || 0,
+            priceBlocks: Number(document.getElementById("ugcItemPriceBlocks").value) || 0,
+            offsale, anonymous, type, description
         });
         msg.className = "success";
         msg.textContent = "¡Artículo subido correctamente!";
@@ -2370,6 +2411,7 @@ function logout() {
     document.getElementById("loginBtn").classList.remove("hidden");
     document.getElementById("userCoinsText").textContent = "0";
     document.getElementById("userDollarsText").textContent = "0";
+    document.getElementById("userBlocksText").textContent = "0";
     showLogin();
 }
 
@@ -2470,9 +2512,12 @@ async function updateAccount() {
         document.getElementById("myAvatar").src = me.avatar ? absUrl(me.avatar) : "https://via.placeholder.com/110";
         document.getElementById("userCoinsText").textContent = me.coins || 0;
         document.getElementById("userDollarsText").textContent = me.dollars || 0;
+        document.getElementById("userBlocksText").textContent = me.blocks || 0;
         document.getElementById("myBio").value = me.bio || "";
         document.getElementById("myAccountIdLabel").textContent = "🆔 Tu ID de cuenta (ahora es público): " + me.id;
         document.getElementById("inventoryPublicToggle").checked = me.inventoryPublic !== false;
+        document.getElementById("allowFriendRequestsToggle").checked = me.allowFriendRequests !== false;
+        document.getElementById("allowTradeWithoutFriendsToggle").checked = !!me.allowTradeWithoutFriends;
 
         document.getElementById("accountButton").classList.remove("hidden");
         document.getElementById("loginBtn").classList.add("hidden");
@@ -2519,6 +2564,15 @@ async function updateAccount() {
         if (e.message.includes("baneado")) showBannedView();
         else logout();
     }
+}
+
+async function saveProfileSettings() {
+    try {
+        await request("/api/profile/settings", "POST", {
+            allowFriendRequests: document.getElementById("allowFriendRequestsToggle").checked,
+            allowTradeWithoutFriends: document.getElementById("allowTradeWithoutFriendsToggle").checked
+        });
+    } catch (e) { alert(e.message); }
 }
 
 async function toggleInventoryPublic() {
@@ -2602,121 +2656,298 @@ async function openTransactionsModal() {
 }
 
 // ---------------------------------------------------------------------------
-// FORO
+// BLOG (los admins publican; los usuarios solo leen)
 // ---------------------------------------------------------------------------
 
-let currentForumCategoryId = null;
+function closeBlogModal() { document.getElementById("blogModal").style.display = "none"; }
 
-function closeForumModal() { document.getElementById("forumModal").style.display = "none"; }
-
-async function openForumModal() {
-    document.getElementById("forumModal").style.display = "flex";
-    document.getElementById("forumCategoriesView").classList.remove("hidden");
-    document.getElementById("forumPostsView").classList.add("hidden");
-
+async function openBlogModal() {
+    document.getElementById("blogModal").style.display = "flex";
     try {
         const me = localStorage.getItem("gameblocks_token") ? await request("/api/me").catch(() => null) : null;
-        document.getElementById("forumAdminCreateCategory").classList.toggle("hidden", !(me && (me.admin || me.owner)));
+        document.getElementById("blogAdminCreate").classList.toggle("hidden", !(me && (me.admin || me.owner)));
+        window.__blogIsAdmin = !!(me && (me.admin || me.owner));
     } catch (e) {}
-
-    loadForumCategories();
+    loadBlogPosts();
 }
 
-async function loadForumCategories() {
-    const container = document.getElementById("forumCategoriesList");
-    container.textContent = "Cargando categorías...";
-    try {
-        const data = await request("/api/forum/categories");
-        if (!data.categories || data.categories.length === 0) {
-            container.textContent = "Todavía no hay categorías en el foro.";
-            return;
-        }
-        container.innerHTML = "";
-        data.categories.forEach(cat => {
-            const div = document.createElement("div");
-            div.className = "result";
-            div.style.cursor = "pointer";
-            div.innerHTML = `
-                <b>${escapeHTML(cat.name)}</b>${cat.adminOnly ? ' <span style="color:#ff8800; font-size:11px;">[Solo Admins]</span>' : ""}
-                ${cat.description ? `<div style="font-size:12px; color:#aaa;">${escapeHTML(cat.description)}</div>` : ""}
-            `;
-            div.onclick = () => openForumCategory(cat);
-            container.appendChild(div);
-        });
-    } catch (e) { container.textContent = "Error al cargar categorías."; }
-}
-
-async function createForumCategory() {
-    const name = document.getElementById("forumNewCatName").value;
-    const description = document.getElementById("forumNewCatDesc").value;
-    const adminOnly = document.getElementById("forumNewCatAdminOnly").checked;
-    const msg = document.getElementById("forumNewCatMsg");
-    try {
-        await request("/api/admin/forum/categories", "POST", { name, description, adminOnly });
-        msg.className = "success";
-        msg.textContent = "¡Categoría creada!";
-        document.getElementById("forumNewCatName").value = "";
-        document.getElementById("forumNewCatDesc").value = "";
-        loadForumCategories();
-    } catch (e) {
-        msg.className = "error";
-        msg.textContent = e.message;
-    }
-}
-
-function openForumCategory(cat) {
-    currentForumCategoryId = cat.id;
-    document.getElementById("forumCategoriesView").classList.add("hidden");
-    document.getElementById("forumPostsView").classList.remove("hidden");
-    document.getElementById("forumCategoryTitle").textContent = cat.name;
-    document.getElementById("forumCategoryDesc").textContent = cat.description || "";
-    loadForumPosts();
-}
-
-function backToForumCategories() {
-    document.getElementById("forumCategoriesView").classList.remove("hidden");
-    document.getElementById("forumPostsView").classList.add("hidden");
-    currentForumCategoryId = null;
-}
-
-async function loadForumPosts() {
-    const container = document.getElementById("forumPostsList");
+async function loadBlogPosts() {
+    const container = document.getElementById("blogPostsList");
     container.textContent = "Cargando publicaciones...";
     try {
-        const data = await request(`/api/forum/categories/${currentForumCategoryId}/posts`);
+        const data = await request("/api/blog/posts");
         if (!data.posts || data.posts.length === 0) {
-            container.textContent = "Todavía no hay publicaciones en esta categoría.";
+            container.textContent = "Todavía no hay publicaciones en el blog.";
             return;
         }
         container.innerHTML = "";
         data.posts.forEach(p => {
             const div = document.createElement("div");
-            div.className = "result";
+            div.className = "section";
             div.innerHTML = `
-                <b>${escapeHTML(p.title)}</b><br>
-                <span style="white-space:pre-wrap;">${escapeHTML(p.content)}</span><br>
+                <h3 style="margin-top:0;">${escapeHTML(p.title)}</h3>
+                ${p.imageUrl ? `<img src="${absUrl(p.imageUrl)}" style="max-width:100%; border-radius:6px; margin-bottom:8px;">` : ""}
+                <div style="white-space:pre-wrap; color:#ddd;">${escapeHTML(p.content)}</div>
                 <small style="color:#888;">Por ${escapeHTML(p.authorUsername)} — ${new Date(p.createdAt).toLocaleString()}</small>
+                ${window.__blogIsAdmin ? `<br><button class="danger-button" style="padding:3px 8px; font-size:11px; margin-top:6px;" onclick="deleteBlogPost('${p.id}')">🗑️ Borrar</button>` : ""}
             `;
             container.appendChild(div);
         });
-    } catch (e) { container.textContent = "Error al cargar publicaciones."; }
+    } catch (e) { container.textContent = "Error al cargar el blog."; }
 }
 
-async function createForumPost() {
-    const title = document.getElementById("forumPostTitle").value;
-    const content = document.getElementById("forumPostContent").value;
-    const msg = document.getElementById("forumPostMsg");
+async function createBlogPost() {
+    const title = document.getElementById("blogPostTitle").value;
+    const content = document.getElementById("blogPostContent").value;
+    const imgFile = document.getElementById("blogPostImage").files[0];
+    const msg = document.getElementById("blogPostMsg");
     try {
-        await request("/api/forum/posts", "POST", { categoryId: currentForumCategoryId, title, content });
+        let imageUrl = null;
+        if (imgFile) {
+            const token = localStorage.getItem("gameblocks_token");
+            const formData = new FormData();
+            formData.append("image", imgFile);
+            const upRes = await fetch(RENDER_API + "/api/upload/image", {
+                method: "POST", headers: { Authorization: "Bearer " + token }, body: formData
+            });
+            const upData = await upRes.json();
+            if (!upRes.ok) throw new Error(upData.error);
+            imageUrl = upData.imageUrl;
+        }
+        await request("/api/admin/blog/posts", "POST", { title, content, imageUrl });
         msg.className = "success";
         msg.textContent = "¡Publicado!";
-        document.getElementById("forumPostTitle").value = "";
-        document.getElementById("forumPostContent").value = "";
-        loadForumPosts();
+        document.getElementById("blogPostTitle").value = "";
+        document.getElementById("blogPostContent").value = "";
+        document.getElementById("blogPostImage").value = "";
+        loadBlogPosts();
     } catch (e) {
         msg.className = "error";
         msg.textContent = e.message;
     }
+}
+
+async function deleteBlogPost(postId) {
+    if (!confirm("¿Borrar esta publicación?")) return;
+    try {
+        await request("/api/admin/blog/posts/delete", "POST", { postId });
+        loadBlogPosts();
+    } catch (e) { alert(e.message); }
+}
+
+async function buyBlocksWithCoins() {
+    const amount = document.getElementById("buyBlocksAmount").value;
+    const msg = document.getElementById("buyBlocksMsg");
+    try {
+        const data = await request("/api/blocks/buy", "POST", { amount: Number(amount) });
+        msg.className = "success";
+        msg.textContent = `¡Compra realizada! Ahora tienes ${data.blocks} Bloques 🟥.`;
+        updateAccount();
+        document.getElementById("currencyBlocksModal").textContent = data.blocks;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+async function gamexConvert() {
+    const blocks = document.getElementById("gamexBlocksAmount").value;
+    const msg = document.getElementById("gamexMsg");
+    try {
+        const data = await request("/api/blocks/gamex-convert", "POST", { blocks: Number(blocks) });
+        msg.className = "success";
+        msg.textContent = `¡Conversión hecha! Te quedan ${data.conversionsLeft} conversiones este mes.`;
+        updateAccount();
+        document.getElementById("currencyBlocksModal").textContent = data.blocks;
+    } catch (e) {
+        msg.className = "error";
+        msg.textContent = e.message;
+    }
+}
+
+let currentItemDetailId = null;
+
+function closeItemDetail() { document.getElementById("itemDetailModal").style.display = "none"; currentItemDetailId = null; }
+
+async function openItemDetail(itemId) {
+    currentItemDetailId = itemId;
+    document.getElementById("itemDetailModal").style.display = "flex";
+    renderItemDetail(itemId);
+}
+
+async function renderItemDetail(itemId) {
+    const body = document.getElementById("itemDetailBody");
+    try {
+        const [detail, me] = await Promise.all([
+            request(`/api/accessories/${itemId}/detail`),
+            localStorage.getItem("gameblocks_token") ? request("/api/me").catch(() => null) : Promise.resolve(null)
+        ]);
+        const item = detail.item;
+        const listings = detail.resaleListings || [];
+
+        const ownedCount = (me && me.inventory) ? me.inventory.filter(id => String(id) === String(item.id)).length : 0;
+        const equippedHats = (me && me.equippedHats) || [];
+        const isEquipped = !me ? false
+            : item.type === "hat" ? equippedHats.some(id => String(id) === String(item.id))
+            : item.type === "teapot" ? String(me.equippedTeapot) === String(item.id)
+            : item.type === "pfp" ? String(me.equippedPfp) === String(item.id)
+            : false;
+        const isFree = (item.price || 0) === 0 && (item.priceBlocks || 0) === 0;
+        const canBuyMore = !item.limited || !item.maxPerUser || ownedCount < item.maxPerUser;
+
+        // Imagen o modelo 3D (los sombreros muestran su .glb; lo demás, solo el PNG)
+        const visual = (item.type === "hat" && item.glbUrl)
+            ? `<model-viewer src="${absUrl(item.glbUrl)}" alt="${escapeHTML(item.name)}" camera-controls auto-rotate style="width:260px; height:260px; background:#0c0c0c; border-radius:8px;"></model-viewer>`
+            : `<img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}" style="width:260px; height:260px; object-fit:contain; background:#0c0c0c; border-radius:8px;">`;
+
+        let limitedInfo = "";
+        if (item.limited) {
+            const max = item.maxGlobal != null ? item.maxGlobal : "∞";
+            limitedInfo = `
+                <div class="result" style="margin-top:8px;">
+                    <b style="color:#ffd700;">LIMITED</b><br>
+                    ${item.offsale ? '<span style="color:#ff5555;">Fuera de venta (offsale)</span>' : `En venta: ${priceLabelHTML(item)}`}<br>
+                    Copias vendidas: ${item.totalSold || 0} · Copias máximas: ${max}
+                    ${item.maxPerUser ? `<br>Máx. por usuario: ${item.maxPerUser}` : ""}
+                </div>`;
+        } else {
+            limitedInfo = `<div style="font-size:12px; color:#888; margin-top:6px;">Vendidos: ${item.totalSold || 0}</div>`;
+        }
+
+        // Botón principal: comprar / reclamar / equipar
+        let mainBtn = "";
+        if (!item.offsale && canBuyMore) {
+            mainBtn += `<button class="form-button" onclick="buyAccessoryFromDetail('${item.id}')">${isFree ? "Reclamar" : "Comprar"}</button>`;
+        } else if (item.offsale && ownedCount === 0) {
+            mainBtn += `<button class="form-button" disabled>Offsale</button>`;
+        }
+        if (ownedCount > 0 && ["hat", "teapot", "pfp"].includes(item.type)) {
+            mainBtn += `<button class="secondary-button" onclick="${isEquipped ? `unequipFromDetail('${item.id}')` : `equipFromDetail('${item.id}')`}">${isEquipped ? "Desequipar" : "Equipar"} (tienes ${ownedCount})</button>`;
+        }
+
+        // Revendedores (la antigua página de reventa ahora vive aquí)
+        let resaleHTML = "";
+        if (item.limited) {
+            resaleHTML = `<div class="section"><h3 style="margin-top:0;">♻️ Revendedores</h3>`;
+            if (listings.length === 0) {
+                resaleHTML += `<div style="color:#888; font-size:13px;">Nadie lo está revendiendo ahora mismo.</div>`;
+            } else {
+                resaleHTML += `<div style="margin-bottom:6px;">Mejor precio: <b>${detail.bestResalePrice}</b> <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>`;
+                listings.forEach(l => {
+                    const mine = me && String(l.sellerId) === String(me.id);
+                    resaleHTML += `<div class="result" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                        <span><span class="creator-link" onclick="closeItemDetail(); searchUserByName('${escapeHTML(l.sellerUsername)}')">${escapeHTML(l.sellerUsername)}</span> — ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></span>
+                        ${mine ? '<small style="color:#888;">Tu anuncio</small>' : `<button class="form-button" style="width:auto; margin:0; padding:4px 10px;" onclick="buyResaleFromDetail('${l.id}')">Comprar</button>`}
+                    </div>`;
+                });
+            }
+            if (item.offsale && ownedCount > 0) {
+                resaleHTML += `<div style="margin-top:8px; display:flex; gap:6px;">
+                    <input type="number" id="resalePriceInput" placeholder="Precio de reventa" min="1" style="margin:0;">
+                    <button class="admin-button" style="width:auto; margin:0;" onclick="listResaleFromDetail('${item.id}')">Revender una copia</button>
+                </div>`;
+            }
+            resaleHTML += `</div>`;
+        }
+
+        body.innerHTML = `
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                <div>${visual}</div>
+                <div style="flex:1; min-width:220px;">
+                    <h2 style="margin:0;">${escapeHTML(item.name)}</h2>
+                    <div style="font-size:11px; color:#888;">ID: ${item.id}${item.creatorUsername ? ` · Por <span class="creator-link" onclick="closeItemDetail(); searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span>` : ""}</div>
+                    <p style="color:#ccc; white-space:pre-wrap;">${item.description ? escapeHTML(item.description) : "Sin descripción."}</p>
+                    <div style="font-size:18px; margin:10px 0;">${priceLabelHTML(item)}</div>
+                    ${mainBtn}
+                    <div id="itemDetailMsg" style="margin-top:6px;"></div>
+                    ${limitedInfo}
+                    <button class="danger-button" style="margin-top:10px; padding:4px 8px; font-size:11px;" onclick="reportItemFromDetail('${item.id}')">🚨 Denunciar artículo</button>
+                </div>
+            </div>
+            ${resaleHTML}
+            <div class="section" id="itemDetailComments">
+                <h3 style="margin-top:0;">💬 Comentarios</h3>
+                <div id="itemDetailCommentsList" style="max-height:200px; overflow-y:auto;">Cargando comentarios...</div>
+                <div style="display:flex; gap:6px; margin-top:8px;">
+                    <input type="text" id="itemDetailCommentInput" placeholder="Escribe un comentario..." style="margin:0;">
+                    <button class="form-button" style="width:auto; margin:0;" onclick="postItemDetailComment('${item.id}')">Enviar</button>
+                </div>
+            </div>
+        `;
+        loadItemDetailComments(item.id);
+    } catch (e) {
+        body.textContent = e.message || "Error al cargar el artículo.";
+    }
+}
+
+function itemDetailMessage(text, ok) {
+    const el = document.getElementById("itemDetailMsg");
+    if (el) { el.className = ok ? "success" : "error"; el.textContent = text; }
+}
+
+async function loadItemDetailComments(itemId) {
+    const list = document.getElementById("itemDetailCommentsList");
+    try {
+        const data = await request("/api/accessories/all");
+        const item = data.items.find(i => String(i.id) === String(itemId));
+        const comments = (item && item.comments) || [];
+        list.innerHTML = comments.length === 0
+            ? "Sin comentarios todavía."
+            : comments.map(cm => `<div style="margin-bottom:4px;"><b style="color:#ff8800;">${escapeHTML(cm.senderUsername)}:</b> ${escapeHTML(cm.text)}</div>`).join("");
+    } catch (e) { list.textContent = "Error al cargar comentarios."; }
+}
+
+async function postItemDetailComment(itemId) {
+    const input = document.getElementById("itemDetailCommentInput");
+    if (!input.value.trim()) return;
+    try {
+        const data = await request(`/api/accessories/${itemId}/comments`, "POST", { text: input.value });
+        if (data.easterEgg) alert(data.message);
+        input.value = "";
+        loadItemDetailComments(itemId);
+    } catch (e) { alert(e.message); }
+}
+
+async function buyAccessoryFromDetail(itemId) {
+    try {
+        await request("/api/accessories/buy", "POST", { itemId });
+        updateAccount();
+        await renderItemDetail(itemId);
+        itemDetailMessage("¡Listo! Ya es tuyo.", true);
+    } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function equipFromDetail(itemId) {
+    try { await equipAccessory(itemId); await renderItemDetail(itemId); } catch (e) { itemDetailMessage(e.message, false); }
+}
+async function unequipFromDetail(itemId) {
+    try { await unequipAccessory(itemId); await renderItemDetail(itemId); } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function buyResaleFromDetail(listingId) {
+    try {
+        await request("/api/accessories/resell-buy", "POST", { listingId });
+        updateAccount();
+        await renderItemDetail(currentItemDetailId);
+        itemDetailMessage("¡Compra a revendedor realizada!", true);
+    } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function listResaleFromDetail(itemId) {
+    const price = document.getElementById("resalePriceInput").value;
+    try {
+        await request("/api/accessories/resell-list", "POST", { itemId, price: Number(price) });
+        await renderItemDetail(itemId);
+        itemDetailMessage("Tu copia está en reventa.", true);
+    } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function reportItemFromDetail(itemId) {
+    if (!confirm("¿Denunciar este artículo?")) return;
+    try {
+        await request(`/api/accessories/${itemId}/report`, "POST");
+        itemDetailMessage("Artículo denunciado.", true);
+    } catch (e) { itemDetailMessage(e.message, false); }
 }
 
 function launchGame() {
@@ -2818,6 +3049,37 @@ function applyCardStyling(bgColor, soundUrl) {
     }
 }
 
+async function renderCardAvatar(u) {
+    const section = document.getElementById("cardAvatarSection");
+    const row = document.getElementById("cardHatsRow");
+    section.classList.remove("hidden");
+    row.innerHTML = "";
+    const hatIds = u.equippedHats || [];
+    if (hatIds.length === 0) return;
+    try {
+        const all = await request("/api/accessories/all");
+        hatIds.forEach(id => {
+            const hat = all.items.find(a => String(a.id) === String(id));
+            if (hat && hat.glbUrl) {
+                const mv = document.createElement("model-viewer");
+                mv.setAttribute("src", absUrl(hat.glbUrl));
+                mv.setAttribute("alt", hat.name);
+                mv.setAttribute("camera-controls", "");
+                mv.setAttribute("auto-rotate", "");
+                mv.style.cssText = "width:90px; height:90px; background:#0c0c0c; border-radius:6px;";
+                row.appendChild(mv);
+            }
+        });
+    } catch (e) {}
+}
+
+function tradeFromCard() {
+    if (!currentCardUserId) return;
+    const name = document.getElementById("cardUsername").textContent;
+    closeUserProfileCard();
+    openTradeModal(currentCardUserId, name);
+}
+
 async function openUserProfileCard(userId) {
     currentCardUserId = userId;
     const modal = document.getElementById("userProfileCardModal");
@@ -2836,6 +3098,8 @@ async function openUserProfileCard(userId) {
 
         if (u.inactive) {
             inactiveBadge.classList.remove("hidden");
+            document.getElementById("cardAvatarSection").classList.add("hidden");
+            document.getElementById("cardTradeBtn").classList.add("hidden");
             detailSections.classList.add("hidden");
             reactionsArea.classList.add("hidden");
             followBtn.classList.add("hidden");
@@ -2844,6 +3108,9 @@ async function openUserProfileCard(userId) {
             return;
         }
         inactiveBadge.classList.add("hidden");
+        renderCardAvatar(u);
+        const myId = (await request("/api/me").catch(() => null));
+        document.getElementById("cardTradeBtn").classList.toggle("hidden", !myId || String(myId.id) === String(u.id));
         detailSections.classList.remove("hidden");
         reactionsArea.classList.remove("hidden");
         followBtn.classList.remove("hidden");
@@ -3007,101 +3274,35 @@ async function loadShopItems() {
             let tags = "";
             if (item.limited) tags += ` <span style="color:#ffd700; font-size:10px;">[LIMITED]</span>`;
             if (item.offsale) tags += ` <span style="color:#ff5555; font-size:10px;">[OFFSALE]</span>`;
-            if (item.onlyBlock) tags += ` <span style="color:#00d2ff; font-size:10px;">[BLOCK]</span>`;
-
-            const soldLabel = item.limited
-                ? `Vendidos: ${item.totalSold || 0}/${item.maxGlobal != null ? item.maxGlobal : "∞"}`
-                : `Vendidos: ${item.totalSold || 0}`;
 
             card.innerHTML = `
                 <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
                 <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}${tags}</div>
-                ${item.description ? `<div style="font-size:10px; color:#999; margin:2px 0;">${escapeHTML(item.description)}</div>` : ""}
-                <div class="item-id-label">ID: ${item.id}</div>
-                <div class="copies-sold-label">${soldLabel}</div>
-                <div style="font-size:12px; margin:4px 0;"> ${item.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
-                ${item.creatorUsername ? `<div style="font-size:10px; color:#aaa;">Por: <span class="creator-link" onclick="searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span></div>` : ""}
+                <div style="font-size:12px; margin:4px 0;">${priceLabelHTML(item)}</div>
             `;
 
-            const ownedCount = (me && me.inventory) ? me.inventory.filter(id => String(id) === String(item.id)).length : 0;
-            const owned = ownedCount > 0;
-            const equippedHats = (me && me.equippedHats) || [];
-            const isEquipped = !me ? false
-                : item.type === "hat" ? equippedHats.some(id => String(id) === String(item.id))
-                : item.type === "teapot" ? String(me.equippedTeapot) === String(item.id)
-                : item.type === "pfp" ? String(me.equippedPfp) === String(item.id)
-                : false;
-            const canBuyMore = item.limited && item.maxPerUser && ownedCount < item.maxPerUser;
-
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.marginTop = "6px";
-            btn.style.padding = "6px";
-            btn.style.fontSize = "12px";
-
-            if (owned) {
-                if (item.type === "hat" && !isEquipped && equippedHats.length >= 3) {
-                    btn.textContent = "Máx. 3 sombreros";
-                    btn.disabled = true;
-                } else {
-                    btn.textContent = isEquipped ? "Desequipar" : "Equipar";
-                    btn.onclick = () => isEquipped ? unequipAccessory(item.id) : equipAccessory(item.id);
-                }
-            } else {
-                btn.textContent = item.offsale ? "Offsale" : "Comprar";
-                btn.disabled = item.offsale;
-                btn.onclick = () => buyAccessory(item.id);
-            }
-
-            card.appendChild(btn);
-
-            if (owned && canBuyMore && !item.offsale) {
-                const buyMoreBtn = document.createElement("button");
-                buyMoreBtn.className = "secondary-button";
-                buyMoreBtn.style.cssText = "margin-top:4px; padding:4px; font-size:11px;";
-                buyMoreBtn.textContent = `Comprar otra copia (${ownedCount}/${item.maxPerUser})`;
-                buyMoreBtn.onclick = () => buyAccessory(item.id);
-                card.appendChild(buyMoreBtn);
-            }
-
-            // Comentarios (se pueden abrir/cerrar) y denuncia, para TODOS los artículos.
-            const toggleBtn = document.createElement("button");
-            toggleBtn.className = "secondary-button";
-            toggleBtn.style.marginTop = "4px";
-            toggleBtn.style.padding = "4px";
-            toggleBtn.style.fontSize = "11px";
-            toggleBtn.textContent = "💬 Comentarios";
-            const commentsPanel = document.createElement("div");
-            commentsPanel.className = "hidden";
-            commentsPanel.style.cssText = "text-align:left; font-size:11px; margin-top:4px; max-height:120px; overflow-y:auto; background:#0c0c0c; padding:6px; border-radius:4px;";
-            toggleBtn.onclick = () => {
-                commentsPanel.classList.toggle("hidden");
-                if (!commentsPanel.classList.contains("hidden")) loadItemComments(item.id, commentsPanel);
-            };
-            const commentForm = document.createElement("div");
-            commentForm.style.cssText = "display:flex; gap:4px; margin-top:4px;";
-            commentForm.innerHTML = `<input type="text" placeholder="Comentar..." style="margin:0; font-size:11px;" id="commentInput_${item.id}">`;
-            const sendCommentBtn = document.createElement("button");
-            sendCommentBtn.className = "form-button";
-            sendCommentBtn.style.cssText = "width:auto; margin:0; padding:4px 8px; font-size:11px;";
-            sendCommentBtn.textContent = "➤";
-            sendCommentBtn.onclick = () => postItemComment(item.id, commentsPanel);
-            commentForm.appendChild(sendCommentBtn);
-
-            const reportItemBtn = document.createElement("button");
-            reportItemBtn.className = "danger-button";
-            reportItemBtn.style.cssText = "margin-top:4px; padding:4px; font-size:11px;";
-            reportItemBtn.textContent = "🚨 Denunciar artículo";
-            reportItemBtn.onclick = () => reportItemUGC(item.id);
-
-            card.appendChild(toggleBtn);
-            card.appendChild(commentsPanel);
-            card.appendChild(commentForm);
-            card.appendChild(reportItemBtn);
+            // En el catálogo solo hay un botón: Ver (abre la página del artículo).
+            const viewBtn = document.createElement("button");
+            viewBtn.className = "form-button";
+            viewBtn.style.cssText = "margin-top:6px; padding:6px; font-size:12px;";
+            viewBtn.textContent = "Ver";
+            viewBtn.onclick = () => openItemDetail(item.id);
+            card.appendChild(viewBtn);
 
             container.appendChild(card);
         });
     } catch (e) { container.textContent = "Error al cargar la tienda."; }
+}
+
+// Texto del precio: monedas y/o Bloques, o "Gratis".
+function priceLabelHTML(item) {
+    const coins = item.price || 0;
+    const blocks = item.priceBlocks || 0;
+    if (coins === 0 && blocks === 0) return "Gratis";
+    const parts = [];
+    if (coins > 0) parts.push(`${coins} <img src="dineros.png" class="currency-icon-small" alt="Monedas">`);
+    if (blocks > 0) parts.push(`${blocks} 🟥`);
+    return parts.join(" + ");
 }
 
 async function loadItemComments(itemId, panel) {
@@ -3267,38 +3468,8 @@ async function resellAccessory(itemId) {
     } catch (e) { alert(e.message); }
 }
 
-async function loadResaleMarket() {
-    const container = document.getElementById("resaleMarketContainer");
-    try {
-        const data = await request("/api/accessories/resale-market");
-        container.innerHTML = "";
-        if (data.listings.length === 0) {
-            container.textContent = "No hay ofertas de reventa.";
-            return;
-        }
-
-        data.listings.forEach(l => {
-            const item = l.item || { name: "Accesorio #" + l.itemId, imageUrl: "https://via.placeholder.com/80" };
-            const card = document.createElement("div");
-            card.className = "shop-card";
-            card.innerHTML = `
-                <img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}">
-                <div style="font-size:12px; font-weight:bold;">${escapeHTML(item.name)}</div>
-                <div style="font-size:11px; color:#aaa;">Vendedor: ${escapeHTML(l.sellerUsername)}</div>
-                <div style="font-size:12px; color:#ffd700; margin:4px 0;"> ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></div>
-            `;
-            const btn = document.createElement("button");
-            btn.className = "form-button";
-            btn.style.padding = "5px";
-            btn.style.fontSize = "11px";
-            btn.textContent = "Comprar Reventa";
-            btn.onclick = () => buyResaleItem(l.id);
-
-            card.appendChild(btn);
-            container.appendChild(card);
-        });
-    } catch (e) { container.textContent = "Error al cargar reventas."; }
-}
+// La página de reventa se fusionó con la página de cada artículo (ver openItemDetail).
+async function loadResaleMarket() { /* ya no hay página de reventa aparte */ }
 
 async function buyResaleItem(listingId) {
     try {
@@ -3743,13 +3914,33 @@ async function adminUploadTshirt() {
     const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
     const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
     const onlyBlock = document.getElementById("adminTshirtOnlyBlock").value === "true";
-    const imageUrl = document.getElementById("adminTshirtImgUrl").value;
+    const imgFile = document.getElementById("adminTshirtImgFile").files[0];
     const price = document.getElementById("adminTshirtPrice").value;
+    const priceBlocks = document.getElementById("adminTshirtPriceBlocks").value;
+    const description = document.getElementById("adminTshirtDescription").value;
+    const type = document.getElementById("adminTshirtType").value;
     const msg = document.getElementById("adminTshirtMsg");
 
+    if (!imgFile) {
+        msg.className = "error";
+        msg.textContent = "Selecciona una imagen.";
+        return;
+    }
+
     try {
+        // La imagen se sube como archivo interno del servidor (ya no son enlaces externos).
+        const token = localStorage.getItem("gameblocks_token");
+        const formData = new FormData();
+        formData.append("image", imgFile);
+        const upRes = await fetch(RENDER_API + "/api/upload/image", {
+            method: "POST", headers: { Authorization: "Bearer " + token }, body: formData
+        });
+        const upData = await upRes.json();
+        if (!upRes.ok) throw new Error(upData.error);
+
         await request("/api/admin/tshirts/upload", "POST", {
-            name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock, imageUrl, price
+            name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock,
+            imageUrl: upData.imageUrl, price, priceBlocks, description, type
         });
         msg.className = "success";
         msg.textContent = "Camiseta subida por Admin.";
@@ -3791,7 +3982,9 @@ async function uploadAccessory() {
     const bgColor = document.getElementById("accessoryBgColor").value;
     const soundUrl = document.getElementById("accessorySoundUrl").value;
     const price = document.getElementById("accessoryPrice").value;
-    const imageUrl = document.getElementById("accessoryPngUrl").value;
+    const thumbFile = document.getElementById("accessoryThumbFile").files[0];
+    const priceBlocks = document.getElementById("accessoryPriceBlocks").value;
+    const description = document.getElementById("accessoryDescription").value;
     const msg = document.getElementById("accessoryUploadMsg");
 
     if (!fileInput.files[0]) {
@@ -3812,7 +4005,9 @@ async function uploadAccessory() {
     formData.append("bgColor", bgColor);
     formData.append("soundUrl", soundUrl);
     formData.append("price", price);
-    formData.append("imageUrl", imageUrl);
+    formData.append("priceBlocks", priceBlocks);
+    formData.append("description", description);
+    if (thumbFile) formData.append("image", thumbFile);
 
     try {
         const token = localStorage.getItem("gameblocks_token");
