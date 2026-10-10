@@ -69,56 +69,181 @@ async function githubApiFetch(url, options = {}) {
     });
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const ghPath = p => p.split("/").map(encodeURIComponent).join("/");
+const GITHUB_UPLOADS_PATH = process.env.GITHUB_UPLOADS_PATH || "gameblocks-backup/uploads";
+const DB_BACKUP_FILE = path.join(DATA_DIR, "db.backup.json");
+
+let dbSafeToBackup = true;        // false = no se sube nada a GitHub (para no pisar un backup bueno)
+let remoteKnownUsers = 0;         // nº de usuarios que tiene el backup remoto
+let githubPushPromise = null;
+let githubPushPending = false;
+let lastGithubPushAt = 0;
+let lastGithubError = null;
+let lastLocalSaveAt = 0;
+let dirty = false;
+
+function ghContentsUrl(p, withRef = true) {
+    return `${process.env.GITHUB_API_URL || "https://api.github.com"}/repos/${GITHUB_REPO}/contents/${ghPath(p)}${withRef ? `?ref=${GITHUB_BRANCH}` : ""}`;
+}
+
+// Devuelve { status: "ok", data } | { status: "missing" } | { status: "error", error } | { status: "disabled" }
 async function pullDbFromGithub() {
-    if (!GITHUB_BACKUP_ENABLED) return null;
+    if (!GITHUB_BACKUP_ENABLED) return { status: "disabled" };
     try {
-        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}?ref=${GITHUB_BRANCH}`;
+        const url = ghContentsUrl(GITHUB_BACKUP_PATH);
         const res = await githubApiFetch(url);
-        if (res.status !== 200) return null;
-        const data = await res.json();
-        githubBackupSha = data.sha;
-        const jsonStr = Buffer.from(data.content, "base64").toString("utf-8");
-        return JSON.parse(jsonStr);
+        if (res.status === 404) return { status: "missing" };
+        if (res.status !== 200) return { status: "error", error: `HTTP ${res.status}` };
+        const meta = await res.json();
+        githubBackupSha = meta.sha;
+        let text;
+        if (meta.content && meta.encoding === "base64") {
+            text = Buffer.from(meta.content, "base64").toString("utf-8");
+        } else {
+            // Ficheros de más de 1 MB: la API no devuelve el contenido, se pide en bruto.
+            const raw = await githubApiFetch(url, { headers: { Accept: "application/vnd.github.raw+json" } });
+            if (!raw.ok) return { status: "error", error: `HTTP ${raw.status} (raw)` };
+            text = await raw.text();
+        }
+        return { status: "ok", data: JSON.parse(text) };
     } catch (e) {
-        console.error("[GitHub backup] No se pudo descargar la copia de seguridad:", e.message);
-        return null;
+        return { status: "error", error: e.message };
     }
 }
 
-async function pushDbToGithub() {
-    if (!GITHUB_BACKUP_ENABLED) return;
-    try {
-        if (!githubBackupSha) {
-            const checkUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}?ref=${GITHUB_BRANCH}`;
-            const checkRes = await githubApiFetch(checkUrl);
-            if (checkRes.status === 200) githubBackupSha = (await checkRes.json()).sha;
+async function pushDbToGithubOnce() {
+    // Nunca se pisa un backup con datos por una base de datos vacía.
+    if ((db.users || []).length === 0 && remoteKnownUsers > 0) return;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            if (!githubBackupSha) {
+                const check = await githubApiFetch(ghContentsUrl(GITHUB_BACKUP_PATH));
+                if (check.status === 200) githubBackupSha = (await check.json()).sha;
+            }
+            const content = Buffer.from(JSON.stringify(db)).toString("base64");
+            const res = await githubApiFetch(ghContentsUrl(GITHUB_BACKUP_PATH, false), {
+                method: "PUT",
+                body: JSON.stringify({
+                    message: `Backup automático de Game Blocks (${new Date().toISOString()})`,
+                    content,
+                    branch: GITHUB_BRANCH,
+                    ...(githubBackupSha ? { sha: githubBackupSha } : {})
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                githubBackupSha = data.content && data.content.sha;
+                remoteKnownUsers = (db.users || []).length;
+                lastGithubPushAt = Date.now();
+                lastGithubError = null;
+                return;
+            }
+            githubBackupSha = null; // 409/422: sha desfasado, se reconsulta y se reintenta
+            lastGithubError = `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+            console.error("[GitHub backup] Fallo al subir backup:", lastGithubError);
+            if (res.status !== 409 && res.status !== 422) return;
+        } catch (e) {
+            lastGithubError = e.message;
+            console.error("[GitHub backup] Error al subir backup:", e.message);
+            return;
         }
-        const content = Buffer.from(JSON.stringify(db, null, 2)).toString("base64");
-        const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodeURIComponent(GITHUB_BACKUP_PATH)}`;
-        const res = await githubApiFetch(url, {
-            method: "PUT",
-            body: JSON.stringify({
-                message: `Backup automático de Game Blocks (${new Date().toISOString()})`,
-                content,
-                branch: GITHUB_BRANCH,
-                ...(githubBackupSha ? { sha: githubBackupSha } : {})
-            })
-        });
-        if (res.ok) {
-            const data = await res.json();
-            githubBackupSha = data.content && data.content.sha;
-        } else {
-            githubBackupSha = null; // se reconsulta la próxima vez
-            console.error("[GitHub backup] Fallo al subir backup:", res.status, await res.text());
+    }
+}
+
+// Las subidas se encadenan (nunca dos a la vez) y devuelven una promesa
+// que se puede esperar, p. ej. al apagarse el servidor.
+function pushDbToGithub() {
+    if (!GITHUB_BACKUP_ENABLED || !dbSafeToBackup) return Promise.resolve();
+    if (githubPushPromise) { githubPushPending = true; return githubPushPromise; }
+    githubPushPromise = (async () => {
+        try {
+            do { githubPushPending = false; await pushDbToGithubOnce(); } while (githubPushPending);
+        } finally { githubPushPromise = null; }
+    })();
+    return githubPushPromise;
+}
+
+// ---- Imágenes/modelos subidos (avatares, miniaturas, .glb...) también a GitHub ----
+const remoteUploads = new Set();
+let remoteUploadsListed = false;
+let uploadSyncRunning = false;
+
+async function listRemoteUploads() {
+    try {
+        const res = await githubApiFetch(ghContentsUrl(GITHUB_UPLOADS_PATH));
+        if (res.status === 404) { remoteUploadsListed = true; return []; }
+        if (res.status !== 200) return null;
+        const list = await res.json();
+        remoteUploadsListed = true;
+        return Array.isArray(list) ? list.filter(f => f.type === "file") : [];
+    } catch (e) { return null; }
+}
+
+async function downloadUploadFromGithub(name) {
+    const res = await githubApiFetch(ghContentsUrl(`${GITHUB_UPLOADS_PATH}/${name}`), { headers: { Accept: "application/vnd.github.raw+json" } });
+    if (!res.ok) return false;
+    fs.writeFileSync(path.join(UPLOADS_DIR, name), Buffer.from(await res.arrayBuffer()));
+    return true;
+}
+
+async function restoreMissingUploads() {
+    if (!GITHUB_BACKUP_ENABLED) return;
+    const list = await listRemoteUploads();
+    if (!list) return;
+    let restored = 0;
+    for (const f of list) {
+        remoteUploads.add(f.name);
+        if (!fs.existsSync(path.join(UPLOADS_DIR, f.name))) {
+            try { if (await downloadUploadFromGithub(f.name)) restored++; } catch (e) {}
+        }
+    }
+    if (restored) console.log(`[GitHub backup] ${restored} archivo(s) subido(s) restaurado(s).`);
+}
+
+async function syncUploadsToGithub() {
+    if (!GITHUB_BACKUP_ENABLED || uploadSyncRunning) return;
+    uploadSyncRunning = true;
+    try {
+        if (!remoteUploadsListed) {
+            const list = await listRemoteUploads();
+            if (!list) return;
+            list.forEach(f => remoteUploads.add(f.name));
+        }
+        for (const name of fs.readdirSync(UPLOADS_DIR)) {
+            if (remoteUploads.has(name)) continue;
+            const full = path.join(UPLOADS_DIR, name);
+            if (!fs.statSync(full).isFile()) continue;
+            const res = await githubApiFetch(ghContentsUrl(`${GITHUB_UPLOADS_PATH}/${name}`, false), {
+                method: "PUT",
+                body: JSON.stringify({
+                    message: `Backup de archivo subido: ${name}`,
+                    content: fs.readFileSync(full).toString("base64"),
+                    branch: GITHUB_BRANCH
+                })
+            });
+            if (res.ok || res.status === 422) remoteUploads.add(name); // 422 = ya existía
+            else { console.error("[GitHub backup] No se pudo subir", name, res.status); break; }
         }
     } catch (e) {
-        console.error("[GitHub backup] Error al subir backup:", e.message);
-    }
+        console.error("[GitHub backup] Error sincronizando archivos subidos:", e.message);
+    } finally { uploadSyncRunning = false; }
 }
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use("/uploads", express.static(UPLOADS_DIR));
+// Si un archivo subido no está en el disco (p. ej. tras un redeploy), se
+// recupera al vuelo desde la copia de seguridad de GitHub.
+app.get("/uploads/:name", async (req, res) => {
+    const name = path.basename(req.params.name);
+    const local = path.join(UPLOADS_DIR, name);
+    try {
+        if (!fs.existsSync(local) && GITHUB_BACKUP_ENABLED) await downloadUploadFromGithub(name);
+        if (fs.existsSync(local)) return res.sendFile(local);
+    } catch (e) {}
+    res.status(404).end();
+});
 
 // ---------------------------------------------------------------------------
 // BASE DE DATOS (fichero JSON persistente)
@@ -139,6 +264,8 @@ function defaultDb() {
         adminMessages: {},    // userId -> [ {fromUsername, text, createdAt} ]
         itemReports: {},      // itemId -> [userId, ...]
         transactions: [],     // ventas de artículos y compras de monedas
+        sessions: {},         // token -> { userId, createdAt } (persisten tras reiniciar)
+        savedAt: 0,
         blogPosts: [],         // { id, title, content, imageUrl, authorUsername, createdAt }
         nextId: 1,
         nextUserId: 1,
@@ -148,63 +275,151 @@ function defaultDb() {
 
 let db = defaultDb();
 
-async function loadDb() {
-    try {
-        // 1) Si hay un fichero local con datos reales, se usa (es lo más rápido).
-        if (fs.existsSync(DB_FILE)) {
-            const raw = fs.readFileSync(DB_FILE, "utf-8");
-            const parsed = JSON.parse(raw);
-            const hasRealData = parsed && Array.isArray(parsed.users) && parsed.users.length > 0;
-            if (hasRealData) {
-                db = Object.assign(defaultDb(), parsed);
-                // Aun así, se sube una copia a GitHub por si el disco local se borra pronto.
-                if (GITHUB_BACKUP_ENABLED) pushDbToGithub();
-                return;
+function readLocalDb() {
+    // Primero db.json; si estuviera corrupto, la copia rotativa db.backup.json.
+    for (const file of [DB_FILE, DB_BACKUP_FILE]) {
+        try {
+            if (!fs.existsSync(file)) continue;
+            const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+            if (parsed && typeof parsed === "object") {
+                if (file === DB_BACKUP_FILE) console.warn("[DB] db.json no se pudo leer: se usa db.backup.json");
+                return parsed;
             }
+        } catch (e) {
+            console.error(`[DB] No se pudo leer ${path.basename(file)}:`, e.message);
         }
+    }
+    return null;
+}
 
-        // 2) Si el disco local está vacío (típico tras un redeploy en Render Free
-        //    sin Persistent Disk), se intenta recuperar la última copia de GitHub.
-        if (GITHUB_BACKUP_ENABLED) {
-            const remote = await pullDbFromGithub();
-            if (remote && Array.isArray(remote.users)) {
-                db = Object.assign(defaultDb(), remote);
-                console.log("[GitHub backup] Base de datos restaurada desde GitHub correctamente.");
+const hasUsers = d => !!(d && Array.isArray(d.users) && d.users.length > 0);
+
+function pruneSessions() {
+    const TTL = 90 * 24 * 60 * 60 * 1000;
+    db.sessions = db.sessions || {};
+    for (const [t, s] of Object.entries(db.sessions)) {
+        if (!s || Date.now() - (s.createdAt || 0) > TTL) delete db.sessions[t];
+    }
+}
+
+let backupRetryTimer = null;
+function scheduleBackupRetry() {
+    clearInterval(backupRetryTimer);
+    backupRetryTimer = setInterval(async () => {
+        const r = await pullDbFromGithub();
+        if (r.status === "error") return;
+        if (r.status === "ok") {
+            remoteKnownUsers = (r.data.users || []).length;
+            if ((r.data.savedAt || 0) > (db.savedAt || 0)) {
+                db = Object.assign(defaultDb(), r.data);
                 saveDbNow();
-                return;
+                console.log("[GitHub backup] Se encontró un backup más reciente y se ha cargado.");
             }
         }
+        dbSafeToBackup = true;
+        clearInterval(backupRetryTimer);
+        pushDbToGithub();
+    }, 30000);
+}
 
-        // 3) No hay nada en ningún sitio: base de datos nueva.
-        saveDb();
-    } catch (e) {
-        console.error("Error cargando la base de datos, se usa una nueva:", e.message);
+async function loadDb() {
+    const local = readLocalDb();
+    let chosen = hasUsers(local) ? local : null;
+
+    if (GITHUB_BACKUP_ENABLED) {
+        let result = { status: "error", error: "sin intentar" };
+        for (let attempt = 1; attempt <= 6; attempt++) {
+            result = await pullDbFromGithub();
+            if (result.status !== "error") break;
+            console.error(`[GitHub backup] Intento ${attempt}/6 de leer el backup falló: ${result.error}`);
+            if (chosen) break; // hay datos locales: no se bloquea el arranque
+            await sleep(attempt * 3000);
+        }
+        if (result.status === "ok") {
+            remoteKnownUsers = (result.data.users || []).length;
+            if (hasUsers(result.data) && (!chosen || (result.data.savedAt || 0) > (chosen.savedAt || 0))) {
+                chosen = result.data;
+                console.log("[GitHub backup] Base de datos restaurada desde GitHub.");
+            }
+        } else if (result.status === "error") {
+            if (!chosen) {
+                // Mejor NO arrancar que arrancar vacío y pisar el backup bueno.
+                throw new Error("No se pudo leer el backup de GitHub y no hay datos locales. No arranco con una base de datos vacía.");
+            }
+            dbSafeToBackup = false; // no se sube nada hasta poder comparar con el backup remoto
+            scheduleBackupRetry();
+        }
+    } else {
+        console.warn("[DB] ⚠️ GitHub backup DESACTIVADO: si el disco de Render se borra, se pierden los datos. Configura GITHUB_TOKEN y GITHUB_REPO (o un Persistent Disk con DATA_DIR).");
+    }
+
+    db = Object.assign(defaultDb(), chosen || {});
+    pruneSessions();
+    saveDbNow();
+    if (GITHUB_BACKUP_ENABLED) {
+        pushDbToGithub();
+        restoreMissingUploads().then(syncUploadsToGithub);
     }
 }
 
 let saveTimer = null;
 let githubSaveTimer = null;
+let lastBackupRotation = 0;
 
 function saveDbNow() {
     try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+        db.savedAt = Date.now();
+        // Copia rotativa del fichero anterior (como mucho cada 10 min).
+        if (fs.existsSync(DB_FILE) && Date.now() - lastBackupRotation > 10 * 60 * 1000) {
+            fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
+            lastBackupRotation = Date.now();
+        }
+        // Escritura atómica: primero a un temporal y luego se renombra, así un
+        // apagado a mitad de escritura nunca deja db.json a medias.
+        const tmp = DB_FILE + ".tmp";
+        fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+        fs.renameSync(tmp, DB_FILE);
+        lastLocalSaveAt = Date.now();
+        dirty = false;
     } catch (e) {
         console.error("Error guardando la base de datos:", e.message);
     }
 }
 
 function saveDb() {
-    // Debounce ligero para no escribir a disco en cada micro-cambio
+    dirty = true;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDbNow, 150);
 
-    // Copia de seguridad a GitHub con un debounce mayor (evita saturar la API
-    // de GitHub cuando hay muchos cambios seguidos).
     if (GITHUB_BACKUP_ENABLED) {
         clearTimeout(githubSaveTimer);
         githubSaveTimer = setTimeout(pushDbToGithub, 4000);
     }
 }
+
+// ---- Guardado al apagarse (Render envía SIGTERM antes de parar el servidor) ----
+let shuttingDown = false;
+async function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[${signal}] Guardando todo antes de apagar...`);
+    try {
+        saveDbNow();
+        await Promise.race([
+            (async () => { await pushDbToGithub(); await syncUploadsToGithub(); })(),
+            sleep(20000)
+        ]);
+    } catch (e) { console.error("Error al guardar en el apagado:", e.message); }
+    process.exit(0);
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("uncaughtException", (e) => {
+    console.error("uncaughtException:", e);
+    try { saveDbNow(); } catch (_) {}
+    process.exit(1);
+});
+process.on("unhandledRejection", (e) => { console.error("unhandledRejection:", e); });
 
 function nextId() {
     const id = db.nextId++;
@@ -248,7 +463,25 @@ function verifyPassword(password, stored) {
     return check === hash;
 }
 
-const tokens = new Map(); // token -> userId (en memoria; se recrea al reiniciar y el usuario tendrá que volver a loguearse)
+// Las sesiones se guardan dentro de la base de datos (db.sessions), así que
+// sobreviven a reinicios del servidor: nadie tiene que volver a iniciar sesión.
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const tokens = {
+    set(token, userId) {
+        db.sessions = db.sessions || {};
+        db.sessions[token] = { userId, createdAt: Date.now() };
+        saveDb();
+    },
+    get(token) {
+        const s = db.sessions && db.sessions[token];
+        if (!s) return undefined;
+        if (Date.now() - (s.createdAt || 0) > SESSION_TTL_MS) { delete db.sessions[token]; return undefined; }
+        return s.userId;
+    },
+    has(token) { return this.get(token) !== undefined; },
+    delete(token) { if (db.sessions && db.sessions[token]) { delete db.sessions[token]; saveDb(); } },
+    entries() { return Object.entries(db.sessions || {}).map(([t, s]) => [t, s.userId]); }
+};
 
 function issueToken(userId) {
     const token = crypto.randomBytes(32).toString("hex");
@@ -2480,25 +2713,59 @@ app.get("/api/admin/backup-status", requireAdmin, (req, res) => {
     res.json({
         githubBackupEnabled: GITHUB_BACKUP_ENABLED,
         repo: GITHUB_BACKUP_ENABLED ? GITHUB_REPO : null,
-        path: GITHUB_BACKUP_ENABLED ? GITHUB_BACKUP_PATH : null
+        path: GITHUB_BACKUP_ENABLED ? GITHUB_BACKUP_PATH : null,
+        dataDir: DATA_DIR,
+        users: (db.users || []).length,
+        lastLocalSave: lastLocalSaveAt || null,
+        lastGithubPush: lastGithubPushAt || null,
+        lastGithubError,
+        safeToBackup: dbSafeToBackup,
+        uploadsBackedUp: remoteUploads.size
     });
 });
 
 app.post("/api/admin/backup-now", requireAdmin, async (req, res) => {
+    saveDbNow();
     if (!GITHUB_BACKUP_ENABLED) {
-        return res.status(400).json({ error: "El backup en GitHub no está configurado (faltan GITHUB_TOKEN / GITHUB_REPO)." });
+        return res.json({ ok: true, message: "Guardado en disco. El backup en GitHub no está configurado (faltan GITHUB_TOKEN / GITHUB_REPO)." });
     }
     await pushDbToGithub();
-    res.json({ ok: true, message: "Copia de seguridad subida a GitHub." });
+    await syncUploadsToGithub();
+    res.json({ ok: !lastGithubError, message: lastGithubError ? `Guardado en disco, pero GitHub falló: ${lastGithubError}` : "Guardado en disco y subido a GitHub." });
+});
+
+// Copia manual: el Owner puede descargar toda la base de datos y volver a importarla.
+app.get("/api/admin/export-db", requireAuth, requireOwner, (req, res) => {
+    saveDbNow();
+    res.setHeader("Content-Disposition", `attachment; filename="gameblocks-db-${Date.now()}.json"`);
+    res.json(db);
+});
+
+app.post("/api/admin/import-db", requireAuth, requireOwner, (req, res) => {
+    const incoming = req.body && (req.body.db || req.body);
+    if (!hasUsers(incoming)) return res.status(400).json({ error: "El archivo no parece una base de datos válida (sin usuarios)." });
+    db = Object.assign(defaultDb(), incoming);
+    saveDbNow();
+    pushDbToGithub();
+    res.json({ ok: true, users: db.users.length, message: "Base de datos importada. Vuelve a iniciar sesión." });
 });
 
 (async () => {
-    await loadDb();
+    try {
+        await loadDb();
+    } catch (e) {
+        console.error("❌", e.message);
+        process.exit(1); // Render reiniciará el servicio y volverá a intentarlo
+    }
     app.listen(PORT, () => {
         console.log(`Game Blocks server escuchando en el puerto ${PORT}`);
-        console.log(`Base de datos persistente en: ${DB_FILE}`);
+        console.log(`Base de datos en: ${DB_FILE} (${(db.users || []).length} usuarios)`);
         console.log(GITHUB_BACKUP_ENABLED
             ? `[GitHub backup] Activado -> ${GITHUB_REPO} (${GITHUB_BACKUP_PATH})`
             : `[GitHub backup] Desactivado (configura GITHUB_TOKEN y GITHUB_REPO para activarlo).`);
     });
+    // Red de seguridad: guarda en disco cada 30 s si hay cambios pendientes, y
+    // revisa cada 20 s si hay archivos subidos sin copia en GitHub.
+    setInterval(() => { if (dirty) saveDbNow(); }, 30000);
+    setInterval(syncUploadsToGithub, 20000);
 })();
