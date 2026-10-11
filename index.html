@@ -18,7 +18,7 @@ body {
     margin: 0;
     background: #000;
     color: #fff;
-    font-family: 'Courier New', Courier, monospace; /* Toque 2007 retro / old school */
+    font-family: 'Comic Sans MS', 'Comic Sans', 'Comic Neue', 'Chalkboard SE', cursive; /* Comic Sans en toda la web */
     transition: background-color 0.3s ease; 
 }
 
@@ -639,6 +639,9 @@ model-viewer {
     color: #000;
     border-color: #fff;
 }
+button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
+    font-family: 'Comic Sans MS', 'Comic Sans', 'Comic Neue', 'Chalkboard SE', cursive;
+}
 </style>
 </head>
 
@@ -885,7 +888,7 @@ model-viewer {
 
         <div class="section" style="margin-top:15px;">
             <h3 style="margin-top:0;">🟥 Comprar Bloques con monedas</h3>
-            <small style="color:#888;">1 Bloque = 20 monedas. Tus Bloques: <b id="currencyBlocksModal">0</b> 🟥. Además recibes 10 al día y 5 por cada prenda tuya que te compren.</small>
+            <small style="color:#888;">1 Bloque = 1 moneda. Tus Bloques: <b id="currencyBlocksModal">0</b> 🟥. Además recibes 10 al día y 5 por cada prenda tuya que te compren.</small>
             <input type="number" id="buyBlocksAmount" placeholder="Cantidad de Bloques" min="1" style="margin-top:6px;">
             <button class="form-button" onclick="buyBlocksWithCoins()">Comprar Bloques</button>
             <p id="buyBlocksMsg"></p>
@@ -1061,7 +1064,7 @@ model-viewer {
             <textarea id="adminEventDesc" placeholder="Descripción del evento"></textarea>
             <label style="font-size:12px; color:#aaa;">Color temático:</label>
             <input type="color" id="adminEventThemeColor" value="#ffd700">
-            <label style="font-size:12px; color:#aaa;">IDs de artículos del catálogo para el evento (hasta 10, separados por comas):</label>
+            <label style="font-size:12px; color:#aaa;">IDs de artículos del catálogo para el evento (hasta 500, separados por comas):</label>
             <input type="text" id="adminEventItems" placeholder="ej: 3,7,12">
             <textarea id="adminEventCustomHtml" placeholder="HTML personalizado (opcional, sustituye todo lo anterior en la home)"></textarea>
             <select id="adminEventActive">
@@ -1111,7 +1114,8 @@ model-viewer {
             <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
             <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
             <input type="number" id="adminCodeDollars" placeholder="Cantidad de 💲 que otorgará" min="0">
-            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos (Opcional)">
+            <input type="number" id="adminCodeMaxUses" placeholder="Límite de usos en total (Opcional)">
+            <input type="number" id="adminCodeMaxPerUser" placeholder="Reclamaciones máximas por usuario (Opcional, por defecto 1)" min="1">
             <input type="number" id="adminCodeExpiresDays" placeholder="Días hasta que expire (Opcional)">
             <input type="text" id="adminCodeRewardItem" placeholder="ID del Item que dará (Opcional)">
             <button class="admin-button" style="width:100%;" onclick="adminCreateCode()">Crear Código</button>
@@ -1126,9 +1130,10 @@ model-viewer {
                 <option value="si">¿Limited?: Sí</option>
             </select>
             <div id="adminTshirtLimitedOpts" class="hidden">
-                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario" min="1" value="1">
-                <input type="number" id="adminTshirtMaxGlobal" placeholder="Stock Global Total">
-                <input type="number" id="adminTshirtExpiresDays" placeholder="Días límite">
+                <input type="number" id="adminTshirtMaxUser" placeholder="Max copias por usuario (vacío = infinitas)" min="1">
+                <input type="number" id="adminTshirtMaxGlobal" placeholder="Copias totales (vacío = infinitas)" min="1">
+                <label style="font-size:12px; color:#aaa;">Fecha límite de venta (opcional):</label>
+                <input type="datetime-local" id="adminTshirtExpiresAt">
             </div>
             <select id="adminTshirtIsOffsale">
                 <option value="no">¿Offsale?: No</option>
@@ -1144,7 +1149,14 @@ model-viewer {
             <select id="adminTshirtType" style="width:auto;">
                 <option value="tshirt">Camiseta</option>
                 <option value="pfp">Foto de perfil</option>
+                <option value="face">😀 Cara</option>
             </select>
+            <input type="text" id="adminTshirtObtainText" placeholder="Cómo se obtiene / obtenía (opcional)">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                <input type="checkbox" id="adminTshirt_variantsToggle" style="width:auto;" onchange="toggleVariants('adminTshirt', 10, false)"> Variantes (hasta 10)
+            </label>
+            <div id="adminTshirt_variants" class="hidden"></div>
+            <input type="number" id="adminTshirtVariantDiscount" placeholder="% de descuento al comprar otra variante (opcional)" min="0" max="90">
             <input type="number" id="adminTshirtPrice" placeholder="Coste en monedas (0 para Gratis)" min="0">
             <input type="number" id="adminTshirtPriceBlocks" placeholder="Coste en Bloques 🟥 (opcional)" min="0">
             <button class="admin-button" style="width:100%;" onclick="adminUploadTshirt()">Subir Camiseta</button>
@@ -1198,9 +1210,10 @@ model-viewer {
                 <option value="true">¿Solo Block?: Sí</option>
             </select>
             <div id="limitedOptions" class="hidden">
-                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario" min="1" value="1">
-                <input type="number" id="accessoryMaxGlobal" placeholder="Stock Global Total" min="1">
-                <input type="number" id="accessoryExpiresInDays" placeholder="Tiempo límite (Días)" min="1">
+                <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario (vacío = infinitas)" min="1">
+                <input type="number" id="accessoryMaxGlobal" placeholder="Copias totales (vacío = infinitas)" min="1">
+                <label style="font-size:12px; color:#aaa;">Fecha límite de venta (opcional):</label>
+                <input type="datetime-local" id="accessoryExpiresAt">
             </div>
             <label style="font-size:12px; color:#aaa;">Color Fondo Perfil al Equipar:</label>
             <input type="color" id="accessoryBgColor" value="#111111">
@@ -1209,10 +1222,39 @@ model-viewer {
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
             <input type="number" id="accessoryPriceBlocks" placeholder="Precio en Bloques 🟥 (0 = sin precio en bloques)" min="0">
             <textarea id="accessoryDescription" placeholder="Descripción del artículo (opcional)"></textarea>
+            <input type="text" id="accessoryObtainText" placeholder="Cómo se obtiene / obtenía (opcional)">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                <input type="checkbox" id="accessory_variantsToggle" style="width:auto;" onchange="toggleVariants('accessory', 10, true)"> Variantes (hasta 10, cada una con su modelo 3D)
+            </label>
+            <div id="accessory_variants" class="hidden"></div>
+            <input type="number" id="accessoryVariantDiscount" placeholder="% de descuento al comprar otra variante (opcional)" min="0" max="90">
             <label style="font-size:12px; color:#aaa;">Miniatura del catálogo (archivo PNG/JPG):</label>
             <input type="file" id="accessoryThumbFile" accept="image/*">
             <button class="admin-button" style="width:100%;" onclick="uploadAccessory()">Subir Accesorio 3D</button>
             <p id="accessoryUploadMsg"></p>
+        </div>
+
+        <div class="section" style="border:2px solid #ffd700; padding:12px; border-radius:8px;">
+            <h3 style="margin-top:0; color:#ffd700;">🎁 Artículo regalo al comprar monedas</h3>
+            <small style="color:#888;">Se entrega a partir del 3er paquete de monedas, aunque esté offsale. Vacío = ninguno. Actual: <b id="coinRewardCurrent">—</b></small>
+            <input type="text" id="coinRewardItemId" placeholder="ID del artículo (vacío para quitarlo)" style="margin-top:6px;">
+            <button class="admin-button" style="width:100%;" onclick="adminSetCoinRewardItem()">Guardar</button>
+            <p id="coinRewardMsg"></p>
+        </div>
+
+        <div class="section" style="border:2px solid #ff4444; padding:12px; border-radius:8px;">
+            <h3 style="margin-top:0; color:#ff5555;">🗑️ Borrar artículo del catálogo por ID</h3>
+            <small style="color:#888;">Se borra para siempre (con sus variantes) y se reembolsa a quien lo tenga.</small>
+            <input type="text" id="deleteItemById" placeholder="ID del artículo" style="margin-top:6px;">
+            <button class="danger-button" style="width:100%;" onclick="adminDeleteItemById()">Borrar artículo</button>
+            <p id="deleteItemMsg"></p>
+        </div>
+
+        <div class="section" style="border:2px solid #55aaff; padding:12px; border-radius:8px;">
+            <h3 style="margin-top:0; color:#55aaff;">💾 Estado de la persistencia</h3>
+            <div id="backupStatusBox">Cargando...</div>
+            <button class="secondary-button" onclick="loadBackupStatus()">🔄 Comprobar</button>
+            <button class="admin-button" onclick="adminBackupNow()">Guardar copia ahora</button>
         </div>
 
         <div class="section">
@@ -1273,11 +1315,17 @@ model-viewer {
         <h3>📤 Subir artículo al catálogo (Turbo Block / 🎩UGC+)</h3>
         <input type="text" id="ugcItemName" placeholder="Nombre del artículo">
         <textarea id="ugcItemDescription" placeholder="Descripción (opcional)" style="min-height:50px;"></textarea>
+        <input type="text" id="ugcItemObtainText" placeholder="Cómo se obtiene (opcional)">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <input type="checkbox" id="ugc_variantsToggle" style="width:auto;" onchange="toggleVariants('ugc', 3, false)"> Variantes (hasta 3)
+        </label>
+        <div id="ugc_variants" class="hidden"></div>
         <input type="file" id="ugcItemImageFile" accept="image/*">
         <select id="ugcItemTypeSelect" style="width:auto;">
             <option value="tshirt">Camiseta</option>
             <option value="hat" id="ugcHatOption" class="hidden">Sombrero/Accesorio (solo 🎩UGC+)</option>
             <option value="pfp" id="ugcPfpOption" class="hidden">🖼️ Foto de perfil (solo admins/🎩UGC+)</option>
+            <option value="face" id="ugcFaceOption" class="hidden">😀 Cara (solo admins/🎩UGC+)</option>
         </select>
         <input type="number" id="ugcItemPrice" placeholder="Precio en monedas (0 = gratis)" min="0">
         <input type="number" id="ugcItemPriceBlocks" placeholder="Precio en Bloques 🟥 (solo admins/🎩UGC+)" min="0">
@@ -1345,17 +1393,27 @@ model-viewer {
                     <option value="hat">Sombreros / Accesorios 3D</option>
                     <option value="tshirt">Camisetas</option>
                     <option value="pfp">🖼️ Fotos de perfil</option>
+                    <option value="face">😀 Caras</option>
                     <option value="teapot">🫖 Teapots</option>
                     <option value="gear">⚙️ Gears</option>
                 </select>
             </div>
 
-            <div id="tshirtFilterContainer" class="hidden" style="margin-top:10px;">
-                <label style="font-size:12px; color:#aaa;">Filtrar por creador:</label>
-                <select id="tshirtAdminFilter" style="width:auto; margin:0; padding:5px 8px;" onchange="loadShopItems()">
-                    <option value="all">Todos</option>
-                    <option value="adminOnly">Creado por Admins (Sí)</option>
-                </select>
+            <div id="tshirtFilterContainer" style="margin-top:10px; background:#101010; border:1px solid #2a2a2a; border-radius:6px; padding:8px;">
+                <div style="font-size:12px; color:#aaa; margin-bottom:6px;">🔎 Filtros (máximo 3 a la vez) — activos: <b id="shopFilterCount">0</b>/3</div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                    <select id="shopFilterAdmin" style="width:auto; margin:0; padding:5px 8px;" onchange="onShopFilterChange(this)">
+                        <option value="">Creador: todos</option>
+                        <option value="yes">Creado por admin: Sí</option>
+                        <option value="no">Creado por admin: No</option>
+                    </select>
+                    <label style="font-size:12px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="shopFilterSort" style="width:auto;" onchange="onShopFilterChange(this)"> Precio: menor a mayor</label>
+                    <input type="number" id="shopFilterMin" placeholder="Precio mínimo" min="0" style="width:120px; margin:0; padding:5px 8px;" onchange="onShopFilterChange(this)">
+                    <input type="number" id="shopFilterMax" placeholder="Precio máximo" min="0" style="width:120px; margin:0; padding:5px 8px;" onchange="onShopFilterChange(this)">
+                    <label style="font-size:12px; display:flex; align-items:center; gap:4px;"><input type="checkbox" id="shopFilterLimited" style="width:auto;" onchange="onShopFilterChange(this)"> Solo limiteds</label>
+                    <input type="text" id="shopFilterAuthor" placeholder="Nombre del autor" style="width:140px; margin:0; padding:5px 8px;" onchange="onShopFilterChange(this)">
+                </div>
+                <div id="shopFilterMsg" style="font-size:11px; color:#ff8800; margin-top:4px;"></div>
             </div>
 
             <div id="gearComingSoon" class="hidden" style="margin-top:15px; text-align:center; padding: 30px 10px; border:1px dashed #444; border-radius:8px;">
@@ -1392,9 +1450,19 @@ model-viewer {
     <div class="modal-box" style="max-width:650px;">
         <button class="close" onclick="closeBlogModal()">×</button>
         <h2>📰 Blog</h2>
+        <div style="margin-bottom:8px;">
+            <label style="font-size:12px; color:#aaa;">Categoría: </label>
+            <select id="blogFilterSelect" style="width:auto; margin:0; padding:5px 8px;" onchange="loadBlogPosts()">
+                <option value="">Todas</option>
+                <option>Anuncio</option><option>Archivo</option><option>Random</option><option>Evento</option><option>Locura de admin</option>
+            </select>
+        </div>
         <div id="blogAdminCreate" class="section hidden">
             <h3 style="margin-top:0;">➕ Nueva publicación (admin)</h3>
             <input type="text" id="blogPostTitle" placeholder="Título">
+            <select id="blogPostCategory" style="width:auto;">
+                <option>Anuncio</option><option>Archivo</option><option>Random</option><option>Evento</option><option>Locura de admin</option>
+            </select>
             <input type="file" id="blogPostImage" accept="image/*">
             <textarea id="blogPostContent" placeholder="Contenido de la publicación"></textarea>
             <button class="admin-button" style="width:100%;" onclick="createBlogPost()">Publicar</button>
@@ -1495,6 +1563,7 @@ model-viewer {
             <div id="cardAvatarSection" class="hidden" style="margin-top:8px; text-align:center;">
                 <model-viewer id="cardNoobViewer" src="noob.glb" alt="Avatar" camera-controls auto-rotate style="width:200px; height:220px; background:#0c0c0c; border-radius:8px; margin:0 auto;"></model-viewer>
                 <div id="cardHatsRow" style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:4px;"></div>
+                <div id="cardFaceRow" class="hidden" style="margin-top:6px; font-size:11px; color:#aaa;">Cara: <img id="cardFaceImg" style="width:40px; height:40px; border-radius:6px; object-fit:contain; vertical-align:middle; background:#0c0c0c;"></div>
             </div>
             <button id="cardTradeBtn" class="secondary-button hidden" style="width:auto; margin-top:6px;" onclick="tradeFromCard()">🤝 Tradear</button>
             <button id="cardFollowBtn" class="secondary-button" style="width:auto; margin-top:6px;" onclick="toggleFollowUserCard()">➕ Seguir</button>
@@ -1553,6 +1622,13 @@ setInterval(() => {
 setInterval(() => {
     fetch(RENDER_API + "/api/ping", { method: "POST", headers: { "Content-Type": "text/plain" }, body: "KEEPALIVE" }).catch(() => {});
 }, 40000);
+
+// Si el enlace termina en ?itemid=ID (o ?itemidID), se abre directamente la página de ese artículo.
+window.addEventListener("load", () => {
+    const search = window.location.search || "";
+    const m = search.match(/[?&]itemid=?(\d+)/i);
+    if (m) setTimeout(() => openItemDetail(m[1]), 400);
+});
 
 // Mejora de calidad de vida: la tecla Escape cierra cualquier modal abierto.
 document.addEventListener("keydown", (e) => {
@@ -1715,11 +1791,23 @@ async function loadAllGroups() {
             return;
         }
 
-        const sortedGroups = [...data.groups].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+        // Orden: fijados primero; justo debajo, el grupo con más miembros (no fijado); después el resto.
+        const notPinned = data.groups.filter(g => !g.pinned);
+        const topGroup = notPinned.reduce((best, g) => (!best || g.members.length > best.members.length) ? g : best, null);
+        const pinnedGroups = data.groups.filter(g => g.pinned);
+        const restGroups = notPinned.filter(g => !topGroup || g.id !== topGroup.id);
+        const sortedGroups = [...pinnedGroups, ...(topGroup ? [topGroup] : []), ...restGroups];
 
         sortedGroups.forEach(g => {
             const div = document.createElement("div");
             div.className = "result";
+            const isTop = !!topGroup && g.id === topGroup.id;
+            if (isTop) {
+                div.style.borderColor = "#9b59ff";
+                div.style.borderWidth = "2px";
+                div.style.background = "#140d1f";
+                div.style.boxShadow = "0 0 10px rgba(155,89,255,0.35)";
+            }
             if (g.pinned) {
                 div.style.borderColor = "#ffae00";
                 div.style.borderWidth = "2px";
@@ -1729,7 +1817,7 @@ async function loadAllGroups() {
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                     <div>
-                        <h3 style="margin:0; color:#ff8800;">${g.pinned ? '<span style="background:#ffae00; color:#000; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:6px;">📌 FIJADO</span>' : ''}${escapeHTML(g.name)}</h3>
+                        <h3 style="margin:0; color:#ff8800;">${g.pinned ? '<span style="background:#ffae00; color:#000; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:6px;">📌 FIJADO</span>' : ''}${isTop ? '<span style="background:#9b59ff; color:#fff; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:6px;">👥 MÁS MIEMBROS</span>' : ''}${escapeHTML(g.name)}</h3>
                         <div style="font-size:11px; color:#aaa; margin-top:2px;">ID: ${g.id}</div>
                         <p style="font-size:13px; color:#ccc; margin:5px 0;">${escapeHTML(g.description || "Sin descripción")}</p>
                         <div style="font-size:12px; color:#888;">Miembros: ${g.members.length}</div>
@@ -1796,7 +1884,7 @@ async function loadGroupData() {
                 const d = document.createElement("div");
                 d.className = "chat-msg chat-msg-them";
                 d.style.background = "#2a1c00";
-                d.textContent = `[${n.senderUsername}]: ${n.text}`;
+                d.innerHTML = `${avatarImgHTML(n.senderAvatar, 22)}[${escapeHTML(n.senderUsername)}]: ${escapeHTML(n.text)}`;
                 newsBox.appendChild(d);
             });
             newsBox.scrollTop = newsBox.scrollHeight;
@@ -1974,7 +2062,7 @@ async function loadGroupForums(group) {
         d.style.cursor = "pointer";
         const replyCount = (p.messages || []).length;
         d.innerHTML = `
-            <b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
+            ${avatarImgHTML(p.senderAvatar, 22)}<b>${escapeHTML(p.title)}</b> <span style="font-size:11px; color:#aaa;">por ${escapeHTML(p.authorUsername)}</span>
             <p style="margin:5px 0; color:#ccc;">${escapeHTML(p.content)}</p>
             <div style="font-size:11px; color:#66aaff;">💬 ${replyCount} respuesta(s) — clic para abrir el chat del tema</div>
         `;
@@ -2013,7 +2101,7 @@ async function refreshForumThread() {
             messages.forEach(m => {
                 const d = document.createElement("div");
                 d.className = "chat-msg chat-msg-them";
-                d.textContent = `[${m.senderUsername}]: ${m.text}`;
+                d.innerHTML = `${avatarImgHTML(m.senderAvatar, 22)}[${escapeHTML(m.senderUsername)}]: ${escapeHTML(m.text)}`;
                 box.appendChild(d);
             });
             box.scrollTop = box.scrollHeight;
@@ -2090,7 +2178,7 @@ async function loadGroupChat(group) {
     messages.forEach(m => {
         const d = document.createElement("div");
         d.className = "chat-msg chat-msg-them";
-        d.textContent = `[${m.senderUsername}]: ${m.text}`;
+        d.innerHTML = `${avatarImgHTML(m.senderAvatar, 22)}[${escapeHTML(m.senderUsername)}]: ${escapeHTML(m.text)}`;
         box.appendChild(d);
     });
     box.scrollTop = box.scrollHeight;
@@ -2249,6 +2337,7 @@ async function purchaseCoinPackage(coins) {
         msg.textContent = data.starCodeApplied
             ? `¡Compra realizada con Star Code "${data.starCodeApplied}"! Recibiste un 10% extra. Ahora tienes ${data.coins} monedas.`
             : `¡Compra realizada! Ahora tienes ${data.coins} monedas.`;
+        if (data.giftItemName) msg.textContent += ` 🎁 Además recibiste el artículo "${data.giftItemName}".`;
     } catch (e) {
         msg.className = "error";
         msg.textContent = e.message;
@@ -2308,7 +2397,9 @@ async function uploadUserItem() {
         await request("/api/tshirts/upload", "POST", {
             name, imageUrl: uploadData.imageUrl, price: Number(price) || 0,
             priceBlocks: Number(document.getElementById("ugcItemPriceBlocks").value) || 0,
-            offsale, anonymous, type, description
+            offsale, anonymous, type, description,
+            obtainText: document.getElementById("ugcItemObtainText").value,
+            variants: await collectVariants("ugc")
         });
         msg.className = "success";
         msg.textContent = "¡Artículo subido correctamente!";
@@ -2536,6 +2627,8 @@ async function updateAccount() {
             document.getElementById("adminPanel").classList.remove("hidden");
             loadReportedUsersInbox();
             loadReportedItemsInbox();
+            loadCoinRewardCurrent();
+            loadBackupStatus();
         } else {
             document.getElementById("adminPanel").classList.add("hidden");
         }
@@ -2560,6 +2653,7 @@ async function updateAccount() {
         document.getElementById("ugcUploadSection").classList.toggle("hidden", !canUploadUgc);
         document.getElementById("ugcHatOption").classList.toggle("hidden", !isUgcPlusForUpload);
         document.getElementById("ugcPfpOption").classList.toggle("hidden", !(isUgcPlusForUpload || me.admin || me.owner));
+        document.getElementById("ugcFaceOption").classList.toggle("hidden", !(isUgcPlusForUpload || me.admin || me.owner));
     } catch (e) {
         if (e.message.includes("baneado")) showBannedView();
         else logout();
@@ -2681,11 +2775,17 @@ async function loadBlogPosts() {
             return;
         }
         container.innerHTML = "";
-        data.posts.forEach(p => {
+        const filter = document.getElementById("blogFilterSelect").value;
+        const posts = data.posts.filter(p => !filter || (p.category || "Anuncio") === filter);
+        if (posts.length === 0) { container.textContent = "No hay publicaciones en esta categoría."; return; }
+        const CATS = ["Anuncio", "Archivo", "Random", "Evento", "Locura de admin"];
+        posts.forEach(p => {
             const div = document.createElement("div");
             div.className = "section";
             div.innerHTML = `
-                <h3 style="margin-top:0;">${escapeHTML(p.title)}</h3>
+                <span style="background:#7a4cff; color:#fff; padding:2px 8px; border-radius:10px; font-size:11px;">${escapeHTML(p.category || "Anuncio")}</span>
+                ${window.__blogIsAdmin ? `<select style="width:auto; margin:0 0 0 6px; padding:2px 6px; font-size:11px;" onchange="changeBlogCategory('${p.id}', this.value)">${CATS.map(cat => `<option ${cat === (p.category || "Anuncio") ? "selected" : ""}>${cat}</option>`).join("")}</select>` : ""}
+                <h3 style="margin-top:6px;">${escapeHTML(p.title)}</h3>
                 ${p.imageUrl ? `<img src="${absUrl(p.imageUrl)}" style="max-width:100%; border-radius:6px; margin-bottom:8px;">` : ""}
                 <div style="white-space:pre-wrap; color:#ddd;">${escapeHTML(p.content)}</div>
                 <small style="color:#888;">Por ${escapeHTML(p.authorUsername)} — ${new Date(p.createdAt).toLocaleString()}</small>
@@ -2714,7 +2814,7 @@ async function createBlogPost() {
             if (!upRes.ok) throw new Error(upData.error);
             imageUrl = upData.imageUrl;
         }
-        await request("/api/admin/blog/posts", "POST", { title, content, imageUrl });
+        await request("/api/admin/blog/posts", "POST", { title, content, imageUrl, category: document.getElementById("blogPostCategory").value });
         msg.className = "success";
         msg.textContent = "¡Publicado!";
         document.getElementById("blogPostTitle").value = "";
@@ -2725,6 +2825,11 @@ async function createBlogPost() {
         msg.className = "error";
         msg.textContent = e.message;
     }
+}
+
+async function changeBlogCategory(postId, category) {
+    try { await request("/api/admin/blog/posts/category", "POST", { postId, category }); loadBlogPosts(); }
+    catch (e) { alert(e.message); }
 }
 
 async function deleteBlogPost(postId) {
@@ -2791,8 +2896,15 @@ async function renderItemDetail(itemId) {
             : item.type === "hat" ? equippedHats.some(id => String(id) === String(item.id))
             : item.type === "teapot" ? String(me.equippedTeapot) === String(item.id)
             : item.type === "pfp" ? String(me.equippedPfp) === String(item.id)
+            : item.type === "face" ? String(me.equippedFace) === String(item.id)
             : false;
-        const isFree = (item.price || 0) === 0 && (item.priceBlocks || 0) === 0;
+        const variants = detail.variants || [];
+        const discountPct = detail.variantDiscountPercent || 0;
+        const ownsOtherVariant = !!me && discountPct > 0 && variants.some(v => String(v.id) !== String(item.id) && (me.inventory || []).some(x => String(x) === String(v.id)));
+        const shownItem = ownsOtherVariant
+            ? { ...item, price: Math.round((item.price || 0) * (100 - discountPct) / 100), priceBlocks: Math.round((item.priceBlocks || 0) * (100 - discountPct) / 100) }
+            : item;
+        const isFree = (shownItem.price || 0) === 0 && (shownItem.priceBlocks || 0) === 0;
         const canBuyMore = !item.limited || !item.maxPerUser || ownedCount < item.maxPerUser;
 
         // Imagen o modelo 3D (los sombreros muestran su .glb; lo demás, solo el PNG)
@@ -2821,7 +2933,7 @@ async function renderItemDetail(itemId) {
         } else if (item.offsale && ownedCount === 0) {
             mainBtn += `<button class="form-button" disabled>Offsale</button>`;
         }
-        if (ownedCount > 0 && ["hat", "teapot", "pfp"].includes(item.type)) {
+        if (ownedCount > 0 && ["hat", "teapot", "pfp", "face"].includes(item.type)) {
             mainBtn += `<button class="secondary-button" onclick="${isEquipped ? `unequipFromDetail('${item.id}')` : `equipFromDetail('${item.id}')`}">${isEquipped ? "Desequipar" : "Equipar"} (tienes ${ownedCount})</button>`;
         }
 
@@ -2855,9 +2967,18 @@ async function renderItemDetail(itemId) {
                 <div>${visual}</div>
                 <div style="flex:1; min-width:220px;">
                     <h2 style="margin:0;">${escapeHTML(item.name)}</h2>
+                    ${variants.length > 1 ? `
+                        <div style="margin:8px 0;">
+                            <div style="font-size:11px; color:#aaa; margin-bottom:4px;">Variantes:</div>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                ${variants.map(v => `<button class="${String(v.id) === String(item.id) ? "form-button" : "secondary-button"}" style="width:auto; margin:0; padding:4px 10px; font-size:12px;" onclick="openItemDetail('${v.id}')">${escapeHTML(v.label)}</button>`).join("")}
+                            </div>
+                            ${discountPct > 0 ? `<div style="font-size:11px; color:#55dd77; margin-top:4px;">Si ya tienes una variante, las demás tienen ${discountPct}% de descuento${ownsOtherVariant ? " (aplicado)" : ""}.</div>` : ""}
+                        </div>` : ""}
                     <div style="font-size:11px; color:#888;">ID: ${item.id}${item.creatorUsername ? ` · Por <span class="creator-link" onclick="closeItemDetail(); searchUserByName('${escapeHTML(item.creatorUsername)}')">${escapeHTML(item.creatorUsername)}</span>` : ""}</div>
+                    ${item.obtainText ? `<div style="background:#1a1a2a; border-left:3px solid #7a4cff; padding:6px 8px; margin:8px 0; font-size:13px;">📍 <b>Cómo se obtiene:</b> ${escapeHTML(item.obtainText)}</div>` : ""}
                     <p style="color:#ccc; white-space:pre-wrap;">${item.description ? escapeHTML(item.description) : "Sin descripción."}</p>
-                    <div style="font-size:18px; margin:10px 0;">${priceLabelHTML(item)}</div>
+                    <div style="font-size:18px; margin:10px 0;">${ownsOtherVariant ? `<s style="color:#888; font-size:13px;">${priceLabelHTML(item)}</s> ` : ""}${priceLabelHTML(shownItem)}</div>
                     ${mainBtn}
                     <div id="itemDetailMsg" style="margin-top:6px;"></div>
                     ${limitedInfo}
@@ -2888,12 +3009,11 @@ function itemDetailMessage(text, ok) {
 async function loadItemDetailComments(itemId) {
     const list = document.getElementById("itemDetailCommentsList");
     try {
-        const data = await request("/api/accessories/all");
-        const item = data.items.find(i => String(i.id) === String(itemId));
-        const comments = (item && item.comments) || [];
+        const data = await request(`/api/accessories/${itemId}/detail`);
+        const comments = (data.item && data.item.comments) || [];
         list.innerHTML = comments.length === 0
             ? "Sin comentarios todavía."
-            : comments.map(cm => `<div style="margin-bottom:4px;"><b style="color:#ff8800;">${escapeHTML(cm.senderUsername)}:</b> ${escapeHTML(cm.text)}</div>`).join("");
+            : comments.map(cm => `<div style="margin-bottom:6px; display:flex; gap:6px; align-items:flex-start;">${avatarImgHTML(cm.senderAvatar, 24)}<div><b style="color:#ff8800;">${escapeHTML(cm.senderUsername)}:</b> ${escapeHTML(cm.text)}</div></div>`).join("");
     } catch (e) { list.textContent = "Error al cargar comentarios."; }
 }
 
@@ -2948,6 +3068,116 @@ async function reportItemFromDetail(itemId) {
         await request(`/api/accessories/${itemId}/report`, "POST");
         itemDetailMessage("Artículo denunciado.", true);
     } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+// ---------------------------------------------------------------------------
+// VARIANTES (editor reutilizable para los formularios de subida)
+// ---------------------------------------------------------------------------
+
+function toggleVariants(prefix, max, withGlb) {
+    const on = document.getElementById(prefix + "_variantsToggle").checked;
+    const box = document.getElementById(prefix + "_variants");
+    box.classList.toggle("hidden", !on);
+    if (on && box.children.length === 0) {
+        for (let i = 0; i < max; i++) {
+            const row = document.createElement("div");
+            row.style.cssText = "border:1px solid #333; border-radius:6px; padding:6px; margin:4px 0;";
+            row.innerHTML = `
+                <small style="color:#888;">Variante ${i + 1} (si dejas el nombre o la imagen vacíos, no se mostrará)</small>
+                <input type="text" class="v-name" placeholder="Nombre de la variante" style="margin:2px 0;">
+                <input type="file" class="v-img" accept="image/*">
+                ${withGlb ? '<label style="font-size:11px; color:#aaa;">Modelo 3D (.glb) de esta variante:</label><input type="file" class="v-glb" accept=".glb">' : ""}
+            `;
+            box.appendChild(row);
+        }
+    }
+}
+
+async function uploadSingleFile(endpoint, field, file) {
+    const token = localStorage.getItem("gameblocks_token");
+    const fd = new FormData();
+    fd.append(field, file);
+    const res = await fetch(RENDER_API + endpoint, { method: "POST", headers: { Authorization: "Bearer " + token }, body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al subir un archivo de variante.");
+    return data.imageUrl || data.url;
+}
+
+// Sube los archivos de cada variante rellenada y devuelve [{name, imageUrl, glbUrl}]
+async function collectVariants(prefix) {
+    const toggle = document.getElementById(prefix + "_variantsToggle");
+    if (!toggle || !toggle.checked) return [];
+    const rows = document.querySelectorAll(`#${prefix}_variants > div`);
+    const out = [];
+    for (const row of rows) {
+        const name = row.querySelector(".v-name").value.trim();
+        const img = row.querySelector(".v-img").files[0];
+        const glbInput = row.querySelector(".v-glb");
+        const glb = glbInput ? glbInput.files[0] : null;
+        if (!name || (!img && !glb)) continue; // variante vacía: no se muestra
+        const v = { name };
+        if (img) v.imageUrl = await uploadSingleFile("/api/upload/image", "image", img);
+        if (glb) v.glbUrl = await uploadSingleFile("/api/admin/upload/file", "file", glb);
+        out.push(v);
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// ADMIN: regalo por monedas, borrar por ID, estado de la persistencia
+// ---------------------------------------------------------------------------
+
+async function loadCoinRewardCurrent() {
+    try {
+        const d = await request("/api/settings/coin-reward-item");
+        document.getElementById("coinRewardCurrent").textContent = d.itemId ? `#${d.itemId} (${d.itemName})` : "ninguno";
+    } catch (e) {}
+}
+
+async function adminSetCoinRewardItem() {
+    const msg = document.getElementById("coinRewardMsg");
+    try {
+        await request("/api/admin/settings/coin-reward-item", "POST", { itemId: document.getElementById("coinRewardItemId").value.trim() });
+        msg.className = "success";
+        msg.textContent = "Guardado.";
+        loadCoinRewardCurrent();
+    } catch (e) { msg.className = "error"; msg.textContent = e.message; }
+}
+
+async function adminDeleteItemById() {
+    const id = document.getElementById("deleteItemById").value.trim();
+    const msg = document.getElementById("deleteItemMsg");
+    if (!id) return;
+    if (!confirm(`¿Borrar el artículo ${id} del catálogo para siempre? Se reembolsará a quienes lo tengan.`)) return;
+    try {
+        const d = await request("/api/admin/accessories/delete", "POST", { itemId: id });
+        msg.className = "success";
+        msg.textContent = d.message || "Borrado.";
+        loadShopItems();
+    } catch (e) { msg.className = "error"; msg.textContent = e.message; }
+}
+
+async function loadBackupStatus() {
+    const box = document.getElementById("backupStatusBox");
+    try {
+        const s = await request("/api/admin/backup-status");
+        const when = t => t ? new Date(t).toLocaleString() : "nunca";
+        box.innerHTML = `
+            <div>${s.githubBackupEnabled ? "✅ Backup en GitHub <b>activo</b>" : "⚠️ Backup en GitHub <b style='color:#ff5555;'>DESACTIVADO</b> — si Render borra el disco se pierden los datos. Configura GITHUB_TOKEN y GITHUB_REPO en Render."}</div>
+            <div style="font-size:12px; color:#aaa;">Usuarios guardados: ${s.users} · Último guardado en disco: ${when(s.lastLocalSave)}</div>
+            <div style="font-size:12px; color:#aaa;">Última copia a GitHub: ${when(s.lastGithubPush)} · Archivos subidos respaldados: ${s.uploadsBackedUp}</div>
+            ${s.lastGithubError ? `<div style="font-size:12px; color:#ff5555;">Último error de GitHub: ${escapeHTML(s.lastGithubError)}</div>` : ""}
+            ${s.safeToBackup === false ? `<div style="font-size:12px; color:#ff8800;">Copias pausadas hasta poder comparar con GitHub.</div>` : ""}
+        `;
+    } catch (e) { box.textContent = "No se pudo consultar."; }
+}
+
+async function adminBackupNow() {
+    try {
+        const d = await request("/api/admin/backup-now", "POST");
+        alert(d.message);
+        loadBackupStatus();
+    } catch (e) { alert(e.message); }
 }
 
 function launchGame() {
@@ -3054,10 +3284,16 @@ async function renderCardAvatar(u) {
     const row = document.getElementById("cardHatsRow");
     section.classList.remove("hidden");
     row.innerHTML = "";
+    document.getElementById("cardFaceRow").classList.add("hidden");
     const hatIds = u.equippedHats || [];
-    if (hatIds.length === 0) return;
+    if (hatIds.length === 0 && !u.equippedFace) return;
     try {
         const all = await request("/api/accessories/all");
+        const face = u.equippedFace ? all.items.find(a => String(a.id) === String(u.equippedFace)) : null;
+        if (face) {
+            document.getElementById("cardFaceImg").src = absUrl(face.imageUrl);
+            document.getElementById("cardFaceRow").classList.remove("hidden");
+        }
         hatIds.forEach(id => {
             const hat = all.items.find(a => String(a.id) === String(id));
             if (hat && hat.glbUrl) {
@@ -3226,6 +3462,35 @@ async function reportUserCard() {
     } catch (e) { alert(e.message); }
 }
 
+function getShopFilters() {
+    return {
+        admin: document.getElementById("shopFilterAdmin").value,
+        sort: document.getElementById("shopFilterSort").checked,
+        min: document.getElementById("shopFilterMin").value,
+        max: document.getElementById("shopFilterMax").value,
+        limited: document.getElementById("shopFilterLimited").checked,
+        author: document.getElementById("shopFilterAuthor").value.trim()
+    };
+}
+
+function countShopFilters() {
+    const f = getShopFilters();
+    return (f.admin ? 1 : 0) + (f.sort ? 1 : 0) + (f.min !== "" ? 1 : 0) + (f.max !== "" ? 1 : 0) + (f.limited ? 1 : 0) + (f.author ? 1 : 0);
+}
+
+// Máximo 3 filtros activos a la vez: si se intenta activar un 4º, se deshace.
+function onShopFilterChange(el) {
+    const msg = document.getElementById("shopFilterMsg");
+    msg.textContent = "";
+    if (countShopFilters() > 3) {
+        if (el.type === "checkbox") el.checked = false;
+        else el.value = "";
+        msg.textContent = "Solo puedes usar 3 filtros a la vez. Quita uno para añadir otro.";
+    }
+    document.getElementById("shopFilterCount").textContent = countShopFilters();
+    loadShopItems();
+}
+
 async function loadShopItems() {
     const type = document.getElementById("catalogTypeSelect").value;
     const filterContainer = document.getElementById("tshirtFilterContainer");
@@ -3241,8 +3506,7 @@ async function loadShopItems() {
     gearComingSoon.classList.add("hidden");
     container.classList.remove("hidden");
 
-    if (type === "tshirt" || type === "hat") filterContainer.classList.remove("hidden");
-    else filterContainer.classList.add("hidden");
+    filterContainer.classList.remove("hidden");
 
     try {
         const [data, me] = await Promise.all([
@@ -3253,14 +3517,20 @@ async function loadShopItems() {
 
         const ownedIds = new Set((me && me.inventory) ? me.inventory.map(String) : []);
 
-        const adminFilter = document.getElementById("tshirtAdminFilter").value;
+        const f = getShopFilters();
         const searchQuery = (document.getElementById("shopSearchInput").value || "").trim().toLowerCase();
-        const itemsFiltered = data.items.filter(item => {
+        let itemsFiltered = data.items.filter(item => {
             if (item.type !== type) return false;
-            if ((type === "tshirt" || type === "hat") && adminFilter === "adminOnly" && !item.createdByAdmin) return false;
             if (searchQuery && !item.name.toLowerCase().includes(searchQuery)) return false;
+            if (f.admin === "yes" && !item.createdByAdmin) return false;
+            if (f.admin === "no" && item.createdByAdmin) return false;
+            if (f.min !== "" && (item.price || 0) < Number(f.min)) return false;
+            if (f.max !== "" && (item.price || 0) > Number(f.max)) return false;
+            if (f.limited && !item.limited) return false;
+            if (f.author && !(item.creatorUsername || "").toLowerCase().includes(f.author.toLowerCase())) return false;
             return true;
         });
+        if (f.sort) itemsFiltered = itemsFiltered.slice().sort((a, b) => (a.price || 0) - (b.price || 0) || (a.priceBlocks || 0) - (b.priceBlocks || 0));
 
         if (itemsFiltered.length === 0) {
             container.textContent = "No hay artículos disponibles.";
@@ -3295,6 +3565,12 @@ async function loadShopItems() {
 }
 
 // Texto del precio: monedas y/o Bloques, o "Gratis".
+// Foto de perfil pequeña y redonda (con imagen por defecto si no hay).
+function avatarImgHTML(url, size) {
+    const s = size || 28;
+    return `<img src="${url ? absUrl(url) : "https://via.placeholder.com/" + s}" style="width:${s}px; height:${s}px; border-radius:50%; object-fit:cover; flex-shrink:0; vertical-align:middle; margin-right:6px;">`;
+}
+
 function priceLabelHTML(item) {
     const coins = item.price || 0;
     const blocks = item.priceBlocks || 0;
@@ -3383,6 +3659,7 @@ async function loadMyInventory() {
             const isEquipped = item.type === "hat" ? equippedHats.some(id => String(id) === String(itemId))
                 : item.type === "teapot" ? String(me.equippedTeapot) === String(itemId)
                 : item.type === "pfp" ? String(me.equippedPfp) === String(itemId)
+                : item.type === "face" ? String(me.equippedFace) === String(itemId)
                 : false;
 
             card.innerHTML = `
@@ -3410,7 +3687,7 @@ async function loadMyInventory() {
                     btnEquip.textContent = `Equipar (${equippedHats.length}/3)`;
                     btnEquip.onclick = () => equipAccessory(item.id);
                 }
-            } else if (item.type === "teapot" || item.type === "pfp") {
+            } else if (item.type === "teapot" || item.type === "pfp" || item.type === "face") {
                 btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
                 btnEquip.onclick = () => isEquipped ? unequipAccessory(item.id) : equipAccessory(item.id);
             } else {
@@ -3509,7 +3786,7 @@ async function loadFriendsAndRequests() {
                 const div = document.createElement("div");
                 div.className = "result";
                 div.innerHTML = `
-                    <span>Solicitud de <b>${escapeHTML(r.username)}</b></span>
+                    <span>${avatarImgHTML(r.avatar, 28)}Solicitud de <b>${escapeHTML(r.username)}</b></span>
                     <button class="form-button" style="width:auto; padding:5px 10px;" onclick="acceptFriendRequest('${r.id}')">Aceptar</button>
                 `;
                 reqDiv.appendChild(div);
@@ -3527,7 +3804,7 @@ async function loadFriendsAndRequests() {
                 div.innerHTML = `
                     <div style="display:flex; align-items:center; justify-content:space-between;">
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <img src="${f.avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+                            ${avatarImgHTML(f.avatar, 30)}
                             <b>${escapeHTML(f.username)}</b>
                         </div>
                         <div>
@@ -3712,6 +3989,7 @@ async function loadChatMessages() {
             const div = document.createElement("div");
             const isMe = String(m.senderId) === String(me.id);
             div.className = `chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-them'}`;
+            div.insertAdjacentHTML("afterbegin", avatarImgHTML(m.senderAvatar, 22));
             if (m.text) {
                 const textDiv = document.createElement('div');
                 textDiv.textContent = m.text;
@@ -3897,7 +4175,8 @@ async function adminCreateCode() {
     const msg = document.getElementById("adminCodeMsg");
 
     try {
-        await request("/api/admin/codes/create", "POST", { code, coins, dollars, maxUses, expiresInDays, rewardItemId });
+        const maxPerUser = document.getElementById("adminCodeMaxPerUser").value;
+        await request("/api/admin/codes/create", "POST", { code, coins, dollars, maxUses, maxPerUser, expiresInDays, rewardItemId });
         msg.className = "success";
         msg.textContent = "Código creado correctamente.";
     } catch (e) {
@@ -3911,7 +4190,9 @@ async function adminUploadTshirt() {
     const limited = document.getElementById("adminTshirtIsLimited").value === "si";
     const maxPerUser = document.getElementById("adminTshirtMaxUser").value;
     const maxGlobal = document.getElementById("adminTshirtMaxGlobal").value;
-    const expiresInDays = document.getElementById("adminTshirtExpiresDays").value;
+    const expiresAt = document.getElementById("adminTshirtExpiresAt").value;
+    const obtainText = document.getElementById("adminTshirtObtainText").value;
+    const variantDiscountPercent = document.getElementById("adminTshirtVariantDiscount").value;
     const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
     const onlyBlock = document.getElementById("adminTshirtOnlyBlock").value === "true";
     const imgFile = document.getElementById("adminTshirtImgFile").files[0];
@@ -3938,9 +4219,11 @@ async function adminUploadTshirt() {
         const upData = await upRes.json();
         if (!upRes.ok) throw new Error(upData.error);
 
+        const variants = await collectVariants("adminTshirt");
         await request("/api/admin/tshirts/upload", "POST", {
-            name, limited, maxPerUser, maxGlobal, expiresInDays, offsale, onlyBlock,
-            imageUrl: upData.imageUrl, price, priceBlocks, description, type
+            name, limited, maxPerUser, maxGlobal, expiresAt, offsale, onlyBlock,
+            imageUrl: upData.imageUrl, price, priceBlocks, description, obtainText, type,
+            variants, variantDiscountPercent
         });
         msg.className = "success";
         msg.textContent = "Camiseta subida por Admin.";
@@ -3978,7 +4261,7 @@ async function uploadAccessory() {
     const onlyBlock = document.getElementById("accessoryOnlyBlock").value === "true";
     const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
     const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
-    const expiresInDays = document.getElementById("accessoryExpiresInDays").value;
+    const expiresAt = document.getElementById("accessoryExpiresAt").value;
     const bgColor = document.getElementById("accessoryBgColor").value;
     const soundUrl = document.getElementById("accessorySoundUrl").value;
     const price = document.getElementById("accessoryPrice").value;
@@ -4001,7 +4284,10 @@ async function uploadAccessory() {
     formData.append("onlyBlock", onlyBlock);
     formData.append("maxPerUser", maxPerUser);
     formData.append("maxGlobal", maxGlobal);
-    formData.append("expiresInDays", expiresInDays);
+    formData.append("expiresAt", expiresAt);
+    formData.append("obtainText", document.getElementById("accessoryObtainText").value);
+    formData.append("variantDiscountPercent", document.getElementById("accessoryVariantDiscount").value);
+    formData.append("variants", JSON.stringify(await collectVariants("accessory")));
     formData.append("bgColor", bgColor);
     formData.append("soundUrl", soundUrl);
     formData.append("price", price);
@@ -4144,8 +4430,8 @@ async function adminSaveEvent() {
     const active = document.getElementById("adminEventActive").value === "true";
     const msg = document.getElementById("adminEventMsg");
 
-    // Hasta 10 IDs de artículos del catálogo, separados por comas.
-    const items = itemsRaw ? itemsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 10) : [];
+    // Hasta 500 IDs de artículos del catálogo, separados por comas.
+    const items = itemsRaw ? itemsRaw.split(",").map(s => s.trim()).filter(Boolean).slice(0, 500) : [];
 
     try {
         await request("/api/admin/events/save", "POST", { name, description, themeColor, items, customHtml, active });
