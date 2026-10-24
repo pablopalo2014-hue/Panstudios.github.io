@@ -662,8 +662,9 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <div id="coinsMenu" class="hidden" style="position:absolute; top:60px; right:120px; background:#111; border:1px solid #444; border-radius:6px; padding:6px; z-index:1200; min-width:170px;">
             <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openTransactionsModal();">📊 Mis transacciones</button>
             <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openCurrencyModal();">💲 Comprar monedas</button>
+            <button class="secondary-button" style="width:100%; margin:2px 0;" onclick="closeCoinsMenu(); openBlocksModal();">🟥 Bloques y gamEX</button>
         </div>
-        <div class="dollar-display" id="userBlocksDisplay" title="Tus Bloques" onclick="openCurrencyModal()">
+        <div class="dollar-display" id="userBlocksDisplay" title="Tus Bloques" onclick="openBlocksModal()">
             🟥 <span id="userBlocksText">0</span>
         </div>
         <div class="dollar-display" id="userDollarsDisplay" title="Tu dinero" onclick="openCurrencyModal()">
@@ -886,6 +887,13 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         </div>
         <p id="currencyPurchaseMsg"></p>
 
+    </div>
+</div>
+
+<div id="blocksModal" class="modal" onclick="if(event.target.id==='blocksModal') closeBlocksModal();">
+    <div class="modal-box" style="max-width:520px;">
+        <button class="close" onclick="closeBlocksModal()">×</button>
+        <h2>🟥 Bloques y gamEX</h2>
         <div class="section" style="margin-top:15px;">
             <h3 style="margin-top:0;">🟥 Comprar Bloques con monedas</h3>
             <small style="color:#888;">1 Bloque = 1 moneda. Tus Bloques: <b id="currencyBlocksModal">0</b> 🟥. Además recibes 10 al día y 5 por cada prenda tuya que te compren.</small>
@@ -946,6 +954,9 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <div id="myAccountIdLabel" style="font-size:11px; color:#888; margin-top:4px;"></div>
         <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:8px;">
             <input type="checkbox" id="inventoryPublicToggle" style="width:auto;" onchange="toggleInventoryPublic()"> Mostrar mi inventario en mi tarjeta pública
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:4px;">
+            <input type="checkbox" id="allowProfileCommentsToggle" style="width:auto;" onchange="saveProfileSettings()"> Permitir comentarios en mi tarjeta pública
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#aaa; margin-top:4px;">
             <input type="checkbox" id="allowFriendRequestsToggle" style="width:auto;" onchange="saveProfileSettings()"> Permitir que me envíen solicitudes de amistad
@@ -1110,6 +1121,12 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         </div>
 
         <div class="section">
+            <h3>🚀 Configurar ID de Regalo Suscripción Turbo Block</h3>
+            <input type="text" id="adminTurboRewardItemId" placeholder="ID del Item que se regalará al suscribirse a Turbo Block">
+            <button class="admin-button" style="width:100%;" onclick="adminSetTurboReward()">Guardar ID de Regalo Turbo</button>
+        </div>
+
+        <div class="section">
             <h3>🎟️ Crear Código Promocional</h3>
             <input type="text" id="adminCodeName" placeholder="Código (ej. VERANO2026)">
             <input type="number" id="adminCodeCoins" placeholder="Cantidad de monedas que otorgará">
@@ -1142,6 +1159,7 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <select id="adminTshirtOnlyBlock">
                 <option value="false">¿Solo Block?: No</option>
                 <option value="true">¿Solo Block?: Sí</option>
+                <option value="turbo">¿Solo Block?: Solo Turbo Block</option>
             </select>
             <label style="font-size:12px; color:#aaa;">Imagen (archivo PNG/JPG):</label>
             <input type="file" id="adminTshirtImgFile" accept="image/*">
@@ -1150,7 +1168,10 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
                 <option value="tshirt">Camiseta</option>
                 <option value="pfp">Foto de perfil</option>
                 <option value="face">😀 Cara</option>
+                <option value="gear">⚙️ Gear (para el juego)</option>
             </select>
+            <input type="text" id="adminTshirtGearId" placeholder="ID único del gear (obligatorio si es Gear, p. ej. espada_fuego)">
+            <input type="number" id="adminTshirtValue" placeholder="Valor del limited (opcional, sale en la página del artículo)" min="0">
             <input type="text" id="adminTshirtObtainText" placeholder="Cómo se obtiene / obtenía (opcional)">
             <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
                 <input type="checkbox" id="adminTshirt_variantsToggle" style="width:auto;" onchange="toggleVariants('adminTshirt', 10, false)"> Variantes (hasta 10)
@@ -1185,8 +1206,10 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <select id="editItemOnlyBlock">
                 <option value="">¿Solo Block?: No cambiar</option>
                 <option value="true">Sí (Solo Suscripción Block)</option>
+                <option value="turbo">Solo Turbo Block</option>
                 <option value="false">No</option>
             </select>
+            <input type="number" id="editItemValue" placeholder="Valor del limited (aparece en la página del artículo; vacío = no cambiar)" min="0">
             <label style="font-size:12px; color:#aaa;">Nuevo Color Fondo Perfil (ej: #ff0000):</label>
             <input type="color" id="editItemBgColor" value="#111111">
             <input type="text" id="editItemSoundUrl" placeholder="Nueva URL Audio Perfil (.mp3)">
@@ -1208,6 +1231,7 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <select id="accessoryOnlyBlock">
                 <option value="false">¿Solo Block?: No</option>
                 <option value="true">¿Solo Block?: Sí</option>
+                <option value="turbo">¿Solo Block?: Solo Turbo Block</option>
             </select>
             <div id="limitedOptions" class="hidden">
                 <input type="number" id="accessoryMaxPerUser" placeholder="Copias máx por usuario (vacío = infinitas)" min="1">
@@ -1222,6 +1246,11 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <input type="number" id="accessoryPrice" placeholder="Precio en monedas" min="0">
             <input type="number" id="accessoryPriceBlocks" placeholder="Precio en Bloques 🟥 (0 = sin precio en bloques)" min="0">
             <textarea id="accessoryDescription" placeholder="Descripción del artículo (opcional)"></textarea>
+            <select id="accessoryType" style="width:auto;">
+                <option value="hat">🎩 Sombrero / Accesorio 3D</option>
+                <option value="head">🗿 Cabeza (modelo 3D)</option>
+            </select>
+            <input type="number" id="accessoryValue" placeholder="Valor del limited (opcional)" min="0">
             <input type="text" id="accessoryObtainText" placeholder="Cómo se obtiene / obtenía (opcional)">
             <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
                 <input type="checkbox" id="accessory_variantsToggle" style="width:auto;" onchange="toggleVariants('accessory', 10, true)"> Variantes (hasta 10, cada una con su modelo 3D)
@@ -1317,11 +1346,11 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <textarea id="ugcItemDescription" placeholder="Descripción (opcional)" style="min-height:50px;"></textarea>
         <input type="text" id="ugcItemObtainText" placeholder="Cómo se obtiene (opcional)">
         <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
-            <input type="checkbox" id="ugc_variantsToggle" style="width:auto;" onchange="toggleVariants('ugc', 3, false)"> Variantes (hasta 3)
+            <input type="checkbox" id="ugc_variantsToggle" style="width:auto;" onchange="toggleVariants('ugc', 3, document.getElementById('ugcItemTypeSelect').value === 'hat')"> Variantes (hasta 3)
         </label>
         <div id="ugc_variants" class="hidden"></div>
         <input type="file" id="ugcItemImageFile" accept="image/*">
-        <select id="ugcItemTypeSelect" style="width:auto;">
+        <select id="ugcItemTypeSelect" style="width:auto;" onchange="onUgcTypeChange()">
             <option value="tshirt">Camiseta</option>
             <option value="hat" id="ugcHatOption" class="hidden">Sombrero/Accesorio (solo 🎩UGC+)</option>
             <option value="pfp" id="ugcPfpOption" class="hidden">🖼️ Foto de perfil (solo admins/🎩UGC+)</option>
@@ -1335,6 +1364,14 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <label style="display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="ugcItemAnonymous" style="width:auto;"> Subir de forma anónima
         </label>
+        <label style="display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="ugcItemOnlyTurbo" style="width:auto;"> Solo para suscriptores Turbo Block
+        </label>
+        <div id="ugcHatFields" class="hidden">
+            <label style="font-size:12px; color:#aaa;">Modelo 3D del sombrero (archivo .glb):</label>
+            <input type="file" id="ugcHatGlbFile" accept=".glb">
+            <small style="color:#888;">La imagen de arriba se usa como miniatura del catálogo.</small>
+        </div>
         <button class="form-button" style="margin-top:8px;" onclick="uploadUserItem()">Subir artículo</button>
         <p id="ugcUploadMsg"></p>
     </div>
@@ -1356,7 +1393,12 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <input type="number" id="teapotPrice" placeholder="Precio en monedas" value="0" min="0">
         <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="teapotOffsale" style="width:auto;"> Offsale</label>
         <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="teapotLimited" style="width:auto;"> Limited</label>
-        <input type="number" id="teapotMaxPerUser" placeholder="Máx. copias por usuario (si es Limited)" min="1">
+        <input type="number" id="teapotMaxPerUser" placeholder="Máx. copias por usuario (vacío = infinitas)" min="1">
+        <input type="number" id="teapotMaxGlobal" placeholder="Copias totales (vacío = infinitas)" min="1">
+        <label style="font-size:12px; color:#aaa;">Fecha límite de venta (opcional):</label>
+        <input type="datetime-local" id="teapotExpiresAt">
+        <input type="number" id="teapotValue" placeholder="Valor del limited (opcional)" min="0">
+        <select id="teapotOnlyBlock"><option value="false">¿Solo Turbo Block?: No</option><option value="turbo">¿Solo Turbo Block?: Sí</option></select>
         <input type="text" id="teapotLinkedStarCode" placeholder="Star Code enlazado (opcional)">
         <button class="admin-button" style="width:100%;" onclick="ownerCreateTeapot()">Crear Teapot</button>
         <p id="ownerTeapotMsg"></p>
@@ -1394,13 +1436,14 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
                     <option value="tshirt">Camisetas</option>
                     <option value="pfp">🖼️ Fotos de perfil</option>
                     <option value="face">😀 Caras</option>
+                    <option value="head">🗿 Cabezas</option>
                     <option value="teapot">🫖 Teapots</option>
                     <option value="gear">⚙️ Gears</option>
                 </select>
             </div>
 
             <div id="tshirtFilterContainer" style="margin-top:10px; background:#101010; border:1px solid #2a2a2a; border-radius:6px; padding:8px;">
-                <div style="font-size:12px; color:#aaa; margin-bottom:6px;">🔎 Filtros (máximo 3 a la vez) — activos: <b id="shopFilterCount">0</b>/3</div>
+                <div style="font-size:12px; color:#aaa; margin-bottom:6px;">🔎 Filtros (máximo 10 a la vez) — activos: <b id="shopFilterCount">0</b>/10</div>
                 <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
                     <select id="shopFilterAdmin" style="width:auto; margin:0; padding:5px 8px;" onchange="onShopFilterChange(this)">
                         <option value="">Creador: todos</option>
@@ -1416,10 +1459,7 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
                 <div id="shopFilterMsg" style="font-size:11px; color:#ff8800; margin-top:4px;"></div>
             </div>
 
-            <div id="gearComingSoon" class="hidden" style="margin-top:15px; text-align:center; padding: 30px 10px; border:1px dashed #444; border-radius:8px;">
-                <h3 style="margin:0; color:#aaa;">Próximamente</h3>
-                <small style="color:#666;">quien sabe que podrá tener tu inventario...</small>
-            </div>
+            
 
             <div id="shopContainer" class="shop-items" style="margin-top:15px;">Cargando catálogo...</div>
         </div>
@@ -1460,6 +1500,9 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
         <div id="blogAdminCreate" class="section hidden">
             <h3 style="margin-top:0;">➕ Nueva publicación (admin)</h3>
             <input type="text" id="blogPostTitle" placeholder="Título">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                <input type="checkbox" id="blogPostComments" style="width:auto;" checked> Permitir comentarios en esta publicación
+            </label>
             <select id="blogPostCategory" style="width:auto;">
                 <option>Anuncio</option><option>Archivo</option><option>Random</option><option>Evento</option><option>Locura de admin</option>
             </select>
@@ -1469,6 +1512,18 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <p id="blogPostMsg"></p>
         </div>
         <div id="blogPostsList">Cargando publicaciones...</div>
+    </div>
+</div>
+
+<div id="blogCommentsModal" class="modal" onclick="if(event.target.id==='blogCommentsModal') closeBlogComments();">
+    <div class="modal-box" style="max-width:520px;">
+        <button class="close" onclick="closeBlogComments()">×</button>
+        <h2 id="blogCommentsTitle" style="margin-top:0;">💬 Comentarios</h2>
+        <div id="blogCommentsList" style="max-height:320px; overflow-y:auto;">Cargando...</div>
+        <div id="blogCommentForm" style="display:flex; gap:6px; margin-top:8px;">
+            <input type="text" id="blogCommentInput" placeholder="Escribe un comentario..." maxlength="500" style="margin:0;">
+            <button class="form-button" style="width:auto; margin:0;" onclick="postBlogComment()">Enviar</button>
+        </div>
     </div>
 </div>
 
@@ -1520,6 +1575,15 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
 </div>
 
 <!-- MODAL CHAT CON AMIGOS -->
+<div id="pfpPickerModal" class="modal" onclick="if(event.target.id==='pfpPickerModal') closePfpPicker();">
+    <div class="modal-box" style="max-width:520px;">
+        <button class="close" onclick="closePfpPicker()">×</button>
+        <h2 style="margin-top:0;">🖼️ Galería de fotos de perfil</h2>
+        <small style="color:#888;">Solo puedes enviar fotos de tu galería de fotos de perfil (Turbo Block).</small>
+        <div id="pfpPickerList" class="shop-items" style="margin-top:8px;">Cargando...</div>
+    </div>
+</div>
+
 <div id="chatModal" class="modal">
     <div class="modal-box" style="max-width: 500px;">
         <button class="close" onclick="closeChatModal()">×</button>
@@ -1541,8 +1605,7 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
 
         <div style="display:flex; gap:8px; align-items:center;">
             <input type="text" id="chatInputText" placeholder="Escribe un mensaje..." style="margin:0;">
-            <button id="chatImageButton" class="secondary-button" style="width:auto; margin:0; white-space:nowrap;" onclick="document.getElementById('chatImageInput').click()">🖼️ Imagen</button>
-            <input type="file" id="chatImageInput" accept="image/*" style="display:none;" onchange="sendChatImage()">
+            <button id="chatImageButton" class="secondary-button" style="width:auto; margin:0; white-space:nowrap;" onclick="openPfpPicker()">🖼️ Foto</button>
             <button class="form-button" style="width:auto; padding:0 20px; background:#007bff; color:#fff;" onclick="sendChatMessage()">Enviar</button>
         </div>
         <p id="chatErrorMsg" class="error" style="margin-top:5px; font-size:12px;"></p>
@@ -1574,6 +1637,15 @@ button, input, select, textarea, a, h1, h2, h3, h4, label, small, p, div, span {
             <button class="secondary-button" style="width:auto; margin:0;" onclick="likeUserCard()">👍 <span id="cardLikesCount">0</span></button>
             <button id="cardDislikeBtn" class="secondary-button" style="width:auto; margin:0;" onclick="dislikeUserCard()">👎 <span id="cardDislikesCount">0</span></button>
             <button id="cardReportBtn" class="danger-button" style="padding:8px 12px; font-size:13px;" onclick="reportUserCard()">🚨 Denunciar</button>
+        </div>
+
+        <div id="cardCommentsSection" class="section hidden">
+            <h3 style="margin-top:0;">💬 Comentarios</h3>
+            <div id="cardCommentsList" style="max-height:180px; overflow-y:auto;">Cargando...</div>
+            <div id="cardCommentForm" style="display:flex; gap:6px; margin-top:8px;">
+                <input type="text" id="cardCommentInput" placeholder="Escribe un comentario..." maxlength="300" style="margin:0;">
+                <button class="form-button" style="width:auto; margin:0;" onclick="postProfileComment()">Enviar</button>
+            </div>
         </div>
 
         <div id="cardDetailSections">
@@ -1628,6 +1700,12 @@ window.addEventListener("load", () => {
     const search = window.location.search || "";
     const m = search.match(/[?&]itemid=?(\d+)/i);
     if (m) setTimeout(() => openItemDetail(m[1]), 400);
+    // ?profileid=ID (también se acepta la errata ?porfileid=ID) abre la tarjeta pública de ese usuario.
+    const pm = search.match(/[?&](?:profileid|porfileid)=?(\d+)/i);
+    if (pm) setTimeout(() => openUserProfileCard(pm[1]), 400);
+    // ?groupid=ID abre ese grupo.
+    const gm = search.match(/[?&]groupid=?(\d+)/i);
+    if (gm) setTimeout(() => openGroupDetail(gm[1]), 500);
 });
 
 // Mejora de calidad de vida: la tecla Escape cierra cualquier modal abierto.
@@ -2231,6 +2309,17 @@ function openCurrencyModal() {
     }
     document.getElementById("currencyModal").style.display = "flex";
     loadCurrencyPackages();
+}
+
+function closeBlocksModal() { document.getElementById("blocksModal").style.display = "none"; }
+
+function openBlocksModal() {
+    if (!localStorage.getItem("gameblocks_token")) {
+        alert("Inicia sesión para usar tus Bloques 🟥.");
+        openAccount();
+        return;
+    }
+    document.getElementById("blocksModal").style.display = "flex";
     request("/api/me").then(me => {
         document.getElementById("currencyBlocksModal").textContent = me.blocks || 0;
     }).catch(() => {});
@@ -2386,6 +2475,33 @@ async function uploadUserItem() {
 
     try {
         const token = localStorage.getItem("gameblocks_token");
+        const onlyTurbo = document.getElementById("ugcItemOnlyTurbo").checked;
+
+        // Sombreros/accesorios 3D de 🎩UGC+: se suben con su modelo .glb.
+        if (type === "hat") {
+            const glb = document.getElementById("ugcHatGlbFile").files[0];
+            if (!glb) throw new Error("Sube el modelo 3D del sombrero (.glb).");
+            const fd = new FormData();
+            fd.append("name", name);
+            fd.append("glb", glb);
+            fd.append("image", fileInput.files[0]);
+            fd.append("price", price || 0);
+            fd.append("priceBlocks", document.getElementById("ugcItemPriceBlocks").value || 0);
+            fd.append("offsale", offsale);
+            fd.append("anonymous", anonymous);
+            fd.append("onlyTurbo", onlyTurbo);
+            fd.append("description", description);
+            fd.append("obtainText", document.getElementById("ugcItemObtainText").value);
+            fd.append("variants", JSON.stringify(await collectVariants("ugc")));
+            const hatRes = await fetch(RENDER_API + "/api/ugc/accessories/upload", { method: "POST", headers: { Authorization: "Bearer " + token }, body: fd });
+            const hatData = await hatRes.json();
+            if (!hatRes.ok) throw new Error(hatData.error || "Error al subir el sombrero.");
+            msg.className = "success";
+            msg.textContent = "¡Sombrero subido correctamente!";
+            loadShopItems();
+            return;
+        }
+
         const formData = new FormData();
         formData.append("image", fileInput.files[0]);
         const uploadRes = await fetch(RENDER_API + "/api/upload/image", {
@@ -2395,6 +2511,7 @@ async function uploadUserItem() {
         if (!uploadRes.ok) throw new Error(uploadData.error);
 
         await request("/api/tshirts/upload", "POST", {
+            onlyTurbo,
             name, imageUrl: uploadData.imageUrl, price: Number(price) || 0,
             priceBlocks: Number(document.getElementById("ugcItemPriceBlocks").value) || 0,
             offsale, anonymous, type, description,
@@ -2408,6 +2525,15 @@ async function uploadUserItem() {
         msg.className = "error";
         msg.textContent = e.message;
     }
+}
+
+function onUgcTypeChange() {
+    const isHat = document.getElementById("ugcItemTypeSelect").value === "hat";
+    document.getElementById("ugcHatFields").classList.toggle("hidden", !isHat);
+    // Los modelos de las variantes solo se piden para sombreros: se reconstruye el editor.
+    const box = document.getElementById("ugc_variants");
+    box.innerHTML = "";
+    if (document.getElementById("ugc_variantsToggle").checked) toggleVariants("ugc", 3, isHat);
 }
 
 function closeAvatarModal() { document.getElementById("avatarModal").style.display = "none"; }
@@ -2558,6 +2684,10 @@ async function ownerCreateTeapot() {
             offsale: document.getElementById("teapotOffsale").checked,
             limited: document.getElementById("teapotLimited").checked,
             maxPerUser: document.getElementById("teapotMaxPerUser").value,
+            maxGlobal: document.getElementById("teapotMaxGlobal").value,
+            expiresAt: document.getElementById("teapotExpiresAt").value,
+            value: document.getElementById("teapotValue").value,
+            onlyBlock: document.getElementById("teapotOnlyBlock").value,
             linkedStarCode: document.getElementById("teapotLinkedStarCode").value
         });
         msg.className = "success";
@@ -2607,6 +2737,7 @@ async function updateAccount() {
         document.getElementById("myBio").value = me.bio || "";
         document.getElementById("myAccountIdLabel").textContent = "🆔 Tu ID de cuenta (ahora es público): " + me.id;
         document.getElementById("inventoryPublicToggle").checked = me.inventoryPublic !== false;
+        document.getElementById("allowProfileCommentsToggle").checked = me.allowProfileComments !== false;
         document.getElementById("allowFriendRequestsToggle").checked = me.allowFriendRequests !== false;
         document.getElementById("allowTradeWithoutFriendsToggle").checked = !!me.allowTradeWithoutFriends;
 
@@ -2663,6 +2794,7 @@ async function updateAccount() {
 async function saveProfileSettings() {
     try {
         await request("/api/profile/settings", "POST", {
+            allowProfileComments: document.getElementById("allowProfileCommentsToggle").checked,
             allowFriendRequests: document.getElementById("allowFriendRequestsToggle").checked,
             allowTradeWithoutFriends: document.getElementById("allowTradeWithoutFriendsToggle").checked
         });
@@ -2718,22 +2850,29 @@ async function openTransactionsModal() {
     purchasesList.textContent = "Cargando...";
     try {
         const data = await request("/api/transactions/mine");
-        document.getElementById("txTotalEarned").textContent = data.totalEarned || 0;
+        document.getElementById("txTotalEarned").textContent = (data.totalEarned || 0) + (data.totalBlocksEarned ? ` (+${data.totalBlocksEarned} 🟥)` : "");
 
         salesList.innerHTML = "";
         if (!data.sales || data.sales.length === 0) {
-            salesList.textContent = "Todavía nadie ha comprado tu ropa.";
+            salesList.textContent = "Todavía nadie ha comprado tus artículos ni tus reventas.";
         } else {
             data.sales.forEach(t => {
                 const div = document.createElement("div");
                 div.className = "result";
-                div.innerHTML = `<b>${escapeHTML(t.buyerUsername)}</b> compró <b>${escapeHTML(t.itemName)}</b> — +${t.amount} <img src="dineros.png" class="currency-icon-small" alt="Monedas"><br><small style="color:#888;">${new Date(t.createdAt).toLocaleString()}</small>`;
+                const kind = t.type === "resale" ? "compró tu reventa de" : (t.gift ? "regaló a otro (pagó)" : "compró");
+                div.innerHTML = `<b>${escapeHTML(t.buyerUsername)}</b> ${kind} <b>${escapeHTML(t.itemName)}</b> — +${t.amount} <img src="dineros.png" class="currency-icon-small" alt="Monedas">${t.blocksEarned ? ` +${t.blocksEarned} 🟥` : ""}<br><small style="color:#888;">${new Date(t.createdAt).toLocaleString()}</small>`;
                 salesList.appendChild(div);
             });
         }
 
         purchasesList.innerHTML = "";
-        if (!data.purchases || data.purchases.length === 0) {
+        (data.resalePurchases || []).forEach(t => {
+            const div = document.createElement("div");
+            div.className = "result";
+            div.innerHTML = `Compraste en reventa <b>${escapeHTML(t.itemName)}</b> a <b>${escapeHTML(t.sellerUsername)}</b> por ${t.amount} <img src="dineros.png" class="currency-icon-small" alt="Monedas"><br><small style="color:#888;">${new Date(t.createdAt).toLocaleString()}</small>`;
+            purchasesList.appendChild(div);
+        });
+        if ((!data.purchases || data.purchases.length === 0) && !(data.resalePurchases || []).length) {
             purchasesList.textContent = "Todavía no has comprado monedas.";
         } else {
             data.purchases.forEach(t => {
@@ -2752,6 +2891,52 @@ async function openTransactionsModal() {
 // ---------------------------------------------------------------------------
 // BLOG (los admins publican; los usuarios solo leen)
 // ---------------------------------------------------------------------------
+
+let currentBlogCommentsPost = null;
+
+function closeBlogComments() { document.getElementById("blogCommentsModal").style.display = "none"; currentBlogCommentsPost = null; }
+
+async function openBlogComments(postId, title) {
+    currentBlogCommentsPost = postId;
+    document.getElementById("blogCommentsTitle").textContent = "💬 " + title;
+    document.getElementById("blogCommentsModal").style.display = "flex";
+    loadBlogComments();
+}
+
+async function loadBlogComments() {
+    const list = document.getElementById("blogCommentsList");
+    try {
+        const [data, me] = await Promise.all([
+            request(`/api/blog/posts/${currentBlogCommentsPost}/comments`),
+            localStorage.getItem("gameblocks_token") ? request("/api/me").catch(() => null) : Promise.resolve(null)
+        ]);
+        document.getElementById("blogCommentForm").classList.toggle("hidden", !me || !data.enabled);
+        if (!data.enabled) { list.textContent = "Los comentarios de esta publicación están desactivados."; return; }
+        list.innerHTML = data.comments.length === 0 ? "Todavía no hay comentarios." : data.comments.map(cm => {
+            const canDelete = me && (String(cm.senderId) === String(me.id) || me.admin || me.owner);
+            return `<div style="margin-bottom:6px; display:flex; gap:6px; align-items:flex-start;">${avatarImgHTML(cm.senderAvatar, 24)}<div style="flex:1;"><b style="color:#ff8800;">${escapeHTML(cm.senderUsername)}:</b> ${escapeHTML(cm.text)}</div>${canDelete ? `<button class="danger-button" style="padding:1px 6px; font-size:10px;" onclick="deleteBlogComment('${cm.id}')">✕</button>` : ""}</div>`;
+        }).join("");
+    } catch (e) { list.textContent = "Error al cargar comentarios."; }
+}
+
+async function postBlogComment() {
+    const input = document.getElementById("blogCommentInput");
+    if (!input.value.trim()) return;
+    try {
+        await request(`/api/blog/posts/${currentBlogCommentsPost}/comments`, "POST", { text: input.value });
+        input.value = "";
+        loadBlogComments();
+        loadBlogPosts();
+    } catch (e) { alert(e.message); }
+}
+
+async function deleteBlogComment(commentId) {
+    try {
+        await request(`/api/blog/posts/${currentBlogCommentsPost}/comments/delete`, "POST", { commentId });
+        loadBlogComments();
+        loadBlogPosts();
+    } catch (e) { alert(e.message); }
+}
 
 function closeBlogModal() { document.getElementById("blogModal").style.display = "none"; }
 
@@ -2789,6 +2974,7 @@ async function loadBlogPosts() {
                 ${p.imageUrl ? `<img src="${absUrl(p.imageUrl)}" style="max-width:100%; border-radius:6px; margin-bottom:8px;">` : ""}
                 <div style="white-space:pre-wrap; color:#ddd;">${escapeHTML(p.content)}</div>
                 <small style="color:#888;">Por ${escapeHTML(p.authorUsername)} — ${new Date(p.createdAt).toLocaleString()}</small>
+                ${p.commentsEnabled !== false ? `<br><button class="secondary-button" style="width:auto; padding:3px 10px; font-size:11px; margin-top:6px;" onclick="openBlogComments('${p.id}', ${JSON.stringify(p.title).replace(/"/g, "&quot;")})">💬 Comentarios (${p.commentsCount || 0})</button>` : `<br><small style="color:#666;">Comentarios desactivados</small>`}
                 ${window.__blogIsAdmin ? `<br><button class="danger-button" style="padding:3px 8px; font-size:11px; margin-top:6px;" onclick="deleteBlogPost('${p.id}')">🗑️ Borrar</button>` : ""}
             `;
             container.appendChild(div);
@@ -2814,7 +3000,7 @@ async function createBlogPost() {
             if (!upRes.ok) throw new Error(upData.error);
             imageUrl = upData.imageUrl;
         }
-        await request("/api/admin/blog/posts", "POST", { title, content, imageUrl, category: document.getElementById("blogPostCategory").value });
+        await request("/api/admin/blog/posts", "POST", { title, content, imageUrl, category: document.getElementById("blogPostCategory").value, commentsEnabled: document.getElementById("blogPostComments").checked });
         msg.className = "success";
         msg.textContent = "¡Publicado!";
         document.getElementById("blogPostTitle").value = "";
@@ -2897,6 +3083,8 @@ async function renderItemDetail(itemId) {
             : item.type === "teapot" ? String(me.equippedTeapot) === String(item.id)
             : item.type === "pfp" ? String(me.equippedPfp) === String(item.id)
             : item.type === "face" ? String(me.equippedFace) === String(item.id)
+            : item.type === "head" ? String(me.equippedHead) === String(item.id)
+            : item.type === "gear" ? (me.equippedGears || []).some(id => String(id) === String(item.id))
             : false;
         const variants = detail.variants || [];
         const discountPct = detail.variantDiscountPercent || 0;
@@ -2905,10 +3093,12 @@ async function renderItemDetail(itemId) {
             ? { ...item, price: Math.round((item.price || 0) * (100 - discountPct) / 100), priceBlocks: Math.round((item.priceBlocks || 0) * (100 - discountPct) / 100) }
             : item;
         const isFree = (shownItem.price || 0) === 0 && (shownItem.priceBlocks || 0) === 0;
-        const canBuyMore = !item.limited || !item.maxPerUser || ownedCount < item.maxPerUser;
+        // Los artículos no limited solo se pueden comprar 1 vez.
+        const canBuyMore = item.limited ? (!item.maxPerUser || ownedCount < item.maxPerUser) : ownedCount === 0;
+        const myListing = me ? listings.find(l => String(l.sellerId) === String(me.id)) : null;
 
         // Imagen o modelo 3D (los sombreros muestran su .glb; lo demás, solo el PNG)
-        const visual = (item.type === "hat" && item.glbUrl)
+        const visual = (["hat", "head"].includes(item.type) && item.glbUrl)
             ? `<model-viewer src="${absUrl(item.glbUrl)}" alt="${escapeHTML(item.name)}" camera-controls auto-rotate style="width:260px; height:260px; background:#0c0c0c; border-radius:8px;"></model-viewer>`
             : `<img src="${absUrl(item.imageUrl)}" alt="${escapeHTML(item.name)}" style="width:260px; height:260px; object-fit:contain; background:#0c0c0c; border-radius:8px;">`;
 
@@ -2919,6 +3109,7 @@ async function renderItemDetail(itemId) {
                 <div class="result" style="margin-top:8px;">
                     <b style="color:#ffd700;">LIMITED</b><br>
                     ${item.offsale ? '<span style="color:#ff5555;">Fuera de venta (offsale)</span>' : `En venta: ${priceLabelHTML(item)}`}<br>
+                    ${item.value != null ? `Valor: <b style="color:#ffd700;">${item.value}</b> <img src="dineros.png" class="currency-icon-small" alt="Monedas"><br>` : ""}
                     Copias vendidas: ${item.totalSold || 0} · Copias máximas: ${max}
                     ${item.maxPerUser ? `<br>Máx. por usuario: ${item.maxPerUser}` : ""}
                 </div>`;
@@ -2932,8 +3123,10 @@ async function renderItemDetail(itemId) {
             mainBtn += `<button class="form-button" onclick="buyAccessoryFromDetail('${item.id}')">${isFree ? "Reclamar" : "Comprar"}</button>`;
         } else if (item.offsale && ownedCount === 0) {
             mainBtn += `<button class="form-button" disabled>Offsale</button>`;
+        } else if (!item.limited && ownedCount > 0) {
+            mainBtn += `<button class="form-button" disabled>Ya lo tienes (solo se compra 1 vez)</button>`;
         }
-        if (ownedCount > 0 && ["hat", "teapot", "pfp", "face"].includes(item.type)) {
+        if (ownedCount > 0 && ["hat", "teapot", "pfp", "face", "head", "gear"].includes(item.type)) {
             mainBtn += `<button class="secondary-button" onclick="${isEquipped ? `unequipFromDetail('${item.id}')` : `equipFromDetail('${item.id}')`}">${isEquipped ? "Desequipar" : "Equipar"} (tienes ${ownedCount})</button>`;
         }
 
@@ -2949,15 +3142,19 @@ async function renderItemDetail(itemId) {
                     const mine = me && String(l.sellerId) === String(me.id);
                     resaleHTML += `<div class="result" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                         <span><span class="creator-link" onclick="closeItemDetail(); searchUserByName('${escapeHTML(l.sellerUsername)}')">${escapeHTML(l.sellerUsername)}</span> — ${l.price} <img src="dineros.png" class="currency-icon-small" alt="Monedas"></span>
-                        ${mine ? '<small style="color:#888;">Tu anuncio</small>' : `<button class="form-button" style="width:auto; margin:0; padding:4px 10px;" onclick="buyResaleFromDetail('${l.id}')">Comprar</button>`}
+                        ${mine ? `<button class="danger-button" style="width:auto; margin:0; padding:4px 10px; font-size:11px;" onclick="cancelResaleFromDetail('${l.id}')">Eliminar mi reventa</button>` : `<button class="form-button" style="width:auto; margin:0; padding:4px 10px;" onclick="buyResaleFromDetail('${l.id}')">Comprar</button>`}
                     </div>`;
                 });
             }
             if (item.offsale && ownedCount > 0) {
-                resaleHTML += `<div style="margin-top:8px; display:flex; gap:6px;">
-                    <input type="number" id="resalePriceInput" placeholder="Precio de reventa" min="1" style="margin:0;">
-                    <button class="admin-button" style="width:auto; margin:0;" onclick="listResaleFromDetail('${item.id}')">Revender una copia</button>
-                </div>`;
+                if (myListing) {
+                    resaleHTML += `<div style="margin-top:8px; font-size:12px; color:#ff8800;">Tienes una reventa publicada (${myListing.price} monedas). Tu copia sigue siendo tuya hasta que alguien la compre; elimínala para publicar otra.</div>`;
+                } else {
+                    resaleHTML += `<div style="margin-top:8px; display:flex; gap:6px;">
+                        <input type="number" id="resalePriceInput" placeholder="Precio de reventa (máx. 9.000.000.000.000)" min="1" max="9000000000000" style="margin:0;">
+                        <button class="admin-button" style="width:auto; margin:0;" onclick="listResaleFromDetail('${item.id}')">Publicar reventa</button>
+                    </div>`;
+                }
             }
             resaleHTML += `</div>`;
         }
@@ -2979,6 +3176,14 @@ async function renderItemDetail(itemId) {
                     ${item.obtainText ? `<div style="background:#1a1a2a; border-left:3px solid #7a4cff; padding:6px 8px; margin:8px 0; font-size:13px;">📍 <b>Cómo se obtiene:</b> ${escapeHTML(item.obtainText)}</div>` : ""}
                     <p style="color:#ccc; white-space:pre-wrap;">${item.description ? escapeHTML(item.description) : "Sin descripción."}</p>
                     <div style="font-size:18px; margin:10px 0;">${ownsOtherVariant ? `<s style="color:#888; font-size:13px;">${priceLabelHTML(item)}</s> ` : ""}${priceLabelHTML(shownItem)}</div>
+                    ${(me && !item.offsale) ? `
+                        <div style="background:#1a1420; border:1px solid #442244; border-radius:6px; padding:6px; margin-bottom:8px;">
+                            <div style="font-size:11px; color:#ff99dd; margin-bottom:4px;">🎁 Regalar a otro usuario (pagas ${priceLabelHTML(item)})</div>
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" id="giftToInput" placeholder="Nombre o ID del usuario" style="margin:0; font-size:12px;">
+                                <button class="admin-button" style="width:auto; margin:0; background:#ff66cc;" onclick="giftItemFromDetail('${item.id}')">Regalar</button>
+                            </div>
+                        </div>` : ""}
                     ${mainBtn}
                     <div id="itemDetailMsg" style="margin-top:6px;"></div>
                     ${limitedInfo}
@@ -3042,6 +3247,26 @@ async function equipFromDetail(itemId) {
 }
 async function unequipFromDetail(itemId) {
     try { await unequipAccessory(itemId); await renderItemDetail(itemId); } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function giftItemFromDetail(itemId) {
+    const to = document.getElementById("giftToInput").value.trim();
+    if (!to) { itemDetailMessage("Escribe el nombre o el ID del usuario.", false); return; }
+    if (!confirm(`¿Regalar este artículo a "${to}"? Se te cobrará lo que vale.`)) return;
+    try {
+        const d = await request("/api/accessories/gift", "POST", { itemId, to });
+        updateAccount();
+        await renderItemDetail(itemId);
+        itemDetailMessage(d.message, true);
+    } catch (e) { itemDetailMessage(e.message, false); }
+}
+
+async function cancelResaleFromDetail(listingId) {
+    try {
+        const d = await request("/api/accessories/resell-cancel", "POST", { listingId });
+        await renderItemDetail(currentItemDetailId);
+        itemDetailMessage(d.message, true);
+    } catch (e) { itemDetailMessage(e.message, false); }
 }
 
 async function buyResaleFromDetail(listingId) {
@@ -3117,7 +3342,7 @@ async function collectVariants(prefix) {
         if (!name || (!img && !glb)) continue; // variante vacía: no se muestra
         const v = { name };
         if (img) v.imageUrl = await uploadSingleFile("/api/upload/image", "image", img);
-        if (glb) v.glbUrl = await uploadSingleFile("/api/admin/upload/file", "file", glb);
+        if (glb) v.glbUrl = await uploadSingleFile("/api/upload/model", "file", glb);
         out.push(v);
     }
     return out;
@@ -3163,9 +3388,12 @@ async function loadBackupStatus() {
         const s = await request("/api/admin/backup-status");
         const when = t => t ? new Date(t).toLocaleString() : "nunca";
         box.innerHTML = `
-            <div>${s.githubBackupEnabled ? "✅ Backup en GitHub <b>activo</b>" : "⚠️ Backup en GitHub <b style='color:#ff5555;'>DESACTIVADO</b> — si Render borra el disco se pierden los datos. Configura GITHUB_TOKEN y GITHUB_REPO en Render."}</div>
+            <div>${s.githubBackupEnabled ? "✅ Backup en GitHub <b>activo</b>" : (s.s3BackupEnabled ? "➖ Backup en GitHub no configurado" : "⚠️ Sin backup remoto: <b style='color:#ff5555;'>si Render borra el disco se pierden los datos</b>. Configura GITHUB_TOKEN + GITHUB_REPO y/o las variables S3.")}</div>
             <div style="font-size:12px; color:#aaa;">Usuarios guardados: ${s.users} · Último guardado en disco: ${when(s.lastLocalSave)}</div>
             <div style="font-size:12px; color:#aaa;">Última copia a GitHub: ${when(s.lastGithubPush)} · Archivos subidos respaldados: ${s.uploadsBackedUp}</div>
+            <div style="margin-top:4px;">${s.s3BackupEnabled ? `✅ Backup S3 <b>activo</b> (${escapeHTML(s.s3Bucket)}) · última copia: ${when(s.lastS3Push)} · archivos respaldados: ${s.s3UploadsBackedUp}` : "➖ Backup S3 no configurado (segundo método opcional: S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY)"}</div>
+            ${s.lastS3Error ? `<div style="font-size:12px; color:#ff5555;">Último error de S3: ${escapeHTML(s.lastS3Error)}</div>` : ""}
+            <div style="font-size:12px; color:#aaa;">Carpeta de seguridad: ${escapeHTML(s.backupDir)} · versión del servidor: ${escapeHTML(s.serverVersion)} (se hace un snapshot automático cuando cambia)</div>
             ${s.lastGithubError ? `<div style="font-size:12px; color:#ff5555;">Último error de GitHub: ${escapeHTML(s.lastGithubError)}</div>` : ""}
             ${s.safeToBackup === false ? `<div style="font-size:12px; color:#ff8800;">Copias pausadas hasta poder comparar con GitHub.</div>` : ""}
         `;
@@ -3286,13 +3514,31 @@ async function renderCardAvatar(u) {
     row.innerHTML = "";
     document.getElementById("cardFaceRow").classList.add("hidden");
     const hatIds = u.equippedHats || [];
-    if (hatIds.length === 0 && !u.equippedFace) return;
+    if (hatIds.length === 0 && !u.equippedFace && !u.equippedHead && !(u.equippedGears || []).length) return;
     try {
         const all = await request("/api/accessories/all");
         const face = u.equippedFace ? all.items.find(a => String(a.id) === String(u.equippedFace)) : null;
         if (face) {
             document.getElementById("cardFaceImg").src = absUrl(face.imageUrl);
             document.getElementById("cardFaceRow").classList.remove("hidden");
+        }
+        const headItem = u.equippedHead ? all.items.find(a => String(a.id) === String(u.equippedHead)) : null;
+        if (headItem && headItem.glbUrl) {
+            const mvh = document.createElement("model-viewer");
+            mvh.setAttribute("src", absUrl(headItem.glbUrl));
+            mvh.setAttribute("alt", "Cabeza: " + headItem.name);
+            mvh.setAttribute("camera-controls", "");
+            mvh.setAttribute("auto-rotate", "");
+            mvh.title = "Cabeza: " + headItem.name;
+            mvh.style.cssText = "width:90px; height:90px; background:#0c0c0c; border-radius:6px; border:1px solid #7a4cff;";
+            row.appendChild(mvh);
+        }
+        const gearNames = (u.equippedGears || []).map(id => all.items.find(a => String(a.id) === String(id))).filter(Boolean).map(g => g.name);
+        if (gearNames.length) {
+            const gd = document.createElement("div");
+            gd.style.cssText = "width:100%; font-size:11px; color:#aaa;";
+            gd.textContent = "⚙️ Gears: " + gearNames.join(", ");
+            row.appendChild(gd);
         }
         hatIds.forEach(id => {
             const hat = all.items.find(a => String(a.id) === String(id));
@@ -3326,6 +3572,8 @@ async function openUserProfileCard(userId) {
         document.getElementById("cardAvatar").src = u.avatar ? absUrl(u.avatar) : "https://via.placeholder.com/110";
         document.getElementById("cardUsername").textContent = u.username;
         applyCardStyling(u.profileBgColor, u.profileSoundUrl);
+        if (u.inactive) document.getElementById("cardCommentsSection").classList.add("hidden");
+        else loadProfileComments();
 
         const inactiveBadge = document.getElementById("cardInactiveBadge");
         const detailSections = document.getElementById("cardDetailSections");
@@ -3418,6 +3666,43 @@ async function openUserProfileCard(userId) {
     } catch (e) { alert(e.message); }
 }
 
+async function loadProfileComments() {
+    const section = document.getElementById("cardCommentsSection");
+    const list = document.getElementById("cardCommentsList");
+    if (!currentCardUserId) return;
+    try {
+        const [data, me] = await Promise.all([
+            request(`/api/users/${currentCardUserId}/comments`),
+            localStorage.getItem("gameblocks_token") ? request("/api/me").catch(() => null) : Promise.resolve(null)
+        ]);
+        if (!data.enabled) { section.classList.add("hidden"); return; }
+        section.classList.remove("hidden");
+        document.getElementById("cardCommentForm").classList.toggle("hidden", !me);
+        if (data.comments.length === 0) { list.textContent = "Todavía no hay comentarios."; return; }
+        list.innerHTML = data.comments.map(cm => {
+            const canDelete = me && (String(cm.senderId) === String(me.id) || String(currentCardUserId) === String(me.id) || me.admin || me.owner);
+            return `<div style="margin-bottom:6px; display:flex; gap:6px; align-items:flex-start;">${avatarImgHTML(cm.senderAvatar, 24)}<div style="flex:1;"><b style="color:#ff8800;">${escapeHTML(cm.senderUsername)}:</b> ${escapeHTML(cm.text)}</div>${canDelete ? `<button class="danger-button" style="padding:1px 6px; font-size:10px;" onclick="deleteProfileComment('${cm.id}')">✕</button>` : ""}</div>`;
+        }).join("");
+    } catch (e) { section.classList.add("hidden"); }
+}
+
+async function postProfileComment() {
+    const input = document.getElementById("cardCommentInput");
+    if (!input.value.trim() || !currentCardUserId) return;
+    try {
+        await request(`/api/users/${currentCardUserId}/comments`, "POST", { text: input.value });
+        input.value = "";
+        loadProfileComments();
+    } catch (e) { alert(e.message); }
+}
+
+async function deleteProfileComment(commentId) {
+    try {
+        await request(`/api/users/${currentCardUserId}/comments/delete`, "POST", { commentId });
+        loadProfileComments();
+    } catch (e) { alert(e.message); }
+}
+
 async function toggleFollowUserCard() {
     if (!currentCardUserId) return;
     try {
@@ -3482,10 +3767,10 @@ function countShopFilters() {
 function onShopFilterChange(el) {
     const msg = document.getElementById("shopFilterMsg");
     msg.textContent = "";
-    if (countShopFilters() > 3) {
+    if (countShopFilters() > 10) {
         if (el.type === "checkbox") el.checked = false;
         else el.value = "";
-        msg.textContent = "Solo puedes usar 3 filtros a la vez. Quita uno para añadir otro.";
+        msg.textContent = "Solo puedes usar 10 filtros a la vez. Quita uno para añadir otro.";
     }
     document.getElementById("shopFilterCount").textContent = countShopFilters();
     loadShopItems();
@@ -3495,15 +3780,7 @@ async function loadShopItems() {
     const type = document.getElementById("catalogTypeSelect").value;
     const filterContainer = document.getElementById("tshirtFilterContainer");
     const container = document.getElementById("shopContainer");
-    const gearComingSoon = document.getElementById("gearComingSoon");
 
-    if (type === "gear") {
-        filterContainer.classList.add("hidden");
-        container.classList.add("hidden");
-        gearComingSoon.classList.remove("hidden");
-        return;
-    }
-    gearComingSoon.classList.add("hidden");
     container.classList.remove("hidden");
 
     filterContainer.classList.remove("hidden");
@@ -3660,6 +3937,8 @@ async function loadMyInventory() {
                 : item.type === "teapot" ? String(me.equippedTeapot) === String(itemId)
                 : item.type === "pfp" ? String(me.equippedPfp) === String(itemId)
                 : item.type === "face" ? String(me.equippedFace) === String(itemId)
+                : item.type === "head" ? String(me.equippedHead) === String(itemId)
+                : item.type === "gear" ? (me.equippedGears || []).some(id => String(id) === String(itemId))
                 : false;
 
             card.innerHTML = `
@@ -3687,7 +3966,19 @@ async function loadMyInventory() {
                     btnEquip.textContent = `Equipar (${equippedHats.length}/3)`;
                     btnEquip.onclick = () => equipAccessory(item.id);
                 }
-            } else if (item.type === "teapot" || item.type === "pfp" || item.type === "face") {
+            } else if (item.type === "gear") {
+                const eqGears = me.equippedGears || [];
+                if (isEquipped) {
+                    btnEquip.textContent = "Desequipar";
+                    btnEquip.onclick = () => unequipAccessory(item.id);
+                } else if (eqGears.length >= 3) {
+                    btnEquip.textContent = "Máx. 3 gears";
+                    btnEquip.disabled = true;
+                } else {
+                    btnEquip.textContent = `Equipar (${eqGears.length}/3)`;
+                    btnEquip.onclick = () => equipAccessory(item.id);
+                }
+            } else if (item.type === "teapot" || item.type === "pfp" || item.type === "face" || item.type === "head") {
                 btnEquip.textContent = isEquipped ? "Desequipar" : "Equipar";
                 btnEquip.onclick = () => isEquipped ? unequipAccessory(item.id) : equipAccessory(item.id);
             } else {
@@ -4024,32 +4315,45 @@ async function sendChatMessage() {
     } catch (e) { errorMsg.textContent = e.message; }
 }
 
-async function sendChatImage() {
-    const input = document.getElementById("chatImageInput");
+function closePfpPicker() { document.getElementById("pfpPickerModal").style.display = "none"; }
+
+async function openPfpPicker() {
     const errorMsg = document.getElementById("chatErrorMsg");
     errorMsg.textContent = "";
-    if (!input.files[0] || !currentChatFriendId) return;
-
+    const list = document.getElementById("pfpPickerList");
+    document.getElementById("pfpPickerModal").style.display = "flex";
+    list.textContent = "Cargando...";
     try {
-        const token = localStorage.getItem("gameblocks_token");
-        const formData = new FormData();
-        formData.append("friendId", currentChatFriendId);
-        formData.append("image", input.files[0]);
-
-        const response = await fetch(RENDER_API + "/api/chat/upload", {
-            method: "POST",
-            headers: token ? { Authorization: "Bearer " + token } : {},
-            body: formData
+        const [me, all] = await Promise.all([request("/api/me"), request("/api/accessories/all")]);
+        if (!me.turboBlockSub) {
+            closePfpPicker();
+            errorMsg.textContent = "Enviar imágenes al chat requiere Suscripción Turbo Block.";
+            return;
+        }
+        const owned = [...new Set((me.inventory || []).map(String))]
+            .map(id => all.items.find(a => String(a.id) === id))
+            .filter(it => it && it.type === "pfp");
+        if (owned.length === 0) { list.textContent = "No tienes fotos de perfil en tu galería. Consíguelas en la tienda (Fotos de perfil)."; return; }
+        list.innerHTML = "";
+        owned.forEach(it => {
+            const card = document.createElement("div");
+            card.className = "shop-card";
+            card.style.cursor = "pointer";
+            card.innerHTML = `<img src="${absUrl(it.imageUrl)}" alt="${escapeHTML(it.name)}"><div style="font-size:11px;">${escapeHTML(it.name)}</div>`;
+            card.onclick = () => sendChatGalleryImage(it.id);
+            list.appendChild(card);
         });
-        const raw = await response.text();
-        let data = {};
-        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
-        if (!response.ok) throw new Error(data.error || `Error del servidor (${response.status}).`);
+    } catch (e) { list.textContent = e.message || "Error al cargar la galería."; }
+}
 
-        input.value = "";
+async function sendChatGalleryImage(pfpItemId) {
+    const errorMsg = document.getElementById("chatErrorMsg");
+    try {
+        await request("/api/chat/send-image", "POST", { friendId: currentChatFriendId, pfpItemId });
+        closePfpPicker();
         loadChatMessages();
     } catch (e) {
-        input.value = "";
+        closePfpPicker();
         errorMsg.textContent = e.message;
     }
 }
@@ -4157,6 +4461,14 @@ async function adminClearReported(userId) {
     } catch (e) { alert(e.message); }
 }
 
+async function adminSetTurboReward() {
+    const itemId = document.getElementById("adminTurboRewardItemId").value;
+    try {
+        await request("/api/admin/settings/turbo-block-reward", "POST", { itemId });
+        alert("ID de Regalo de Turbo Block guardado.");
+    } catch (e) { alert(e.message); }
+}
+
 async function adminSetBlockReward() {
     const itemId = document.getElementById("adminBlockRewardItemId").value;
     try {
@@ -4194,7 +4506,10 @@ async function adminUploadTshirt() {
     const obtainText = document.getElementById("adminTshirtObtainText").value;
     const variantDiscountPercent = document.getElementById("adminTshirtVariantDiscount").value;
     const offsale = document.getElementById("adminTshirtIsOffsale").value === "si";
-    const onlyBlock = document.getElementById("adminTshirtOnlyBlock").value === "true";
+    const onlyBlockRaw = document.getElementById("adminTshirtOnlyBlock").value;
+    const onlyBlock = onlyBlockRaw === "turbo" ? "turbo" : onlyBlockRaw === "true";
+    const gearId = document.getElementById("adminTshirtGearId").value;
+    const itemValue = document.getElementById("adminTshirtValue").value;
     const imgFile = document.getElementById("adminTshirtImgFile").files[0];
     const price = document.getElementById("adminTshirtPrice").value;
     const priceBlocks = document.getElementById("adminTshirtPriceBlocks").value;
@@ -4223,7 +4538,7 @@ async function adminUploadTshirt() {
         await request("/api/admin/tshirts/upload", "POST", {
             name, limited, maxPerUser, maxGlobal, expiresAt, offsale, onlyBlock,
             imageUrl: upData.imageUrl, price, priceBlocks, description, obtainText, type,
-            variants, variantDiscountPercent
+            variants, variantDiscountPercent, gearId, value: itemValue
         });
         msg.className = "success";
         msg.textContent = "Camiseta subida por Admin.";
@@ -4243,11 +4558,12 @@ async function adminEditAccessory() {
     const onlyBlock = document.getElementById("editItemOnlyBlock").value;
     const bgColor = document.getElementById("editItemBgColor").value;
     const soundUrl = document.getElementById("editItemSoundUrl").value;
+    const itemValueRaw = document.getElementById("editItemValue").value;
 
     try {
-        await request("/api/admin/accessories/edit", "POST", {
-            itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl
-        });
+        const payload = { itemId, price, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl };
+        if (itemValueRaw !== "") payload.value = itemValueRaw;
+        await request("/api/admin/accessories/edit", "POST", payload);
         alert("Artículo editado.");
         loadShopItems();
     } catch (e) { alert(e.message); }
@@ -4258,7 +4574,7 @@ async function uploadAccessory() {
     const name = document.getElementById("accessoryName").value;
     const limited = document.getElementById("accessoryIsLimited").value === "si";
     const offsale = document.getElementById("accessoryIsOffsale").value === "si";
-    const onlyBlock = document.getElementById("accessoryOnlyBlock").value === "true";
+    const onlyBlock = document.getElementById("accessoryOnlyBlock").value; // "false" | "true" | "turbo"
     const maxPerUser = document.getElementById("accessoryMaxPerUser").value;
     const maxGlobal = document.getElementById("accessoryMaxGlobal").value;
     const expiresAt = document.getElementById("accessoryExpiresAt").value;
@@ -4285,6 +4601,8 @@ async function uploadAccessory() {
     formData.append("maxPerUser", maxPerUser);
     formData.append("maxGlobal", maxGlobal);
     formData.append("expiresAt", expiresAt);
+    formData.append("type", document.getElementById("accessoryType").value);
+    formData.append("value", document.getElementById("accessoryValue").value);
     formData.append("obtainText", document.getElementById("accessoryObtainText").value);
     formData.append("variantDiscountPercent", document.getElementById("accessoryVariantDiscount").value);
     formData.append("variants", JSON.stringify(await collectVariants("accessory")));
