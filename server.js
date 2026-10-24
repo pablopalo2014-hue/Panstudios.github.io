@@ -23,6 +23,7 @@ const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const os = require("os");
 const multer = require("multer");
 
 const app = express();
@@ -239,7 +240,8 @@ app.get("/uploads/:name", async (req, res) => {
     const name = path.basename(req.params.name);
     const local = path.join(UPLOADS_DIR, name);
     try {
-        if (!fs.existsSync(local) && GITHUB_BACKUP_ENABLED) await downloadUploadFromGithub(name);
+        if (!fs.existsSync(local) && GITHUB_BACKUP_ENABLED) { try { await downloadUploadFromGithub(name); } catch (e) {} }
+        if (!fs.existsSync(local) && S3_BACKUP_ENABLED) { try { await downloadUploadFromS3(name); } catch (e) {} }
         if (fs.existsSync(local)) return res.sendFile(local);
     } catch (e) {}
     res.status(404).end();
@@ -266,6 +268,8 @@ function defaultDb() {
         transactions: [],     // ventas de artículos y compras de monedas
         sessions: {},         // token -> { userId, createdAt } (persisten tras reiniciar)
         savedAt: 0,
+        profileComments: {},  // userId -> [ {id, senderId, senderUsername, text, createdAt} ]
+        blogComments: {},     // postId -> [ ... ]
         blogPosts: [],         // { id, title, content, imageUrl, authorUsername, createdAt }
         nextId: 1,
         nextUserId: 1,
@@ -274,6 +278,230 @@ function defaultDb() {
 }
 
 let db = defaultDb();
+
+// ---------------------------------------------------------------------------
+// SEGUNDO MÉTODO DE COPIA DE SEGURIDAD: almacenamiento compatible con S3
+// ---------------------------------------------------------------------------
+// Totalmente independiente de GitHub. Funciona con Cloudflare R2, Backblaze B2,
+// Supabase Storage, AWS S3, MinIO... Se activa con estas variables de entorno:
+//   S3_ENDPOINT    p. ej. https://<cuenta>.r2.cloudflarestorage.com
+//   S3_BUCKET      nombre del bucket
+//   S3_ACCESS_KEY  y  S3_SECRET_KEY
+//   S3_REGION      (opcional, por defecto "auto"; en B2 p. ej. "us-west-004")
+//   S3_PREFIX      (opcional, carpeta dentro del bucket; por defecto "gameblocks-backup")
+// Además hay una carpeta de seguridad FUERA del proyecto (BACKUP_DIR, por defecto
+// ~/.gameblocks-backup) y una copia (snapshot) automática cada vez que se
+// actualiza server.js, así que actualizar el código nunca deja los datos sin copia.
+const S3_ENDPOINT = process.env.S3_ENDPOINT || null;
+const S3_BUCKET = process.env.S3_BUCKET || null;
+const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || null;
+const S3_SECRET_KEY = process.env.S3_SECRET_KEY || null;
+const S3_REGION = process.env.S3_REGION || "auto";
+const S3_PREFIX = (process.env.S3_PREFIX || "gameblocks-backup").replace(/^\/|\/$/g, "");
+const S3_BACKUP_ENABLED = !!(S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY);
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(os.homedir(), ".gameblocks-backup");
+const SERVER_VERSION = (() => { try { return crypto.createHash("sha256").update(fs.readFileSync(__filename)).digest("hex").slice(0, 12); } catch (e) { return "desconocida"; } })();
+
+const sha256hex = d => crypto.createHash("sha256").update(d).digest("hex");
+const hmacSha = (key, data) => crypto.createHmac("sha256", key).update(data).digest();
+const rfc3986 = s => encodeURIComponent(s).replace(/[!'()*]/g, ch => "%" + ch.charCodeAt(0).toString(16).toUpperCase());
+
+// Firma AWS Signature V4 (se comprueba contra el vector oficial "get-vanilla").
+function sigV4({ method, urlStr, headers = {}, payloadHash, region, service, accessKey, secretKey, amzDate }) {
+    const url = new URL(urlStr);
+    const dateStamp = amzDate.slice(0, 8);
+    const all = { host: url.host, "x-amz-date": amzDate };
+    for (const [k, v] of Object.entries(headers)) all[k.toLowerCase()] = v;
+    const names = Object.keys(all).sort();
+    const canonicalHeaders = names.map(k => `${k}:${String(all[k]).trim()}\n`).join("");
+    const signedHeaders = names.join(";");
+    const canonicalQuery = [...url.searchParams.entries()]
+        .map(([k, v]) => [rfc3986(k), rfc3986(v)])
+        .sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (a[1] < b[1] ? -1 : 1))
+        .map(([k, v]) => `${k}=${v}`).join("&");
+    const canonicalRequest = [method, url.pathname, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join("\n");
+    const scope = `${dateStamp}/${region}/${service}/aws4_request`;
+    const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256hex(canonicalRequest)].join("\n");
+    const kSigning = hmacSha(hmacSha(hmacSha(hmacSha("AWS4" + secretKey, dateStamp), region), service), "aws4_request");
+    const signature = hmacSha(kSigning, stringToSign).toString("hex");
+    return {
+        signature,
+        headers: all,
+        authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
+    };
+}
+
+async function s3Request(method, key, { body = null, query = "" } = {}) {
+    const keyPath = key ? key.split("/").map(rfc3986).join("/") : "";
+    const urlStr = `${S3_ENDPOINT.replace(/\/$/, "")}/${S3_BUCKET}${keyPath ? "/" + keyPath : ""}${query ? "?" + query : ""}`;
+    const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, "");
+    const payloadHash = sha256hex(body || "");
+    const signed = sigV4({
+        method, urlStr, headers: { "x-amz-content-sha256": payloadHash }, payloadHash,
+        region: S3_REGION, service: "s3", accessKey: S3_ACCESS_KEY, secretKey: S3_SECRET_KEY, amzDate
+    });
+    const sendHeaders = { ...signed.headers, Authorization: signed.authorization };
+    delete sendHeaders.host; // lo pone fetch
+    return fetch(urlStr, { method, headers: sendHeaders, body: body || undefined });
+}
+
+let lastS3PushAt = 0, lastS3Error = null, s3SafeToBackup = true, remoteS3Users = 0;
+let s3PushPromise = null, s3PushPending = false;
+const s3Uploads = new Set();
+let s3UploadsListed = false, s3UploadSyncRunning = false;
+
+// { status: "ok", data } | { status: "missing" } | { status: "error", error }
+async function pullDbFromS3() {
+    if (!S3_BACKUP_ENABLED) return { status: "disabled" };
+    try {
+        const res = await s3Request("GET", `${S3_PREFIX}/db.json`);
+        if (res.status === 404) return { status: "missing" };
+        if (!res.ok) return { status: "error", error: `HTTP ${res.status}` };
+        return { status: "ok", data: JSON.parse(await res.text()) };
+    } catch (e) { return { status: "error", error: e.message }; }
+}
+
+async function pushDbToS3Once() {
+    if ((db.users || []).length === 0 && remoteS3Users > 0) return;
+    try {
+        const res = await s3Request("PUT", `${S3_PREFIX}/db.json`, { body: Buffer.from(JSON.stringify(db)) });
+        if (res.ok) { lastS3PushAt = Date.now(); lastS3Error = null; remoteS3Users = (db.users || []).length; }
+        else { lastS3Error = `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`; console.error("[S3 backup] Fallo al subir:", lastS3Error); }
+    } catch (e) { lastS3Error = e.message; console.error("[S3 backup] Error al subir:", e.message); }
+}
+
+function pushDbToS3() {
+    if (!S3_BACKUP_ENABLED || !s3SafeToBackup) return Promise.resolve();
+    if (s3PushPromise) { s3PushPending = true; return s3PushPromise; }
+    s3PushPromise = (async () => {
+        try { do { s3PushPending = false; await pushDbToS3Once(); } while (s3PushPending); }
+        finally { s3PushPromise = null; }
+    })();
+    return s3PushPromise;
+}
+
+async function s3ListKeys(prefix) {
+    const keys = [];
+    let token = null;
+    do {
+        const q = `list-type=2&prefix=${rfc3986(prefix)}${token ? "&continuation-token=" + rfc3986(token) : ""}`;
+        const res = await s3Request("GET", "", { query: q });
+        if (!res.ok) return null;
+        const xml = await res.text();
+        for (const m of xml.matchAll(/<Key>([^<]+)<\/Key>/g)) keys.push(m[1].replace(/&amp;/g, "&"));
+        const next = xml.match(/<NextContinuationToken>([^<]+)<\/NextContinuationToken>/);
+        token = /<IsTruncated>true<\/IsTruncated>/.test(xml) && next ? next[1] : null;
+    } while (token);
+    return keys;
+}
+
+async function downloadUploadFromS3(name) {
+    const res = await s3Request("GET", `${S3_PREFIX}/uploads/${name}`);
+    if (!res.ok) return false;
+    fs.writeFileSync(path.join(UPLOADS_DIR, name), Buffer.from(await res.arrayBuffer()));
+    return true;
+}
+
+async function restoreMissingUploadsFromS3() {
+    if (!S3_BACKUP_ENABLED) return;
+    const keys = await s3ListKeys(`${S3_PREFIX}/uploads/`);
+    if (!keys) return;
+    s3UploadsListed = true;
+    let restored = 0;
+    for (const k of keys) {
+        const name = k.slice(`${S3_PREFIX}/uploads/`.length);
+        if (!name) continue;
+        s3Uploads.add(name);
+        if (!fs.existsSync(path.join(UPLOADS_DIR, name))) { try { if (await downloadUploadFromS3(name)) restored++; } catch (e) {} }
+    }
+    if (restored) console.log(`[S3 backup] ${restored} archivo(s) subido(s) restaurado(s).`);
+}
+
+async function syncUploadsToS3() {
+    if (!S3_BACKUP_ENABLED || s3UploadSyncRunning) return;
+    s3UploadSyncRunning = true;
+    try {
+        if (!s3UploadsListed) {
+            const keys = await s3ListKeys(`${S3_PREFIX}/uploads/`);
+            if (!keys) return;
+            keys.forEach(k => s3Uploads.add(k.slice(`${S3_PREFIX}/uploads/`.length)));
+            s3UploadsListed = true;
+        }
+        for (const name of fs.readdirSync(UPLOADS_DIR)) {
+            if (s3Uploads.has(name)) continue;
+            const full = path.join(UPLOADS_DIR, name);
+            if (!fs.statSync(full).isFile()) continue;
+            const res = await s3Request("PUT", `${S3_PREFIX}/uploads/${name}`, { body: fs.readFileSync(full) });
+            if (res.ok) s3Uploads.add(name);
+            else { console.error("[S3 backup] No se pudo subir", name, res.status); break; }
+        }
+    } catch (e) { console.error("[S3 backup] Error sincronizando archivos:", e.message); }
+    finally { s3UploadSyncRunning = false; }
+}
+
+// ---- Carpeta de seguridad fuera del proyecto + snapshots al actualizar ----
+let lastBackupDirWrite = 0;
+function writeBackupDir(force) {
+    if (!force && Date.now() - lastBackupDirWrite < 15000) return;
+    try {
+        fs.mkdirSync(BACKUP_DIR, { recursive: true });
+        const tmp = path.join(BACKUP_DIR, "db.json.tmp");
+        fs.writeFileSync(tmp, JSON.stringify(db));
+        fs.renameSync(tmp, path.join(BACKUP_DIR, "db.json"));
+        lastBackupDirWrite = Date.now();
+    } catch (e) { /* carpeta no escribible: se ignora */ }
+}
+
+function readBackupDirDb() {
+    try { return JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, "db.json"), "utf-8")); } catch (e) { return null; }
+}
+
+function snapshotDb(rawData, label) {
+    const name = `db-${label}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    const json = JSON.stringify(rawData);
+    for (const dir of [path.join(DATA_DIR, "snapshots"), path.join(BACKUP_DIR, "snapshots")]) {
+        try {
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(path.join(dir, name), json);
+            const old = fs.readdirSync(dir).filter(f => f.startsWith("db-")).sort();
+            old.slice(0, Math.max(0, old.length - 20)).forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch (e) {} });
+        } catch (e) {}
+    }
+    if (S3_BACKUP_ENABLED) s3Request("PUT", `${S3_PREFIX}/snapshots/${name}`, { body: Buffer.from(json) }).catch(() => {});
+    console.log(`[DB] Snapshot guardado: ${name}`);
+}
+
+// Pone al día datos guardados por versiones anteriores de server.js: así, al
+// actualizar el código, ninguna cuenta ni artículo antiguo se rompe.
+const SCHEMA_VERSION = 3;
+function migrateDb() {
+    db = Object.assign(defaultDb(), db);
+    const userDefaults = {
+        coins: 0, dollars: 0, blocks: 0, badges: [], inventory: [], equippedHats: [], equippedGears: [],
+        equippedTeapot: null, equippedPfp: null, equippedFace: null, equippedHead: null,
+        friends: [], friendRequests: [], followers: [], following: [], likedBy: [], dislikedBy: [],
+        likesCount: 0, dislikesCount: 0, inventoryPublic: true, allowFriendRequests: true,
+        allowTradeWithoutFriends: false, allowProfileComments: true, connectRewardClaimed: false,
+        itemAcquiredTimes: {}, active: true, bio: "", reportsCount: 0, gamexConversionsThisMonth: 0, gamexMonthKey: null
+    };
+    for (const u of db.users) {
+        for (const [k, v] of Object.entries(userDefaults)) if (u[k] === undefined || u[k] === null && Array.isArray(v)) u[k] = JSON.parse(JSON.stringify(v));
+    }
+    for (const a of db.accessories) {
+        if (!Array.isArray(a.comments)) a.comments = [];
+        if (!Array.isArray(a.reports)) a.reports = [];
+        if (a.price === undefined) a.price = 0;
+    }
+    for (const g of db.groups) {
+        for (const k of ["members", "admins", "groupChatMessages", "newsMessages", "forumPosts", "bannedMembers"]) if (!Array.isArray(g[k])) g[k] = [];
+        if (!Array.isArray(g.chatSections)) g.chatSections = [{ id: "general", name: "General" }];
+    }
+    const maxId = arr => arr.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0);
+    db.nextUserId = Math.max(db.nextUserId || 1, maxId(db.users) + 1);
+    db.nextGroupId = Math.max(db.nextGroupId || 1, maxId(db.groups) + 1);
+    db.nextId = Math.max(db.nextId || 1, maxId(db.accessories) + 1);
+    db.schemaVersion = SCHEMA_VERSION;
+}
 
 function readLocalDb() {
     // Primero db.json; si estuviera corrupto, la copia rotativa db.backup.json.
@@ -303,67 +531,98 @@ function pruneSessions() {
 }
 
 let backupRetryTimer = null;
+// Si un destino de copia falló al arrancar, se reintenta cada 30 s; cuando
+// responde se compara con lo que hay en memoria y se vuelve a activar.
 function scheduleBackupRetry() {
     clearInterval(backupRetryTimer);
     backupRetryTimer = setInterval(async () => {
-        const r = await pullDbFromGithub();
-        if (r.status === "error") return;
-        if (r.status === "ok") {
-            remoteKnownUsers = (r.data.users || []).length;
-            if ((r.data.savedAt || 0) > (db.savedAt || 0)) {
-                db = Object.assign(defaultDb(), r.data);
-                saveDbNow();
-                console.log("[GitHub backup] Se encontró un backup más reciente y se ha cargado.");
+        if (!dbSafeToBackup && GITHUB_BACKUP_ENABLED) {
+            const r = await pullDbFromGithub();
+            if (r.status !== "error") {
+                if (r.status === "ok") {
+                    remoteKnownUsers = (r.data.users || []).length;
+                    if ((r.data.savedAt || 0) > (db.savedAt || 0)) { db = r.data; migrateDb(); saveDbNow(); console.log("[GitHub backup] Backup más reciente cargado."); }
+                }
+                dbSafeToBackup = true; pushDbToGithub();
             }
         }
-        dbSafeToBackup = true;
-        clearInterval(backupRetryTimer);
-        pushDbToGithub();
+        if (!s3SafeToBackup && S3_BACKUP_ENABLED) {
+            const r = await pullDbFromS3();
+            if (r.status !== "error") {
+                if (r.status === "ok") {
+                    remoteS3Users = (r.data.users || []).length;
+                    if ((r.data.savedAt || 0) > (db.savedAt || 0)) { db = r.data; migrateDb(); saveDbNow(); console.log("[S3 backup] Backup más reciente cargado."); }
+                }
+                s3SafeToBackup = true; pushDbToS3();
+            }
+        }
+        if (dbSafeToBackup && s3SafeToBackup) clearInterval(backupRetryTimer);
     }, 30000);
 }
 
 async function loadDb() {
+    // Candidatos: disco, carpeta de seguridad, GitHub y S3. Gana el más reciente (savedAt).
+    const candidates = [];
     const local = readLocalDb();
-    let chosen = hasUsers(local) ? local : null;
+    if (hasUsers(local)) candidates.push({ name: "disco", data: local });
+    const bdir = readBackupDirDb();
+    if (hasUsers(bdir)) candidates.push({ name: "carpeta de seguridad", data: bdir });
+    const haveLocal = candidates.length > 0;
 
-    if (GITHUB_BACKUP_ENABLED) {
-        let result = { status: "error", error: "sin intentar" };
-        for (let attempt = 1; attempt <= 6; attempt++) {
-            result = await pullDbFromGithub();
-            if (result.status !== "error") break;
-            console.error(`[GitHub backup] Intento ${attempt}/6 de leer el backup falló: ${result.error}`);
-            if (chosen) break; // hay datos locales: no se bloquea el arranque
-            await sleep(attempt * 3000);
+    async function tryRemote(label, pullFn) {
+        let r = { status: "error", error: "sin intentar" };
+        for (let attempt = 1; attempt <= (haveLocal ? 1 : 6); attempt++) {
+            r = await pullFn();
+            if (r.status !== "error") break;
+            console.error(`[${label}] Intento ${attempt} de leer el backup falló: ${r.error}`);
+            if (!haveLocal) await sleep(attempt * 3000);
         }
-        if (result.status === "ok") {
-            remoteKnownUsers = (result.data.users || []).length;
-            if (hasUsers(result.data) && (!chosen || (result.data.savedAt || 0) > (chosen.savedAt || 0))) {
-                chosen = result.data;
-                console.log("[GitHub backup] Base de datos restaurada desde GitHub.");
-            }
-        } else if (result.status === "error") {
-            if (!chosen) {
-                // Mejor NO arrancar que arrancar vacío y pisar el backup bueno.
-                throw new Error("No se pudo leer el backup de GitHub y no hay datos locales. No arranco con una base de datos vacía.");
-            }
-            dbSafeToBackup = false; // no se sube nada hasta poder comparar con el backup remoto
-            scheduleBackupRetry();
-        }
-    } else {
-        console.warn("[DB] ⚠️ GitHub backup DESACTIVADO: si el disco de Render se borra, se pierden los datos. Configura GITHUB_TOKEN y GITHUB_REPO (o un Persistent Disk con DATA_DIR).");
+        return r;
     }
 
-    db = Object.assign(defaultDb(), chosen || {});
+    let gh = { status: "disabled" }, s3 = { status: "disabled" };
+    if (GITHUB_BACKUP_ENABLED) gh = await tryRemote("GitHub backup", pullDbFromGithub);
+    if (S3_BACKUP_ENABLED) s3 = await tryRemote("S3 backup", pullDbFromS3);
+    if (!GITHUB_BACKUP_ENABLED && !S3_BACKUP_ENABLED) {
+        console.warn("[DB] ⚠️ Sin backup remoto (GitHub/S3): si el disco de Render se borra, se pierden los datos.");
+    }
+
+    if (gh.status === "ok") { remoteKnownUsers = (gh.data.users || []).length; if (hasUsers(gh.data)) candidates.push({ name: "GitHub", data: gh.data }); }
+    if (s3.status === "ok") { remoteS3Users = (s3.data.users || []).length; if (hasUsers(s3.data)) candidates.push({ name: "S3", data: s3.data }); }
+
+    const anyError = gh.status === "error" || s3.status === "error";
+    if (candidates.length === 0 && anyError) {
+        // Mejor NO arrancar que arrancar vacío y pisar un backup bueno.
+        throw new Error("No se pudo leer ningún backup remoto y no hay datos locales. No arranco con una base de datos vacía.");
+    }
+    if (gh.status === "error") dbSafeToBackup = false;
+    if (s3.status === "error") s3SafeToBackup = false;
+    if (!dbSafeToBackup || !s3SafeToBackup) scheduleBackupRetry();
+
+    let chosen = null;
+    for (const cand of candidates) {
+        if (!chosen || (cand.data.savedAt || 0) > (chosen.data.savedAt || 0)) chosen = cand;
+    }
+    if (chosen && chosen.name !== "disco") console.log(`[DB] Base de datos restaurada desde: ${chosen.name}`);
+
+    // Snapshot automático cuando server.js ha cambiado desde el último arranque.
+    if (chosen && chosen.data.serverVersion && chosen.data.serverVersion !== SERVER_VERSION) {
+        snapshotDb(chosen.data, "antes-de-actualizar");
+    }
+
+    db = Object.assign(defaultDb(), chosen ? chosen.data : {});
+    migrateDb();
+    db.serverVersion = SERVER_VERSION;
     pruneSessions();
     saveDbNow();
-    if (GITHUB_BACKUP_ENABLED) {
-        pushDbToGithub();
-        restoreMissingUploads().then(syncUploadsToGithub);
-    }
+    writeBackupDir(true);
+    if (GITHUB_BACKUP_ENABLED) { pushDbToGithub(); restoreMissingUploads().then(syncUploadsToGithub); }
+    if (S3_BACKUP_ENABLED) { pushDbToS3(); restoreMissingUploadsFromS3().then(syncUploadsToS3); }
 }
 
 let saveTimer = null;
 let githubSaveTimer = null;
+let s3SaveTimer = null;
 let lastBackupRotation = 0;
 
 function saveDbNow() {
@@ -374,13 +633,13 @@ function saveDbNow() {
             fs.copyFileSync(DB_FILE, DB_BACKUP_FILE);
             lastBackupRotation = Date.now();
         }
-        // Escritura atómica: primero a un temporal y luego se renombra, así un
-        // apagado a mitad de escritura nunca deja db.json a medias.
+        // Escritura atómica: temporal + renombrado.
         const tmp = DB_FILE + ".tmp";
         fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
         fs.renameSync(tmp, DB_FILE);
         lastLocalSaveAt = Date.now();
         dirty = false;
+        writeBackupDir(false);
     } catch (e) {
         console.error("Error guardando la base de datos:", e.message);
     }
@@ -395,6 +654,10 @@ function saveDb() {
         clearTimeout(githubSaveTimer);
         githubSaveTimer = setTimeout(pushDbToGithub, 4000);
     }
+    if (S3_BACKUP_ENABLED) {
+        clearTimeout(s3SaveTimer);
+        s3SaveTimer = setTimeout(pushDbToS3, 4000);
+    }
 }
 
 // ---- Guardado al apagarse (Render envía SIGTERM antes de parar el servidor) ----
@@ -406,7 +669,7 @@ async function gracefulShutdown(signal) {
     try {
         saveDbNow();
         await Promise.race([
-            (async () => { await pushDbToGithub(); await syncUploadsToGithub(); })(),
+            (async () => { writeBackupDir(true); await Promise.all([pushDbToGithub(), pushDbToS3()]); await Promise.all([syncUploadsToGithub(), syncUploadsToS3()]); })(),
             sleep(20000)
         ]);
     } catch (e) { console.error("Error al guardar en el apagado:", e.message); }
@@ -667,10 +930,13 @@ function publicUser(u, viewer) {
         badges: u.badges || [],
         inventory: showInventory ? (u.inventory || []).map(id => findItem(id)).filter(Boolean) : [],
         inventoryPublic: u.inventoryPublic !== false,
+        commentsEnabled: u.allowProfileComments !== false,
         equippedHats: u.equippedHats || [],
         equippedTeapot: u.equippedTeapot || null,
         equippedPfp: u.equippedPfp || null,
         equippedFace: u.equippedFace || null,
+        equippedHead: u.equippedHead || null,
+        equippedGears: u.equippedGears || [],
         friends: u.friends || [],
         profileBgColor: equippedStyling(u).bgColor,
         profileSoundUrl: equippedStyling(u).soundUrl,
@@ -705,6 +971,8 @@ function privateUser(u) {
         blocks: u.blocks || 0,
         allowFriendRequests: u.allowFriendRequests !== false,
         allowTradeWithoutFriends: !!u.allowTradeWithoutFriends,
+        allowProfileComments: u.allowProfileComments !== false,
+        connectRewardClaimed: !!u.connectRewardClaimed,
         dollars: u.dollars,
         admin: !!u.admin,
         owner: !!u.owner,
@@ -715,6 +983,8 @@ function privateUser(u) {
         equippedTeapot: u.equippedTeapot || null,
         equippedPfp: u.equippedPfp || null,
         equippedFace: u.equippedFace || null,
+        equippedHead: u.equippedHead || null,
+        equippedGears: u.equippedGears || [],
         friends: u.friends || [],
         friendRequests: u.friendRequests || [],
         profileBgColor: equippedStyling(u).bgColor,
@@ -874,6 +1144,10 @@ app.post("/api/register", (req, res) => {
         equippedTeapot: null,
         equippedPfp: null,
         equippedFace: null,
+        equippedHead: null,
+        equippedGears: [],
+        allowProfileComments: true,
+        connectRewardClaimed: false,
         inventoryPublic: true,
         itemAcquiredTimes: {},
         friends: [],
@@ -1137,78 +1411,82 @@ app.get("/api/accessories/all", (req, res) => {
     res.json({ items: db.accessories.map(maskAnonymous) });
 });
 
-app.post("/api/accessories/buy", requireAuth, (req, res) => {
-    const { itemId } = req.body || {};
-    const item = findItem(itemId);
-    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
-    if (item.offsale) return res.status(400).json({ error: "Este artículo no está a la venta." });
-    if (item.expiresAt && Date.now() > item.expiresAt) return res.status(400).json({ error: "Este artículo ya no está disponible." });
+// Lógica común de comprar un artículo para uno mismo o regalarlo a otra persona.
+// payer = quien paga; receiver = quien lo recibe (puede ser el mismo).
+function performPurchase(payer, receiver, item, isGift) {
+    if (item.offsale) return { status: 400, error: "Este artículo no está a la venta." };
+    if (item.expiresAt && Date.now() > item.expiresAt) return { status: 400, error: "Este artículo ya no está disponible." };
 
-    const user = req.user;
-    if (item.onlyBlock === "turbo" && !hasActiveTurboBlock(user)) {
-        return res.status(403).json({ error: "Este artículo requiere Suscripción Turbo Block." });
+    if (item.onlyBlock === "turbo" && !hasActiveTurboBlock(payer)) {
+        return { status: 403, error: "Este artículo requiere Suscripción Turbo Block." };
     }
-    if (item.onlyBlock === true && !hasActiveBlock(user)) {
-        return res.status(403).json({ error: "Este artículo requiere Suscripción Block." });
+    if (item.onlyBlock === true && !hasActiveBlock(payer)) {
+        return { status: 403, error: "Este artículo requiere Suscripción Block." };
     }
-    if (item.limited) {
-        const ownedCount = user.inventory.filter(id => String(id) === String(item.id)).length;
+
+    const ownedCount = receiver.inventory.filter(id => String(id) === String(item.id)).length;
+    if (!item.limited) {
+        // Los artículos que no son limited solo se pueden tener (comprar) 1 vez.
+        if (ownedCount >= 1) {
+            return { status: 400, error: isGift
+                ? `${receiver.username} ya tiene este artículo (los no limited solo se pueden tener 1 vez).`
+                : "Ya tienes este artículo. Los artículos que no son limited solo se pueden comprar 1 vez." };
+        }
+    } else {
         if (item.maxPerUser && ownedCount >= item.maxPerUser) {
-            return res.status(400).json({ error: "Ya tienes el máximo de copias permitidas de este artículo." });
+            return { status: 400, error: isGift ? `${receiver.username} ya tiene el máximo de copias permitidas.` : "Ya tienes el máximo de copias permitidas de este artículo." };
         }
         if (item.maxGlobal != null && (item.totalSold || 0) >= item.maxGlobal) {
-            return res.status(400).json({ error: "Este artículo limitado se ha agotado." });
+            return { status: 400, error: "Este artículo limitado se ha agotado." };
         }
     }
-    const eff = effectivePrice(user, item);
-    const priceBlocks = eff.blocks;
-    if (user.coins < eff.coins) {
-        return res.status(400).json({ error: "No tienes monedas suficientes." });
-    }
-    if (priceBlocks > 0 && (user.blocks || 0) < priceBlocks) {
-        return res.status(400).json({ error: "No tienes suficientes Bloques 🟥." });
-    }
 
-    user.coins -= eff.coins;
-    if (priceBlocks > 0) user.blocks = (user.blocks || 0) - priceBlocks;
-    user.inventory.push(item.id);
+    // Al regalar se paga el precio completo (sin descuento de variantes).
+    const eff = isGift
+        ? { coins: item.price || 0, blocks: Number(item.priceBlocks) || 0 }
+        : effectivePrice(payer, item);
+    const priceBlocks = eff.blocks;
+    if (payer.coins < eff.coins) return { status: 400, error: "No tienes monedas suficientes." };
+    if (priceBlocks > 0 && (payer.blocks || 0) < priceBlocks) return { status: 400, error: "No tienes suficientes Bloques 🟥." };
+
+    payer.coins -= eff.coins;
+    if (priceBlocks > 0) payer.blocks = (payer.blocks || 0) - priceBlocks;
+    receiver.inventory.push(item.id);
     item.totalSold = (item.totalSold || 0) + 1;
 
-    // Periodo de retención: se guarda cuándo se adquirió esta copia, para
-    // poder exigir 3 días antes de poder revenderla/tradearla si es un
-    // limited (los admins se saltan esta restricción, ver canResellOrTrade).
-    user.itemAcquiredTimes = user.itemAcquiredTimes || {};
-    user.itemAcquiredTimes[item.id] = user.itemAcquiredTimes[item.id] || [];
-    user.itemAcquiredTimes[item.id].push(Date.now());
+    // Periodo de retención de 3 días para quien recibe la copia.
+    receiver.itemAcquiredTimes = receiver.itemAcquiredTimes || {};
+    receiver.itemAcquiredTimes[item.id] = receiver.itemAcquiredTimes[item.id] || [];
+    receiver.itemAcquiredTimes[item.id].push(Date.now());
 
-    // Si el artículo lo creó un usuario (no un admin), ese usuario se lleva
-    // el precio en monedas como ganancia por la venta, y se registra la
-    // transacción para "Mis transacciones".
-    if (item.creatorId && !item.createdByAdmin && String(item.creatorId) !== String(user.id) && (item.price > 0 || priceBlocks > 0)) {
+    // Ganancias del creador (usuarios normales y 🎩UGC+; los admins no cobran):
+    // el precio en monedas + el precio en bloques + 5 bloques por venta.
+    if (item.creatorId && !item.createdByAdmin && String(item.creatorId) !== String(payer.id) && (item.price > 0 || priceBlocks > 0 || true)) {
         const creator = db.users.find(u => String(u.id) === String(item.creatorId));
         if (creator) {
             creator.coins += eff.coins;
-            // Por cada artículo que te compren recibes 5 Bloques 🟥, además de las monedas.
-            creator.blocks = (creator.blocks || 0) + SALE_BLOCKS_REWARD;
+            const blocksEarned = priceBlocks + SALE_BLOCKS_REWARD;
+            creator.blocks = (creator.blocks || 0) + blocksEarned;
             db.transactions = db.transactions || [];
             db.transactions.push({
                 id: nextId(),
                 type: "sale",
                 itemId: item.id,
                 itemName: item.name,
-                buyerId: user.id,
-                buyerUsername: user.username,
+                buyerId: payer.id,
+                buyerUsername: payer.username,
+                receiverUsername: receiver.username,
+                gift: !!isGift,
                 sellerId: creator.id,
                 sellerUsername: creator.username,
                 amount: eff.coins,
-                blocksEarned: SALE_BLOCKS_REWARD,
+                blocksEarned,
                 createdAt: Date.now()
             });
         }
     }
 
-    // Si el artículo (p.ej. un Teapot) tiene un Star Code enlazado, su dueño
-    // recibe un 10% del precio en monedas, como apoyo.
+    // Star Code enlazado (p. ej. Teapots): su dueño recibe un 10% en monedas.
     if (item.linkedStarCode) {
         const sc = db.starCodes.find(c => c.code.toLowerCase() === String(item.linkedStarCode).toLowerCase());
         if (sc) {
@@ -1217,9 +1495,33 @@ app.post("/api/accessories/buy", requireAuth, (req, res) => {
             sc.uses = (sc.uses || 0) + 1;
         }
     }
+    return { ok: true, eff };
+}
 
+app.post("/api/accessories/buy", requireAuth, (req, res) => {
+    const { itemId } = req.body || {};
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    const r = performPurchase(req.user, req.user, item, false);
+    if (!r.ok) return res.status(r.status).json({ error: r.error });
     saveDb();
-    res.json({ newBalance: user.coins });
+    res.json({ newBalance: req.user.coins });
+});
+
+// Regalar un artículo: pagas lo que vale y lo recibe otra persona (por nombre o ID).
+app.post("/api/accessories/gift", requireAuth, (req, res) => {
+    const { itemId, to } = req.body || {};
+    const item = findItem(itemId);
+    if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
+    const key = String(to || "").trim();
+    if (!key) return res.status(400).json({ error: "Escribe el nombre o el ID del usuario al que regalar." });
+    const receiver = db.users.find(u => String(u.id) === key) || findUserByUsername(key);
+    if (!receiver) return res.status(404).json({ error: "No existe ningún usuario con ese nombre o ID." });
+    if (String(receiver.id) === String(req.user.id)) return res.status(400).json({ error: "No puedes regalarte un artículo a ti mismo (cómpralo normal)." });
+    const r = performPurchase(req.user, receiver, item, true);
+    if (!r.ok) return res.status(r.status).json({ error: r.error });
+    saveDb();
+    res.json({ ok: true, message: `¡Has regalado "${item.name}" a ${receiver.username}!`, newBalance: req.user.coins, newBlocks: req.user.blocks || 0 });
 });
 
 // Comprueba si el usuario puede revender/tradear una copia de este artículo.
@@ -1296,13 +1598,19 @@ app.post("/api/blocks/gamex-convert", requireAuth, (req, res) => {
 
 app.get("/api/transactions/mine", requireAuth, (req, res) => {
     db.transactions = db.transactions || [];
-    const sales = db.transactions.filter(t => t.type === "sale" && String(t.sellerId) === String(req.user.id));
-    const purchases = db.transactions.filter(t => t.type === "coin_purchase" && String(t.userId) === String(req.user.id));
-    const totalEarned = sales.reduce((sum, t) => sum + t.amount, 0);
+    const myId = String(req.user.id);
+    // Ventas: de tu ropa/accesorios (sale) y de tus reventas (resale).
+    const sales = db.transactions.filter(t => (t.type === "sale" || t.type === "resale") && String(t.sellerId) === myId);
+    const resalePurchases = db.transactions.filter(t => t.type === "resale" && String(t.buyerId) === myId);
+    const purchases = db.transactions.filter(t => t.type === "coin_purchase" && String(t.userId) === myId);
+    const totalEarned = sales.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalBlocksEarned = sales.reduce((sum, t) => sum + (t.blocksEarned || 0), 0);
     res.json({
         sales: sales.sort((a, b) => b.createdAt - a.createdAt),
+        resalePurchases: resalePurchases.sort((a, b) => b.createdAt - a.createdAt),
         purchases: purchases.sort((a, b) => b.createdAt - a.createdAt),
-        totalEarned
+        totalEarned,
+        totalBlocksEarned
     });
 });
 
@@ -1329,6 +1637,16 @@ app.post("/api/accessories/equip", requireAuth, (req, res) => {
         user.equippedPfp = itemId;
     } else if (item.type === "face") {
         user.equippedFace = itemId;
+    } else if (item.type === "head") {
+        user.equippedHead = itemId; // solo 1 cabeza
+    } else if (item.type === "gear") {
+        user.equippedGears = user.equippedGears || [];
+        if (!user.equippedGears.some(id => String(id) === String(itemId))) {
+            if (user.equippedGears.length >= 3) {
+                return res.status(400).json({ error: "Ya tienes 3 gears equipados (el máximo). Desequipa uno primero." });
+            }
+            user.equippedGears.push(itemId);
+        }
     } else {
         return res.status(400).json({ error: "Este tipo de artículo no se puede equipar." });
     }
@@ -1339,6 +1657,8 @@ app.post("/api/accessories/equip", requireAuth, (req, res) => {
         equippedTeapot: user.equippedTeapot || null,
         equippedPfp: user.equippedPfp || null,
         equippedFace: user.equippedFace || null,
+        equippedHead: user.equippedHead || null,
+        equippedGears: user.equippedGears || [],
         profileBgColor: equippedStyling(user).bgColor,
         profileSoundUrl: equippedStyling(user).soundUrl
     });
@@ -1354,7 +1674,11 @@ app.post("/api/accessories/unequip", requireAuth, (req, res) => {
         if (String(user.equippedTeapot) === String(itemId)) user.equippedTeapot = null;
         if (String(user.equippedPfp) === String(itemId)) user.equippedPfp = null;
         if (String(user.equippedFace) === String(itemId)) user.equippedFace = null;
+        if (String(user.equippedHead) === String(itemId)) user.equippedHead = null;
+        user.equippedGears = (user.equippedGears || []).filter(id => String(id) !== String(itemId));
     } else {
+        user.equippedGears = [];
+        user.equippedHead = null;
         user.equippedHats = [];
         user.equippedTeapot = null;
         user.equippedPfp = null;
@@ -1398,6 +1722,9 @@ app.get("/api/accessories/:id/detail", (req, res) => {
     });
 });
 
+// Precio máximo de reventa: 9 billones de monedas (9 x 10^12).
+const RESALE_MAX_PRICE = 9000000000000;
+
 app.post("/api/accessories/resell-list", requireAuth, (req, res) => {
     const { itemId, price } = req.body || {};
     const user = req.user;
@@ -1408,11 +1735,34 @@ app.post("/api/accessories/resell-list", requireAuth, (req, res) => {
         const hours = Math.ceil(retentionRemaining(user, itemId) / (60 * 60 * 1000));
         return res.status(400).json({ error: `Este Limited está en periodo de retención. Podrás revenderlo en ~${hours}h.` });
     }
+    const p = Math.floor(Number(price));
+    if (!p || p < 1) return res.status(400).json({ error: "Pon un precio de reventa válido (mínimo 1 moneda)." });
+    if (p > RESALE_MAX_PRICE) return res.status(400).json({ error: "El precio máximo de reventa es 9.000.000.000.000 monedas (9 billones)." });
 
-    const listing = { id: nextId(), itemId, sellerId: user.id, sellerUsername: user.username, price: Number(price) || 0 };
+    // Solo una reventa publicada por artículo; para cambiarla hay que eliminarla antes.
+    if (db.resaleListings.some(l => String(l.itemId) === String(itemId) && String(l.sellerId) === String(user.id))) {
+        return res.status(400).json({ error: "Ya tienes una reventa publicada de este artículo. Elimínala para publicar otra." });
+    }
+
+    // La copia NO sale de tu inventario hasta que alguien la compre.
+    const listing = { id: nextId(), itemId, sellerId: user.id, sellerUsername: user.username, price: p, createdAt: Date.now() };
     db.resaleListings.push(listing);
     saveDb();
     res.json({ listing });
+});
+
+app.post("/api/accessories/resell-cancel", requireAuth, (req, res) => {
+    const { listingId, itemId } = req.body || {};
+    const listing = db.resaleListings.find(l =>
+        (listingId && String(l.id) === String(listingId)) ||
+        (!listingId && itemId && String(l.itemId) === String(itemId) && String(l.sellerId) === String(req.user.id)));
+    if (!listing) return res.status(404).json({ error: "No tienes ninguna reventa publicada de este artículo." });
+    if (String(listing.sellerId) !== String(req.user.id) && !isAdminUser(req.user)) {
+        return res.status(403).json({ error: "Esa reventa no es tuya." });
+    }
+    db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id);
+    saveDb();
+    res.json({ ok: true, message: "Reventa eliminada. Sigues teniendo tu copia." });
 });
 
 app.post("/api/accessories/resell-buy", requireAuth, (req, res) => {
@@ -1420,20 +1770,56 @@ app.post("/api/accessories/resell-buy", requireAuth, (req, res) => {
     const listing = db.resaleListings.find(l => String(l.id) === String(listingId));
     if (!listing) return res.status(404).json({ error: "Anuncio no encontrado." });
     const buyer = req.user;
-    const seller = db.users.find(u => u.id === listing.sellerId);
-    if (buyer.coins < listing.price) return res.status(400).json({ error: "No tienes monedas suficientes." });
+    const seller = db.users.find(u => String(u.id) === String(listing.sellerId));
+    const item = findItem(listing.itemId);
+    if (!item) { db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id); saveDb(); return res.status(404).json({ error: "Artículo no encontrado." }); }
+    if (!seller || String(seller.id) === String(buyer.id)) return res.status(400).json({ error: "No puedes comprar tu propia reventa." });
 
-    const idx = seller ? seller.inventory.findIndex(id => String(id) === String(listing.itemId)) : -1;
-    if (seller && idx !== -1) seller.inventory.splice(idx, 1);
-    if (seller && seller.itemAcquiredTimes && seller.itemAcquiredTimes[listing.itemId]) {
-        seller.itemAcquiredTimes[listing.itemId].shift();
+    // El vendedor tiene que seguir teniendo la copia (si no, el anuncio ya no es válido).
+    const idx = seller.inventory.findIndex(id => String(id) === String(listing.itemId));
+    if (idx === -1) {
+        db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id);
+        saveDb();
+        return res.status(400).json({ error: "El vendedor ya no tiene esta copia. El anuncio se ha retirado." });
+    }
+    if (buyer.coins < listing.price) return res.status(400).json({ error: "No tienes monedas suficientes." });
+    const buyerOwned = buyer.inventory.filter(id => String(id) === String(item.id)).length;
+    if (item.maxPerUser && buyerOwned >= item.maxPerUser) {
+        return res.status(400).json({ error: "Ya tienes el máximo de copias permitidas de este artículo." });
+    }
+
+    // Ahora sí: la copia pasa al comprador y el vendedor cobra.
+    seller.inventory.splice(idx, 1);
+    if (seller.itemAcquiredTimes && seller.itemAcquiredTimes[listing.itemId]) seller.itemAcquiredTimes[listing.itemId].shift();
+    if (!seller.inventory.some(id => String(id) === String(item.id))) {
+        seller.equippedHats = (seller.equippedHats || []).filter(id => String(id) !== String(item.id));
+        if (String(seller.equippedHead) === String(item.id)) seller.equippedHead = null;
+        if (String(seller.equippedTeapot) === String(item.id)) seller.equippedTeapot = null;
+        if (String(seller.equippedPfp) === String(item.id)) seller.equippedPfp = null;
+        if (String(seller.equippedFace) === String(item.id)) seller.equippedFace = null;
+        seller.equippedGears = (seller.equippedGears || []).filter(id => String(id) !== String(item.id));
     }
     buyer.coins -= listing.price;
-    if (seller) seller.coins += listing.price;
+    seller.coins += listing.price;
     buyer.inventory.push(listing.itemId);
     buyer.itemAcquiredTimes = buyer.itemAcquiredTimes || {};
     buyer.itemAcquiredTimes[listing.itemId] = buyer.itemAcquiredTimes[listing.itemId] || [];
     buyer.itemAcquiredTimes[listing.itemId].push(Date.now());
+
+    // Queda registrado en "Mis transacciones" (del vendedor y del comprador).
+    db.transactions = db.transactions || [];
+    db.transactions.push({
+        id: nextId(),
+        type: "resale",
+        itemId: item.id,
+        itemName: item.name,
+        buyerId: buyer.id,
+        buyerUsername: buyer.username,
+        sellerId: seller.id,
+        sellerUsername: seller.username,
+        amount: listing.price,
+        createdAt: Date.now()
+    });
 
     db.resaleListings = db.resaleListings.filter(l => l.id !== listing.id);
     saveDb();
@@ -1497,7 +1883,7 @@ function createVariants(parent, variants, maxVariants, discountPercent) {
             comments: [],
             reports: []
         });
-        if (parent.type === "hat") child.glbUrl = v.glbUrl || parent.glbUrl;
+        if (parent.type === "hat" || parent.type === "head") child.glbUrl = v.glbUrl || parent.glbUrl;
         delete child.variantIds;
         delete child.variantDiscountPercent;
         db.accessories.push(child);
@@ -1530,7 +1916,7 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
     if (!canUploadUGC(user)) {
         return res.status(403).json({ error: "Subir artículos al catálogo requiere Suscripción Turbo Block (o la insignia 🎩UGC+)." });
     }
-    const { name, imageUrl, price, priceBlocks, offsale, anonymous, type, description, obtainText, variants } = req.body || {};
+    const { name, imageUrl, price, priceBlocks, offsale, anonymous, type, description, obtainText, variants, onlyTurbo } = req.body || {};
     if (!name || !imageUrl) return res.status(400).json({ error: "Faltan datos." });
 
     const ugcPlus = isUgcPlus(user);
@@ -1577,7 +1963,7 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
         priceBlocks: finalPriceBlocks,
         limited: false,
         offsale: finalOffsale,
-        onlyBlock: false,
+        onlyBlock: (onlyTurbo === true || onlyTurbo === "true") ? "turbo" : false,
         isGhost: false,
         totalSold: 0,
         creatorId: user.id,
@@ -1596,16 +1982,27 @@ app.post("/api/tshirts/upload", requireAuth, (req, res) => {
 });
 
 app.post("/api/admin/tshirts/upload", requireAdmin, (req, res) => {
-    const { name, limited, maxPerUser, maxGlobal, expiresInDays, expiresAt, offsale, onlyBlock, imageUrl, price, priceBlocks, description, obtainText, type, variants, variantDiscountPercent } = req.body || {};
+    const { name, limited, maxPerUser, maxGlobal, expiresInDays, expiresAt, offsale, onlyBlock, imageUrl, price, priceBlocks, description, obtainText, type, variants, variantDiscountPercent, gearId, value } = req.body || {};
+    // Los gears llevan un ID único (el que usa el juego en Godot para identificarlos).
+    let cleanGearId = null;
+    if (type === "gear") {
+        cleanGearId = String(gearId || "").trim().slice(0, 40);
+        if (!cleanGearId) return res.status(400).json({ error: "Los gears necesitan un ID único (p. ej. espada_fuego)." });
+        if (db.accessories.some(a => a.type === "gear" && String(a.gearId).toLowerCase() === cleanGearId.toLowerCase())) {
+            return res.status(400).json({ error: `Ya existe un gear con el ID "${cleanGearId}".` });
+        }
+    }
     const item = {
         id: nextId(),
         name,
-        type: (type === "pfp" || type === "face") ? type : "tshirt",
+        type: (type === "pfp" || type === "face" || type === "gear") ? type : "tshirt",
         imageUrl,
         description: (description || "").slice(0, 300),
         obtainText: (obtainText || "").slice(0, 200),
+        ...(cleanGearId ? { gearId: cleanGearId } : {}),
         price: Number(price) || 0,
         priceBlocks: Number(priceBlocks) || 0,
+        value: (limited && value) ? Math.max(0, Math.floor(Number(value)) || 0) : null,
         limited: !!limited,
         offsale: !!offsale,
         onlyBlock: onlyBlock === "turbo" ? "turbo" : (onlyBlock === true || onlyBlock === "true"),
@@ -1641,7 +2038,7 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.fields([{ name: "
     const item = {
         id: nextId(),
         name: b.name,
-        type: "hat",
+        type: b.type === "head" ? "head" : "hat",
         glbUrl: fileUrl(req, glbFile.filename),
         // La miniatura ahora es siempre un archivo subido al servidor, no un enlace externo.
         imageUrl: imageFile ? fileUrl(req, imageFile.filename) : "",
@@ -1673,7 +2070,7 @@ app.post("/api/admin/accessories/upload", requireAdmin, upload.fields([{ name: "
 });
 
 app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
-    const { itemId, price, priceBlocks, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl, description, obtainText } = req.body || {};
+    const { itemId, price, priceBlocks, limited, offsale, isGhost, onlyBlock, bgColor, soundUrl, description, obtainText, value } = req.body || {};
     const item = findItem(itemId);
     if (!item) return res.status(404).json({ error: "Artículo no encontrado." });
     if (item.type === "teapot") return res.status(403).json({ error: "Los Teapots solo los puede editar el Owner." });
@@ -1694,6 +2091,8 @@ app.post("/api/admin/accessories/edit", requireAdmin, (req, res) => {
     if (soundUrl) item.soundUrl = soundUrl;
     if (description !== undefined) item.description = (description || "").slice(0, 300);
     if (obtainText !== undefined) item.obtainText = (obtainText || "").slice(0, 200);
+    // Valor de un limited (sale en la página del artículo). Vacío = quitarlo.
+    if (value !== undefined) item.value = (value === "" || value === null) ? null : Math.max(0, Math.floor(Number(value)) || 0);
 
     if (!wasLimited && item.limited) notifyDiscordNewLimited(item, req);
 
@@ -1726,9 +2125,12 @@ app.post("/api/owner/teapots/upload", requireAuth, requireOwner, (req, res) => {
         price: Number(b.price) || 0,
         limited,
         offsale: b.offsale === true || b.offsale === "true",
-        onlyBlock: false,
-        maxPerUser: limited ? Number(b.maxPerUser) || 1 : null,
+        onlyBlock: b.onlyBlock === "turbo" ? "turbo" : false,
+        // Copias vacías = infinitas.
+        maxPerUser: limited && b.maxPerUser ? Number(b.maxPerUser) : null,
         maxGlobal: limited && b.maxGlobal ? Number(b.maxGlobal) : null,
+        expiresAt: limited ? parseExpires(b) : null,
+        value: (limited && b.value) ? Math.max(0, Math.floor(Number(b.value)) || 0) : null,
         linkedStarCode: b.linkedStarCode || null,
         isGhost: false,
         totalSold: 0,
@@ -1801,6 +2203,8 @@ app.post("/api/admin/accessories/delete", requireAdmin, (req, res) => {
             if (String(u.equippedTeapot) === String(it.id)) u.equippedTeapot = null;
             if (String(u.equippedPfp) === String(it.id)) u.equippedPfp = null;
             if (String(u.equippedFace) === String(it.id)) u.equippedFace = null;
+            if (String(u.equippedHead) === String(it.id)) u.equippedHead = null;
+            u.equippedGears = (u.equippedGears || []).filter(id => String(id) !== String(it.id));
         });
     });
     db.accessories = db.accessories.filter(a => !ids.has(String(a.id)));
@@ -1880,6 +2284,247 @@ app.post("/api/admin/upload/file", requireAdmin, upload.single("file"), (req, re
     res.json({ ok: true, url: fileUrl(req, req.file.filename) });
 });
 
+
+// ---------------------------------------------------------------------------
+// SOMBREROS 3D DE 🎩UGC+ (subida con modelo .glb)
+// ---------------------------------------------------------------------------
+
+function discardUploads(req) {
+    const files = [];
+    if (req.file) files.push(req.file);
+    if (req.files) Object.values(req.files).forEach(arr => files.push(...arr));
+    files.forEach(f => { try { fs.unlinkSync(f.path); } catch (e) {} });
+}
+
+app.post("/api/ugc/accessories/upload", requireAuth, upload.fields([{ name: "glb", maxCount: 1 }, { name: "image", maxCount: 1 }]), (req, res) => {
+    const user = req.user;
+    if (!isUgcPlus(user) && !isAdminUser(user)) {
+        discardUploads(req);
+        return res.status(403).json({ error: "Solo la insignia 🎩UGC+ (o un admin) puede subir sombreros/accesorios 3D." });
+    }
+    const b = req.body || {};
+    const glbFile = req.files && req.files.glb && req.files.glb[0];
+    const imageFile = req.files && req.files.image && req.files.image[0];
+    if (!b.name || !String(b.name).trim()) { discardUploads(req); return res.status(400).json({ error: "Falta el nombre." }); }
+    if (!glbFile || !/\.glb$/i.test(glbFile.originalname || "")) { discardUploads(req); return res.status(400).json({ error: "Sube el modelo 3D como archivo .glb." }); }
+    if (!imageFile) { discardUploads(req); return res.status(400).json({ error: "Falta la miniatura (imagen PNG/JPG)." }); }
+
+    const offsale = b.offsale === "true" || b.offsale === true;
+    const price = Number(b.price) || 0;
+    // Restricciones de 🎩UGC+: no limiteds, no gratis, mínimo 55 monedas (o offsale).
+    if (!isAdminUser(user) && !offsale && price < 55) {
+        discardUploads(req);
+        return res.status(400).json({ error: "Con 🎩UGC+ el precio mínimo de venta es 55 monedas (o márcalo como Offsale)." });
+    }
+    const item = {
+        id: nextId(),
+        name: String(b.name).trim().slice(0, 60),
+        type: "hat",
+        glbUrl: fileUrl(req, glbFile.filename),
+        imageUrl: fileUrl(req, imageFile.filename),
+        description: (b.description || "").slice(0, 300),
+        obtainText: (b.obtainText || "").slice(0, 200),
+        price,
+        priceBlocks: Number(b.priceBlocks) || 0,
+        limited: false,
+        offsale,
+        onlyBlock: (b.onlyTurbo === "true" || b.onlyTurbo === true) ? "turbo" : false,
+        isGhost: false,
+        totalSold: 0,
+        creatorId: user.id,
+        creatorUsername: user.username,
+        anonymous: b.anonymous === "true" || b.anonymous === true,
+        createdByAdmin: isAdminUser(user),
+        createdByUgcPlus: true,
+        comments: [],
+        reports: []
+    };
+    db.accessories.push(item);
+    createVariants(item, b.variants, 3, 0);
+    saveDb();
+    notifyDiscordNewItem(item, req);
+    res.json({ item });
+});
+
+// Subida de modelos .glb para las variantes de los sombreros (🎩UGC+ y admins).
+app.post("/api/upload/model", requireAuth, upload.single("file"), (req, res) => {
+    if (!isUgcPlus(req.user) && !isAdminUser(req.user)) { discardUploads(req); return res.status(403).json({ error: "Solo 🎩UGC+ o admins." }); }
+    if (!req.file) return res.status(400).json({ error: "No se recibió ningún archivo." });
+    if (!/\.glb$/i.test(req.file.originalname || "")) { discardUploads(req); return res.status(400).json({ error: "Debe ser un archivo .glb." }); }
+    res.json({ ok: true, url: fileUrl(req, req.file.filename) });
+});
+
+// ---------------------------------------------------------------------------
+// CHAT PRIVADO: imágenes de la galería de fotos de perfil (Turbo Block)
+// ---------------------------------------------------------------------------
+
+app.post("/api/chat/send-image", requireAuth, (req, res) => {
+    const user = req.user;
+    if (!hasActiveTurboBlock(user)) return res.status(403).json({ error: "Enviar imágenes al chat requiere Suscripción Turbo Block." });
+    const { friendId, pfpItemId } = req.body || {};
+    const item = findItem(pfpItemId);
+    if (!item || item.type !== "pfp") return res.status(400).json({ error: "Solo se pueden enviar fotos de la galería de fotos de perfil." });
+    if (!user.inventory.some(id => String(id) === String(item.id))) return res.status(400).json({ error: "Esa foto no está en tu galería (no la tienes)." });
+    const friend = db.users.find(u => String(u.id) === String(friendId));
+    if (!friend) return res.status(404).json({ error: "Usuario no encontrado." });
+    const key = chatKey(user.id, friendId);
+    db.friendChats[key] = db.friendChats[key] || [];
+    db.friendChats[key].push({
+        senderId: user.id,
+        senderUsername: user.username,
+        text: "",
+        imageUrl: item.imageUrl,
+        createdAt: Date.now()
+    });
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// COMENTARIOS: tarjeta pública de perfil y publicaciones del blog
+// ---------------------------------------------------------------------------
+
+function cleanComment(m) { return { ...withAvatar(m) }; }
+
+app.get("/api/users/:id/comments", (req, res) => {
+    const target = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    const enabled = target.allowProfileComments !== false;
+    if (!enabled || target.active === false) return res.json({ enabled: false, comments: [] });
+    const list = ((db.profileComments || {})[target.id] || []).slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 200);
+    res.json({ enabled: true, comments: list.map(cleanComment) });
+});
+
+app.post("/api/users/:id/comments", requireAuth, (req, res) => {
+    const target = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    if (target.allowProfileComments === false) return res.status(403).json({ error: "Este usuario tiene los comentarios desactivados." });
+    const text = String((req.body || {}).text || "").trim().slice(0, 300);
+    if (!text) return res.status(400).json({ error: "El comentario no puede estar vacío." });
+    db.profileComments = db.profileComments || {};
+    db.profileComments[target.id] = db.profileComments[target.id] || [];
+    db.profileComments[target.id].push({ id: nextId(), senderId: req.user.id, senderUsername: req.user.username, text, createdAt: Date.now() });
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/users/:id/comments/delete", requireAuth, (req, res) => {
+    const target = db.users.find(u => String(u.id) === String(req.params.id));
+    if (!target) return res.status(404).json({ error: "Usuario no encontrado." });
+    const list = (db.profileComments || {})[target.id] || [];
+    const cm = list.find(x => String(x.id) === String((req.body || {}).commentId));
+    if (!cm) return res.status(404).json({ error: "Comentario no encontrado." });
+    const allowed = String(cm.senderId) === String(req.user.id) || String(target.id) === String(req.user.id) || isAdminUser(req.user);
+    if (!allowed) return res.status(403).json({ error: "No puedes borrar este comentario." });
+    db.profileComments[target.id] = list.filter(x => x !== cm);
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.get("/api/blog/posts/:id/comments", (req, res) => {
+    const post = (db.blogPosts || []).find(p => String(p.id) === String(req.params.id));
+    if (!post) return res.status(404).json({ error: "Publicación no encontrada." });
+    if (post.commentsEnabled === false) return res.json({ enabled: false, comments: [] });
+    const list = ((db.blogComments || {})[post.id] || []).slice().sort((a, b) => a.createdAt - b.createdAt);
+    res.json({ enabled: true, comments: list.map(cleanComment) });
+});
+
+app.post("/api/blog/posts/:id/comments", requireAuth, (req, res) => {
+    const post = (db.blogPosts || []).find(p => String(p.id) === String(req.params.id));
+    if (!post) return res.status(404).json({ error: "Publicación no encontrada." });
+    if (post.commentsEnabled === false) return res.status(403).json({ error: "Los comentarios de esta publicación están desactivados." });
+    const text = String((req.body || {}).text || "").trim().slice(0, 500);
+    if (!text) return res.status(400).json({ error: "El comentario no puede estar vacío." });
+    db.blogComments = db.blogComments || {};
+    db.blogComments[post.id] = db.blogComments[post.id] || [];
+    db.blogComments[post.id].push({ id: nextId(), senderId: req.user.id, senderUsername: req.user.username, text, createdAt: Date.now() });
+    saveDb();
+    res.json({ ok: true });
+});
+
+app.post("/api/blog/posts/:id/comments/delete", requireAuth, (req, res) => {
+    const list = (db.blogComments || {})[req.params.id] || [];
+    const cm = list.find(x => String(x.id) === String((req.body || {}).commentId));
+    if (!cm) return res.status(404).json({ error: "Comentario no encontrado." });
+    if (String(cm.senderId) !== String(req.user.id) && !isAdminUser(req.user)) return res.status(403).json({ error: "No puedes borrar este comentario." });
+    db.blogComments[req.params.id] = list.filter(x => x !== cm);
+    saveDb();
+    res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// CONEXIÓN CON EL JUEGO (Godot): /connect
+// ---------------------------------------------------------------------------
+
+const CONNECT_REWARD_BLOCKS = 100;
+
+function validAppId(appId) {
+    return String(appId || "").toLowerCase().replace(/[^a-z0-9]/g, "") === "gameblocks";
+}
+
+function roleOf(u) {
+    // El badge co-owner también activa el flag owner (acceso de administración),
+    // así que se comprueba primero para distinguirlo del owner real.
+    if ((u.badges || []).some(b => /co-?owner/i.test((typeof b === "object" ? b.name : b) || ""))) return "coowner";
+    if (u.owner) return "owner";
+    if (isAdminUser(u)) return "admin";
+    return "user";
+}
+
+function connectPayload(u, req) {
+    const base = publicBaseUrl(req);
+    const abs = url => (url && !/^https?:\/\//i.test(url)) ? base + url : url;
+    const modelOf = id => {
+        const it = findItem(id);
+        return it ? { id: it.id, name: it.name, glb: abs(it.glbUrl || null) } : null;
+    };
+    return {
+        ok: true,
+        app_id: "gameblocks",
+        user: { id: u.id, username: u.username },
+        // IDs únicos de los gears equipados (hasta 3), tal como se configuran en el panel de admin.
+        gears: (u.equippedGears || []).map(id => findItem(id)).filter(Boolean).map(it => it.gearId).filter(Boolean),
+        // Solo sombreros (modelos .glb).
+        hats: (u.equippedHats || []).map(modelOf).filter(h => h && h.glb),
+        head: (() => { const h = u.equippedHead ? modelOf(u.equippedHead) : null; return h && h.glb ? h : null; })(),
+        block: hasActiveBlock(u),
+        turbo_block: hasActiveTurboBlock(u),
+        role: roleOf(u),
+        is_admin: isAdminUser(u),
+        is_owner: roleOf(u) === "owner",
+        is_coowner: roleOf(u) === "coowner"
+    };
+}
+
+function finishConnect(u, req, res) {
+    const payload = connectPayload(u, req);
+    let reward = null;
+    if (!u.connectRewardClaimed) {
+        u.connectRewardClaimed = true;
+        u.blocks = (u.blocks || 0) + CONNECT_REWARD_BLOCKS;
+        reward = { blocks: CONNECT_REWARD_BLOCKS, message: `¡El premio por conectar tu cuenta son ${CONNECT_REWARD_BLOCKS} bloques!` };
+        saveDb();
+    }
+    res.json({ ...payload, reward });
+}
+
+// Desde la página /connect (el usuario tiene sesión en la web).
+app.post("/api/connect", requireAuth, (req, res) => {
+    if (!validAppId((req.body || {}).app_id)) return res.status(400).json({ ok: false, error: "app_id no válido." });
+    finishConnect(req.user, req, res);
+});
+
+// Desde el propio juego con el código de vinculación que se genera en la web.
+app.post("/api/connect/by-code", (req, res) => {
+    const { code, app_id } = req.body || {};
+    if (!validAppId(app_id)) return res.status(400).json({ ok: false, error: "app_id no válido." });
+    const entry = (db.gameLinkCodes || {})[String(code || "").toUpperCase()];
+    if (!entry || Date.now() - entry.createdAt > 15 * 60 * 1000) return res.status(400).json({ ok: false, error: "Código no válido o caducado." });
+    const u = db.users.find(x => String(x.id) === String(entry.userId));
+    if (!u) return res.status(404).json({ ok: false, error: "Usuario no encontrado." });
+    finishConnect(u, req, res);
+});
+
 app.post("/api/profile/inventory-visibility", requireAuth, (req, res) => {
     const { public: isPublic } = req.body || {};
     req.user.inventoryPublic = !!isPublic;
@@ -1931,9 +2576,10 @@ app.post("/api/friends/request", requireAuth, (req, res) => {
 });
 
 app.post("/api/profile/settings", requireAuth, (req, res) => {
-    const { allowFriendRequests, allowTradeWithoutFriends } = req.body || {};
+    const { allowFriendRequests, allowTradeWithoutFriends, allowProfileComments } = req.body || {};
     if (allowFriendRequests !== undefined) req.user.allowFriendRequests = !!allowFriendRequests;
     if (allowTradeWithoutFriends !== undefined) req.user.allowTradeWithoutFriends = !!allowTradeWithoutFriends;
+    if (allowProfileComments !== undefined) req.user.allowProfileComments = !!allowProfileComments;
     saveDb();
     res.json({ ok: true });
 });
@@ -2010,6 +2656,10 @@ app.post("/api/chat/upload", requireAuth, upload.single("image"), (req, res) => 
             createdAt: Date.now()
         });
     } else if (friendId) {
+        // En el chat privado ya no se suben archivos: solo se pueden enviar
+        // imágenes de la galería de fotos de perfil (ver /api/chat/send-image).
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+        return res.status(403).json({ error: "En el chat privado solo puedes enviar imágenes de tu galería de fotos de perfil." });
         const key = chatKey(user.id, friendId);
         db.friendChats[key] = db.friendChats[key] || [];
         db.friendChats[key].push({
@@ -2410,6 +3060,10 @@ app.post("/api/trade/accept", requireAuth, (req, res) => {
             fromUser.itemAcquiredTimes[id].push(Date.now());
         }
     });
+    // Los artículos que cambian de dueño dejan de estar en reventa.
+    db.resaleListings = db.resaleListings.filter(l =>
+        !(String(l.sellerId) === String(fromUser.id) && giveIds.map(String).includes(String(l.itemId))) &&
+        !(String(l.sellerId) === String(toUser.id) && getIds.map(String).includes(String(l.itemId))));
     fromUser.coins -= trade.giveCoins;
     toUser.coins += trade.giveCoins;
     toUser.coins -= trade.getCoins;
@@ -2668,12 +3322,13 @@ app.post("/api/admin/blog/posts/category", requireAdmin, (req, res) => {
 });
 
 app.get("/api/blog/posts", (req, res) => {
-    const posts = (db.blogPosts || []).slice().sort((a, b) => b.createdAt - a.createdAt);
+    const posts = (db.blogPosts || []).slice().sort((a, b) => b.createdAt - a.createdAt)
+        .map(p => ({ ...p, commentsEnabled: p.commentsEnabled !== false, commentsCount: ((db.blogComments || {})[p.id] || []).length }));
     res.json({ posts });
 });
 
 app.post("/api/admin/blog/posts", requireAdmin, (req, res) => {
-    const { title, content, imageUrl, category } = req.body || {};
+    const { title, content, imageUrl, category, commentsEnabled } = req.body || {};
     if (!title || !title.trim() || !content || !content.trim()) {
         return res.status(400).json({ error: "Faltan el título o el contenido." });
     }
@@ -2683,6 +3338,7 @@ app.post("/api/admin/blog/posts", requireAdmin, (req, res) => {
         content: content.trim().slice(0, 5000),
         imageUrl: imageUrl || null,
         category: BLOG_CATEGORIES.includes(category) ? category : "Anuncio",
+        commentsEnabled: !(commentsEnabled === false || commentsEnabled === "false"),
         authorUsername: req.user.username,
         createdAt: Date.now()
     };
@@ -2939,6 +3595,14 @@ app.get("/api/admin/backup-status", requireAdmin, (req, res) => {
         githubBackupEnabled: GITHUB_BACKUP_ENABLED,
         repo: GITHUB_BACKUP_ENABLED ? GITHUB_REPO : null,
         path: GITHUB_BACKUP_ENABLED ? GITHUB_BACKUP_PATH : null,
+        s3BackupEnabled: S3_BACKUP_ENABLED,
+        s3Bucket: S3_BACKUP_ENABLED ? S3_BUCKET : null,
+        lastS3Push: lastS3PushAt || null,
+        lastS3Error,
+        s3Safe: s3SafeToBackup,
+        s3UploadsBackedUp: s3Uploads.size,
+        backupDir: BACKUP_DIR,
+        serverVersion: SERVER_VERSION,
         dataDir: DATA_DIR,
         users: (db.users || []).length,
         lastLocalSave: lastLocalSaveAt || null,
@@ -2951,12 +3615,14 @@ app.get("/api/admin/backup-status", requireAdmin, (req, res) => {
 
 app.post("/api/admin/backup-now", requireAdmin, async (req, res) => {
     saveDbNow();
-    if (!GITHUB_BACKUP_ENABLED) {
-        return res.json({ ok: true, message: "Guardado en disco. El backup en GitHub no está configurado (faltan GITHUB_TOKEN / GITHUB_REPO)." });
+    writeBackupDir(true);
+    if (!GITHUB_BACKUP_ENABLED && !S3_BACKUP_ENABLED) {
+        return res.json({ ok: true, message: "Guardado en disco y en la carpeta de seguridad. No hay backup remoto configurado (GitHub o S3)." });
     }
-    await pushDbToGithub();
-    await syncUploadsToGithub();
-    res.json({ ok: !lastGithubError, message: lastGithubError ? `Guardado en disco, pero GitHub falló: ${lastGithubError}` : "Guardado en disco y subido a GitHub." });
+    await Promise.all([pushDbToGithub(), pushDbToS3()]);
+    await Promise.all([syncUploadsToGithub(), syncUploadsToS3()]);
+    const errs = [GITHUB_BACKUP_ENABLED && lastGithubError ? `GitHub: ${lastGithubError}` : null, S3_BACKUP_ENABLED && lastS3Error ? `S3: ${lastS3Error}` : null].filter(Boolean);
+    res.json({ ok: errs.length === 0, message: errs.length ? `Guardado en disco, pero falló: ${errs.join(" | ")}` : "Guardado en disco y subido a todos los destinos configurados." });
 });
 
 // Copia manual: el Owner puede descargar toda la base de datos y volver a importarla.
@@ -2970,8 +3636,10 @@ app.post("/api/admin/import-db", requireAuth, requireOwner, (req, res) => {
     const incoming = req.body && (req.body.db || req.body);
     if (!hasUsers(incoming)) return res.status(400).json({ error: "El archivo no parece una base de datos válida (sin usuarios)." });
     db = Object.assign(defaultDb(), incoming);
+    migrateDb();
     saveDbNow();
     pushDbToGithub();
+    pushDbToS3();
     res.json({ ok: true, users: db.users.length, message: "Base de datos importada. Vuelve a iniciar sesión." });
 });
 
@@ -2988,9 +3656,14 @@ app.post("/api/admin/import-db", requireAuth, requireOwner, (req, res) => {
         console.log(GITHUB_BACKUP_ENABLED
             ? `[GitHub backup] Activado -> ${GITHUB_REPO} (${GITHUB_BACKUP_PATH})`
             : `[GitHub backup] Desactivado (configura GITHUB_TOKEN y GITHUB_REPO para activarlo).`);
+        console.log(S3_BACKUP_ENABLED
+            ? `[S3 backup] Activado -> ${S3_BUCKET}/${S3_PREFIX}`
+            : `[S3 backup] Desactivado (configura S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY y S3_SECRET_KEY).`);
+        console.log(`[DB] Carpeta de seguridad: ${BACKUP_DIR} · versión del servidor: ${SERVER_VERSION}`);
     });
     // Red de seguridad: guarda en disco cada 30 s si hay cambios pendientes, y
     // revisa cada 20 s si hay archivos subidos sin copia en GitHub.
     setInterval(() => { if (dirty) saveDbNow(); }, 30000);
     setInterval(syncUploadsToGithub, 20000);
+    setInterval(syncUploadsToS3, 20000);
 })();
