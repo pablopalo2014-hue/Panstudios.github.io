@@ -27,11 +27,12 @@
     {
       "id": "37aa749cfe1e0f58ee2bd18b926a920f80e9bd987b22bb54",
       "pollSecret": "9bf1102e0b66cb0dcf5866430e2e74bf5ab666df4f78d0077eda7723fe305726",
-      "status": "pending",
+      "status": "approved",
       "createdAt": 1795351980566,
       "expiresAt": 1795352040566,
-      "approvedRole": null,
-      "approvedUsername": null
+      "approvedRole": "op_mod",
+      "approvedUsername": "Game_blocks",
+      "approvedAt": 1795351984398
     }
   ],
   "gameDeletionRequests": []
