@@ -14,6 +14,13 @@
       "passwordHash": "$2a$12$M9zUCYykFbKVGfgyHlykSe2EEpokS3sQ64.xq8I2oHxGSBYy5r6X.",
       "role": "assistant",
       "createdAt": "2026-11-22T12:51:15.981Z"
+    },
+    {
+      "id": "b9217f5b-2113-4544-9881-180d2324794f",
+      "username": "angelotete8",
+      "passwordHash": "$2a$12$JDzEcHjBc7vrcNhF3SeWFeaNwp6pQRpS7.9Ksws1U2c5GqP/Q4kpm",
+      "role": "moderator",
+      "createdAt": "2026-11-22T12:52:45.792Z"
     }
   ],
   "godotRequests": [],
