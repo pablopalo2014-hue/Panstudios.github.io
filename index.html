@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Game Blocks — Panel de servidores</title>
+<title>Game Blocks — Panel de administración</title>
 <style>
 :root{color-scheme:dark;--bg:#101318;--panel:#191f27;--panel2:#222b36;--line:#303b49;--text:#edf2f7;--muted:#a6b2c1;--blue:#4b9cff;--red:#e06464;--green:#54c58b}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px Arial,Helvetica,sans-serif}
@@ -23,6 +23,8 @@ button:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:10px;flex-wr
 .pill{font-size:12px;padding:5px 8px;border-radius:20px;background:#2d3948;color:#c8d8e9}
 hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 #userInfo{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions button{flex:0 0 auto}
 @media(max-width:560px){main{margin:20px auto}.card{padding:16px}header{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
@@ -65,6 +67,14 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
     <div id="requestMessage" class="notice hidden"></div>
   </div>
 
+  <section id="gameDeletionSection" class="card hidden">
+    <h2>Verificación de borrar juegos</h2>
+    <p class="muted">Aquí podrás responder las solicitudes de borrado de juegos de games.json. Solo las cuentas Moderador pueden aprobar o rechazar estas peticiones.</p>
+    <div id="gameDeletionRequests"><p class="muted">Cargando solicitudes...</p></div>
+    <button id="refreshGameDeletionRequests" class="secondary">Actualizar solicitudes</button>
+    <div id="gameDeletionMessage" class="notice hidden"></div>
+  </section>
+
   <section id="opModTools" class="card hidden">
     <h2>Crear cuentas</h2>
     <p class="muted">Solo OP MOD puede crear nuevas cuentas de asistente o moderador.</p>
@@ -78,6 +88,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
     <div id="createUserMessage" class="notice hidden"></div>
     <hr>
     <h2>Cuentas registradas</h2>
+    <p class="muted">OP MOD puede eliminar cuentas de asistentes y moderadores. Las cuentas OP MOD están protegidas.</p>
     <div id="users"><p class="muted">Cargando cuentas...</p></div>
     <button id="refreshUsers" class="secondary">Actualizar cuentas</button>
   </section>
@@ -91,7 +102,9 @@ let currentUser = null;
 let requestRefreshTimer = null;
 
 function showMessage(id, message, type = "") {
-  const el = $(id); el.textContent = message; el.className = "notice" + (type ? " " + type : "");
+  const el = $(id);
+  el.textContent = message;
+  el.className = "notice" + (type ? " " + type : "");
   el.classList.remove("hidden");
 }
 function hideMessage(id) { $(id).classList.add("hidden"); }
@@ -117,10 +130,15 @@ function enterPanel(user) {
   $("userInfo").classList.remove("hidden");
   $("whoami").textContent = `${user.username} · ${roleName(user.role)}`;
   $("opModTools").classList.toggle("hidden", user.role !== "op_mod");
+  $("gameDeletionSection").classList.toggle("hidden", user.role !== "moderator");
   loadRequests();
   if (user.role === "op_mod") loadUsers();
+  if (user.role === "moderator") loadGameDeletionRequests();
   if (requestRefreshTimer) clearInterval(requestRefreshTimer);
-  requestRefreshTimer = setInterval(loadRequests, 2500);
+  requestRefreshTimer = setInterval(() => {
+    loadRequests();
+    if (currentUser?.role === "moderator") loadGameDeletionRequests();
+  }, 5000);
 }
 function leavePanel() {
   currentUser = null;
@@ -128,6 +146,7 @@ function leavePanel() {
   $("userInfo").classList.add("hidden");
   $("auth").classList.remove("hidden");
   if (requestRefreshTimer) clearInterval(requestRefreshTimer);
+  requestRefreshTimer = null;
 }
 async function checkSession() {
   try {
@@ -152,7 +171,6 @@ $("loginForm").addEventListener("submit", async event => {
     enterPanel(data.user);
   } catch(error) { showMessage("loginMessage", error.message, "error"); }
 });
-
 $("bootstrapForm").addEventListener("submit", async event => {
   event.preventDefault(); hideMessage("bootstrapMessage");
   try {
@@ -162,7 +180,6 @@ $("bootstrapForm").addEventListener("submit", async event => {
     enterPanel(data.user);
   } catch(error) { showMessage("bootstrapMessage", error.message, "error"); }
 });
-
 $("logout").addEventListener("click", async () => {
   try { await api("/api/auth/logout", {method:"POST", body:"{}"}); } catch {}
   leavePanel();
@@ -173,11 +190,11 @@ async function loadRequests() {
   try {
     const data = await api("/api/admin/requests");
     const container = $("requests");
+    container.replaceChildren();
     if (!data.requests.length) {
       container.innerHTML = '<p class="muted">No hay solicitudes pendientes.</p>';
       return;
     }
-    container.replaceChildren();
     for (const request of data.requests) {
       const row = document.createElement("div"); row.className = "request";
       const info = document.createElement("div");
@@ -185,7 +202,7 @@ async function loadRequests() {
       const detail = document.createElement("div"); detail.className = "muted";
       detail.textContent = `ID: ${request.id.slice(0, 10)}… · Caduca en ${request.secondsLeft} s`;
       info.append(title, detail);
-      const actions = document.createElement("div"); actions.className = "row";
+      const actions = document.createElement("div"); actions.className = "actions";
       const approve = document.createElement("button"); approve.textContent = "Responder solicitud";
       approve.addEventListener("click", () => answerRequest(request.id, "approve"));
       const reject = document.createElement("button"); reject.textContent = "Rechazar"; reject.className = "secondary";
@@ -206,6 +223,62 @@ async function answerRequest(id, action) {
 }
 $("refreshRequests").addEventListener("click", loadRequests);
 
+async function loadGameDeletionRequests() {
+  if (!currentUser || currentUser.role !== "moderator") return;
+  const container = $("gameDeletionRequests");
+  try {
+    const data = await api("/api/moderation/game-deletions");
+    container.replaceChildren();
+    if (!data.requests.length) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "request";
+      const info = document.createElement("div");
+      const title = document.createElement("strong"); title.textContent = "Posible petición";
+      const detail = document.createElement("div"); detail.className = "muted";
+      detail.textContent = "Todavía no ha llegado ninguna solicitud desde Godot. Este espacio queda preparado para la siguiente petición.";
+      info.append(title, detail);
+      const status = document.createElement("span"); status.className = "pill"; status.textContent = "Esperando";
+      placeholder.append(info, status);
+      container.append(placeholder);
+      return;
+    }
+    for (const request of data.requests) {
+      const row = document.createElement("div"); row.className = "request";
+      const info = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = request.gameName ? `Borrar juego: ${request.gameName}` : "Solicitud de borrar juego";
+      const detail = document.createElement("div"); detail.className = "muted";
+      detail.textContent = `ID del juego: ${request.gameId} · Solicitud: ${request.id.slice(0,10)}…`;
+      info.append(title, detail);
+      const actions = document.createElement("div"); actions.className = "actions";
+      const approve = document.createElement("button"); approve.textContent = "Verificar y borrar"; approve.className = "danger";
+      approve.addEventListener("click", () => answerGameDeletion(request.id, "approve"));
+      const reject = document.createElement("button"); reject.textContent = "Rechazar"; reject.className = "secondary";
+      reject.addEventListener("click", () => answerGameDeletion(request.id, "reject"));
+      actions.append(approve, reject); row.append(info, actions); container.append(row);
+    }
+  } catch(error) {
+    container.textContent = error.message;
+    if (error.message.includes("Inicia sesión") || error.message.includes("sesión ha caducado")) leavePanel();
+  }
+}
+async function answerGameDeletion(id, action) {
+  hideMessage("gameDeletionMessage");
+  const confirmation = action === "approve"
+    ? "¿Confirmas que quieres eliminar este juego de games.json? Esta acción no se puede deshacer desde el panel."
+    : "¿Quieres rechazar esta solicitud?";
+  if (!confirm(confirmation)) return;
+  try {
+    const data = await api(`/api/moderation/game-deletions/${encodeURIComponent(id)}/${action}`, {method:"POST", body:"{}"});
+    showMessage("gameDeletionMessage", data.message || "Solicitud respondida.", "success");
+    loadGameDeletionRequests();
+  } catch(error) {
+    showMessage("gameDeletionMessage", error.message, "error");
+    loadGameDeletionRequests();
+  }
+}
+$("refreshGameDeletionRequests").addEventListener("click", loadGameDeletionRequests);
+
 $("createUserForm").addEventListener("submit", async event => {
   event.preventDefault(); hideMessage("createUserMessage");
   try {
@@ -216,20 +289,43 @@ $("createUserForm").addEventListener("submit", async event => {
     $("createUserForm").reset(); loadUsers();
   } catch(error) { showMessage("createUserMessage", error.message, "error"); }
 });
-
 async function loadUsers() {
   if (!currentUser || currentUser.role !== "op_mod") return;
+  const container = $("users");
   try {
     const data = await api("/api/admin/users");
-    const container = $("users"); container.replaceChildren();
+    container.replaceChildren();
     for (const user of data.users) {
       const row = document.createElement("div"); row.className = "user";
+      const info = document.createElement("div");
       const name = document.createElement("strong"); name.textContent = user.username;
       const role = document.createElement("span"); role.className = "pill"; role.textContent = roleName(user.role);
-      row.append(name, role); container.append(row);
+      info.append(name, document.createTextNode(" "), role);
+      row.append(info);
+      if (user.role !== "op_mod" && user.id !== currentUser.id) {
+        const remove = document.createElement("button");
+        remove.textContent = "Eliminar cuenta";
+        remove.className = "danger";
+        remove.addEventListener("click", () => deleteUser(user.id, user.username));
+        row.append(remove);
+      } else {
+        const protectedLabel = document.createElement("span");
+        protectedLabel.className = "muted";
+        protectedLabel.textContent = "Cuenta protegida";
+        row.append(protectedLabel);
+      }
+      container.append(row);
     }
     if (!data.users.length) container.textContent = "No hay cuentas.";
   } catch(error) { container.textContent = error.message; }
+}
+async function deleteUser(id, username) {
+  if (!confirm(`¿Seguro que quieres eliminar la cuenta de ${username}?`)) return;
+  try {
+    const data = await api(`/api/admin/users/${encodeURIComponent(id)}`, {method:"DELETE"});
+    showMessage("createUserMessage", data.message || "Cuenta eliminada.", "success");
+    loadUsers();
+  } catch(error) { showMessage("createUserMessage", error.message, "error"); }
 }
 $("refreshUsers").addEventListener("click", loadUsers);
 checkSession();
