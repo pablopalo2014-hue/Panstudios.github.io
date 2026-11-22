@@ -7,6 +7,13 @@
       "passwordHash": "$2a$12$viV22VSxvnlEU6J.SyklQ.lTw5/TVt1I3XibrObjifqKItfesGu6e",
       "role": "op_mod",
       "createdAt": "2026-11-22T12:50:32.975Z"
+    },
+    {
+      "id": "fbd6e0bd-2ada-49a3-b1e1-0f935162e1dd",
+      "username": "Danielblocks",
+      "passwordHash": "$2a$12$M9zUCYykFbKVGfgyHlykSe2EEpokS3sQ64.xq8I2oHxGSBYy5r6X.",
+      "role": "assistant",
+      "createdAt": "2026-11-22T12:51:15.981Z"
     }
   ],
   "godotRequests": [],
