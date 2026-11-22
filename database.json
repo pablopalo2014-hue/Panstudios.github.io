@@ -1,6 +1,14 @@
 {
-  "bootstrapUsed": false,
-  "users": [],
+  "bootstrapUsed": true,
+  "users": [
+    {
+      "id": "b883bf82-697f-4572-876f-e0110903146a",
+      "username": "Game_blocks",
+      "passwordHash": "$2a$12$viV22VSxvnlEU6J.SyklQ.lTw5/TVt1I3XibrObjifqKItfesGu6e",
+      "role": "op_mod",
+      "createdAt": "2026-11-22T12:50:32.975Z"
+    }
+  ],
   "godotRequests": [],
   "gameDeletionRequests": []
 }
